@@ -29,12 +29,6 @@ export const register = async (req: Request, res: Response) => {
     // Password is already hashed from frontend, hash again (double hashing)
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Get master admin ID (you'll need to create this first)
-    const masterAdmin = await MasterAdmin.findOne();
-    if (!masterAdmin) {
-      return res.status(400).json({ message: 'Master admin not found' });
-    }
-
     const company = new Company({
       companyName,
       email,
@@ -45,7 +39,6 @@ export const register = async (req: Request, res: Response) => {
       pinCode,
       country,
       password: hashedPassword,
-      createdBy: masterAdmin._id,
     });
 
     await company.save();

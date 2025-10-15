@@ -12,7 +12,6 @@ export interface ICompany extends Document {
   password: string;
   role: 'company_super_admin';
   isActive: boolean;
-  createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -68,11 +67,6 @@ const companySchema = new Schema<ICompany>(
     isActive: {
       type: Boolean,
       default: true,
-    },
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'MasterAdmin',
-      required: true,
     },
   },
   {
