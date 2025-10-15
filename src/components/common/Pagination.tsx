@@ -1,5 +1,5 @@
 import {
-  Pagination,
+  Pagination as UIPagination,
   PaginationContent,
   PaginationEllipsis,
   PaginationItem,
@@ -14,7 +14,7 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
 }
 
-export const CustomPagination: React.FC<PaginationProps> = ({
+export const Pagination: React.FC<PaginationProps> = ({
   currentPage,
   totalPages,
   onPageChange,
@@ -22,7 +22,7 @@ export const CustomPagination: React.FC<PaginationProps> = ({
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   return (
-    <Pagination>
+    <UIPagination>
       <PaginationContent>
         <PaginationItem>
           <PaginationPrevious
@@ -67,6 +67,6 @@ export const CustomPagination: React.FC<PaginationProps> = ({
           />
         </PaginationItem>
       </PaginationContent>
-    </Pagination>
+    </UIPagination>
   );
 };

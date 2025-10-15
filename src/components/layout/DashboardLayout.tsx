@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Shield, LogOut, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { Sidebar } from './Sidebar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,8 +27,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-2">
             <Shield className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold text-foreground">SecurePro</span>
@@ -54,7 +55,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
         </div>
       </header>
 
-      <main className="container py-6">{children}</main>
+      <Sidebar />
+
+      <main className="ml-64 mt-16 p-6">{children}</main>
     </div>
   );
 };
