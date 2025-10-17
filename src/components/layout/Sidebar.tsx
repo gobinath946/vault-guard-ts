@@ -6,6 +6,7 @@ import {
   Settings, 
   Users, 
   FolderTree, 
+  KeyRound,
   BookOpen, 
   Key,
   ChevronLeft,
@@ -41,15 +42,22 @@ const menuItems: MenuItem[] = [
     roles: ['master_admin'],
   },
   {
+    title: 'Users',
+    path: '/users',
+    icon: Users,
+    roles: ['company_super_admin'],
+  },
+  {
     title: 'Organization',
     path: '/organization',
     icon: Key,
     roles: ['company_super_admin'],
   },
+  
   {
-    title: 'Users',
-    path: '/users',
-    icon: Users,
+    title: 'Collections',
+    path: '/collections',
+    icon: BookOpen,
     roles: ['company_super_admin'],
   },
   {
@@ -58,12 +66,12 @@ const menuItems: MenuItem[] = [
     icon: FolderTree,
     roles: ['company_super_admin'],
   },
-  {
-    title: 'Collections',
-    path: '/collections',
-    icon: BookOpen,
-    roles: ['company_super_admin'],
-  },
+ {
+  title: 'Password Creation',
+  path: '/password-creation',
+  icon: KeyRound,
+  roles: ['company_super_admin'],
+}
 ];
 
 export const Sidebar = () => {
