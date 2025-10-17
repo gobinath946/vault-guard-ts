@@ -9,6 +9,8 @@ export interface IPassword extends Document {
   notes: string;
   folderId?: mongoose.Types.ObjectId;
   collectionId?: mongoose.Types.ObjectId;
+  organizationId?: mongoose.Types.ObjectId;
+  sourceType: string;
   createdBy: mongoose.Types.ObjectId;
   sharedWith: mongoose.Types.ObjectId[];
   createdAt: Date;
@@ -51,6 +53,15 @@ const passwordSchema = new Schema<IPassword>(
     collectionId: {
       type: Schema.Types.ObjectId,
       ref: 'Collection',
+    },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+    },
+    sourceType: {
+      type: String,
+      enum: ['organization', 'folder', 'collection'],
+      required: true,
     },
     createdBy: {
       type: Schema.Types.ObjectId,

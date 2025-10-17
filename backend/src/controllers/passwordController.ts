@@ -49,7 +49,17 @@ export const getPasswordById = async (req: AuthRequest, res: Response) => {
 
 export const createPassword = async (req: AuthRequest, res: Response) => {
   try {
-    const { itemName, username, password, websiteUrl, notes, folderId, collectionId } = req.body;
+    const { 
+      itemName, 
+      username, 
+      password, 
+      websiteUrl, 
+      notes, 
+      folderId, 
+      collectionId, 
+      organizationId,
+      sourceType 
+    } = req.body;
     const { id, companyId } = req.user!;
 
     // Encrypt sensitive data
@@ -64,8 +74,10 @@ export const createPassword = async (req: AuthRequest, res: Response) => {
       password: encryptedPassword,
       websiteUrl,
       notes: encryptedNotes,
-      folderId,
-      collectionId,
+      folderId: folderId || undefined,
+      collectionId: collectionId || undefined,
+      organizationId: organizationId || undefined,
+      sourceType, // Store source type
       createdBy: id,
     });
 
@@ -78,10 +90,18 @@ export const createPassword = async (req: AuthRequest, res: Response) => {
 
 export const updatePassword = async (req: AuthRequest, res: Response) => {
   try {
-    const { itemName, username, password, websiteUrl, notes, folderId, collectionId } = req.body;
+    const { itemName, username, password, websiteUrl, notes, folderId, collectionId, organizationId, sourceType } = req.body;
 
     // Encrypt sensitive data if provided
-    const updateData: any = { itemName, websiteUrl, folderId, collectionId, lastModified: new Date() };
+    const updateData: any = { 
+      itemName, 
+      websiteUrl, 
+      folderId: folderId || undefined, 
+      collectionId: collectionId || undefined,
+      organizationId: organizationId || undefined,
+      sourceType,
+      lastModified: new Date() 
+    };
 
     if (username) updateData.username = encrypt(username);
     if (password) updateData.password = encrypt(password);

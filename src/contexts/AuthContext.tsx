@@ -26,18 +26,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedUser = sessionStorage.getItem('user');
 
     if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+      }
     }
     setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
-    const { token, user } = response.data;
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { token, user } = response.data;
 
-    sessionStorage.setItem('token', token);
-    sessionStorage.setItem('user', JSON.stringify(user));
-    setUser(user);
+      sessionStorage.setItem('token', token);
+      sessionStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
+      throw new Error(errorMessage);
+    }
   };
 
   const logout = () => {

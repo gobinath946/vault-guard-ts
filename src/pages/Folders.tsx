@@ -13,8 +13,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface Folder {
   _id: string;
@@ -27,7 +45,10 @@ const Folders = () => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
   const [formData, setFormData] = useState({
     folderName: '',
   });
@@ -37,30 +58,85 @@ const Folders = () => {
     fetchFolders();
   }, []);
 
+  // Reset form when create dialog opens
+  useEffect(() => {
+    if (isCreateDialogOpen) {
+      setFormData({
+        folderName: '',
+      });
+    }
+  }, [isCreateDialogOpen]);
+
   const fetchFolders = async () => {
     try {
-      const data = await folderService.getAll();
-      setFolders(data);
+      const response = await folderService.getAll();
+      setFolders(Array.isArray(response) ? response : response?.data || []);
     } catch (error: any) {
       toast({
         title: 'Error',
         description: 'Failed to fetch folders',
         variant: 'destructive',
       });
+      setFolders([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this folder?')) return;
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await folderService.create(formData);
+      toast({
+        title: 'Success',
+        description: 'Folder created successfully',
+      });
+      setIsCreateDialogOpen(false);
+      // Form will be reset by the useEffect when dialog opens next time
+      fetchFolders();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to create folder',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFolder) return;
 
     try {
-      await folderService.delete(id);
+      await folderService.update(selectedFolder._id, formData);
+      toast({
+        title: 'Success',
+        description: 'Folder updated successfully',
+      });
+      setIsEditDialogOpen(false);
+      setSelectedFolder(null);
+      setFormData({ folderName: '' });
+      fetchFolders();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update folder',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedFolder) return;
+
+    try {
+      await folderService.delete(selectedFolder._id);
       toast({
         title: 'Success',
         description: 'Folder deleted successfully',
       });
+      setIsDeleteDialogOpen(false);
+      setSelectedFolder(null);
       fetchFolders();
     } catch (error: any) {
       toast({
@@ -71,24 +147,15 @@ const Folders = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await folderService.create(formData);
-      toast({
-        title: 'Success',
-        description: 'Folder created successfully',
-      });
-      setIsDialogOpen(false);
-      setFormData({ folderName: '' });
-      fetchFolders();
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: 'Failed to create folder',
-        variant: 'destructive',
-      });
-    }
+  const openEditDialog = (folder: Folder) => {
+    setSelectedFolder(folder);
+    setFormData({ folderName: folder.folderName });
+    setIsEditDialogOpen(true);
+  };
+
+  const openDeleteDialog = (folder: Folder) => {
+    setSelectedFolder(folder);
+    setIsDeleteDialogOpen(true);
   };
 
   const filteredFolders = folders.filter((folder) =>
@@ -113,7 +180,7 @@ const Folders = () => {
             <h2 className="text-3xl font-bold tracking-tight">Folders</h2>
             <p className="text-muted-foreground">Organize your passwords with folders</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -124,7 +191,7 @@ const Folders = () => {
               <DialogHeader>
                 <DialogTitle>Create New Folder</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleCreateSubmit} className="space-y-4">
                 <div>
                   <Label>Folder Name</Label>
                   <Input
@@ -152,38 +219,96 @@ const Folders = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredFolders.map((folder) => (
-              <Card key={folder._id} className="hover:border-primary transition-colors">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FolderIcon className="h-5 w-5 text-primary" />
-                      <span className="text-lg">{folder.folderName}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(folder._id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Created {new Date(folder.createdAt).toLocaleDateString()}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Folders List</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Folder Name</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredFolders.map((folder) => (
+                    <TableRow key={folder._id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <FolderIcon className="h-4 w-4 text-primary" />
+                          {folder.folderName}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(folder.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => openEditDialog(folder)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openDeleteDialog(folder)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         )}
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Folder</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <Label>Folder Name</Label>
+                <Input
+                  required
+                  value={formData.folderName}
+                  onChange={(e) => setFormData({ ...formData, folderName: e.target.value })}
+                  placeholder="e.g., Work Accounts"
+                />
+              </div>
+              <Button type="submit" className="w-full">Update Folder</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the folder
+                "{selectedFolder?.folderName}" and remove all associated data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
