@@ -1,12 +1,51 @@
 import { Button } from '@/components/ui/button';
-import { Shield, Lock, Key, Users, CheckCircle2 } from 'lucide-react';
+import { Shield, Lock, Key, Users, CheckCircle2, ArrowUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 
 const Index = () => {
   const navigate = useNavigate();
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Reset scroll position when component mounts
+  useEffect(() => {
+    // Scroll to top immediately when page loads
+    window.scrollTo(0, 0);
+    
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    
+    // Cleanup function
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  // Scroll to top function
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <Button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 z-50 h-12 w-12 rounded-full p-0 shadow-lg bg-primary hover:bg-primary/90"
+          size="icon"
+        >
+          <ArrowUp className="h-5 w-5 text-primary-foreground" />
+        </Button>
+      )}
+
+      {/* Rest of your code remains exactly the same */}
       {/* Navigation */}
       <nav className="fixed top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
