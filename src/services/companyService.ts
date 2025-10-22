@@ -28,8 +28,12 @@ export const companyService = {
     return response.data;
   },
 
-  getUsers: async () => {
-    const response = await api.get('/company/users');
+  getUsers: async (page = 1, limit = 10, q = '') => {
+    const params = new URLSearchParams();
+    params.append('page', String(page));
+    params.append('limit', String(limit));
+    if (q) params.append('q', q);
+    const response = await api.get(`/company/users?${params.toString()}`);
     return response.data;
   },
 

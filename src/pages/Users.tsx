@@ -32,6 +32,8 @@ const Users = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -39,16 +41,18 @@ const Users = () => {
     password: '',
   });
   const { toast } = useToast();
-  const itemsPerPage = 10;
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    fetchUsers(currentPage, rowsPerPage, searchTerm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, rowsPerPage, searchTerm]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (page = 1, limit = 10, q = '') => {
+    setLoading(true);
     try {
-      const data = await companyService.getUsers();
-      setUsers(data);
+      const data = await companyService.getUsers(page, limit, q);
+      setUsers(data.users);
+      setTotalUsers(data.total);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -99,14 +103,7 @@ const Users = () => {
     }
   };
 
-  const filteredUsers = users.filter((user) =>
-    user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(totalUsers / rowsPerPage);
 
   if (loading) {
     return (
@@ -176,7 +173,7 @@ const Users = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UsersIcon className="h-5 w-5" />
-              All Users ({filteredUsers.length})
+              All Users ({totalUsers})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -193,7 +190,7 @@ const Users = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedUsers.map((user) => (
+                  {users.map((user) => (
                     <tr key={user._id} className="border-b border-border">
                       <td className="p-4 text-sm font-medium">{user.username}</td>
                       <td className="p-4 text-sm">{user.email}</td>
@@ -231,7 +228,10 @@ const Users = () => {
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
+          totalItems={totalUsers}
+          rowsPerPage={rowsPerPage}
           onPageChange={setCurrentPage}
+          onRowsPerPageChange={setRowsPerPage}
         />
       </div>
     </DashboardLayout>

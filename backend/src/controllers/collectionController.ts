@@ -5,8 +5,26 @@ import { AuthRequest } from '../middleware/auth';
 export const getAllCollections = async (req: AuthRequest, res: Response) => {
   try {
     const { companyId } = req.user!;
-    const collections = await Collection.find({ companyId }).populate('passwords');
-    res.json(collections);
+    // Pagination and filtering
+    const page = parseInt((req.query.page as string) || '1');
+    const limit = parseInt((req.query.limit as string) || '20');
+
+    const q = (req.query.q as string) || '';
+    const organizationId = req.query.organizationId as string;
+    const skip = (page - 1) * limit;
+
+    const filter: any = { companyId };
+    if (q) {
+      filter.collectionName = { $regex: q, $options: 'i' };
+    }
+    if (organizationId) {
+      filter.organizationId = organizationId;
+    }
+
+    const total = await Collection.countDocuments(filter);
+    const collections = await Collection.find(filter).skip(skip).limit(limit).sort({ collectionName: 1 }).populate('passwords');
+
+    res.json({ collections, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -26,13 +44,14 @@ export const getCollectionById = async (req: AuthRequest, res: Response) => {
 
 export const createCollection = async (req: AuthRequest, res: Response) => {
   try {
-    const { collectionName, description } = req.body;
+    const { collectionName, description, organizationId } = req.body;
     const { id, companyId } = req.user!;
 
     const collection = new Collection({
       companyId,
       collectionName,
       description,
+      organizationId: organizationId || undefined,
       createdBy: id,
     });
 

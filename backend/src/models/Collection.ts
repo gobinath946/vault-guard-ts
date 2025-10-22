@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface ICollection extends Document {
+  organizationId?: mongoose.Types.ObjectId;
   companyId: mongoose.Types.ObjectId;
   collectionName: string;
   description: string;
@@ -26,6 +27,10 @@ const collectionSchema = new Schema<ICollection>(
     description: {
       type: String,
       trim: true,
+    },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
     },
     passwords: [
       {

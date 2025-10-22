@@ -5,10 +5,12 @@ export interface IPassword extends Document {
   itemName: string;
   username: string;
   password: string;
-  websiteUrl: string;
+  websiteUrls: string[];
   notes: string;
   folderId?: mongoose.Types.ObjectId;
   collectionId?: mongoose.Types.ObjectId;
+  organizationId?: mongoose.Types.ObjectId;
+  sourceType: string;
   createdBy: mongoose.Types.ObjectId;
   sharedWith: mongoose.Types.ObjectId[];
   createdAt: Date;
@@ -36,9 +38,9 @@ const passwordSchema = new Schema<IPassword>(
       type: String,
       required: true,
     },
-    websiteUrl: {
-      type: String,
-      trim: true,
+    websiteUrls: {
+      type: [String],
+      default: [],
     },
     notes: {
       type: String,
@@ -51,6 +53,10 @@ const passwordSchema = new Schema<IPassword>(
     collectionId: {
       type: Schema.Types.ObjectId,
       ref: 'Collection',
+    },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
     },
     createdBy: {
       type: Schema.Types.ObjectId,

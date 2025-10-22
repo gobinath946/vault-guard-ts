@@ -27,8 +27,26 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
 export const getAllUsers = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.user!;
-    const users = await User.find({ companyId: id }).select('-password');
-    res.json(users);
+    const page = parseInt((req.query.page as string) || '1', 10);
+    const limit = parseInt((req.query.limit as string) || '10', 10);
+    const q = (req.query.q as string) || '';
+
+    const query: any = { companyId: id };
+    if (q) {
+      query.$or = [
+        { username: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+      ];
+    }
+
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .select('-password')
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    res.json({ users, total });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

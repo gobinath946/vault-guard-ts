@@ -14,6 +14,7 @@ import Users from "./pages/Users";
 import Folders from "./pages/Folders";
 import Collections from "./pages/Collections";
 import Organization from "./pages/Organization";
+import PasswordCreation from "./pages/password-creation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/folders" element={<Folders />} />
             <Route path="/collections" element={<Collections />} />
             <Route path="/organization" element={<Organization />} />
+            <Route path="/password-creation" element={<PasswordCreation />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

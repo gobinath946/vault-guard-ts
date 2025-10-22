@@ -7,19 +7,39 @@ import { generatePassword } from '../utils/passwordGenerator';
 export const getAllPasswords = async (req: AuthRequest, res: Response) => {
   try {
     const { role, id, companyId } = req.user!;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
 
-    let passwords;
+    let query: any = {};
+    
     if (role === 'company_super_admin') {
-      passwords = await Password.find({ companyId: id });
+      query.companyId = id;
     } else {
       // Company user - only see passwords shared with them
-      passwords = await Password.find({
+      query = {
         companyId,
         $or: [{ createdBy: id }, { sharedWith: id }],
-      });
+      };
     }
 
-    res.json(passwords);
+    // Get total count for pagination
+    const total = await Password.countDocuments(query);
+    
+    // Get paginated passwords
+    const passwords = await Password.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      passwords,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      hasNextPage: page < Math.ceil(total / limit),
+      hasPrevPage: page > 1
+    });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -49,7 +69,16 @@ export const getPasswordById = async (req: AuthRequest, res: Response) => {
 
 export const createPassword = async (req: AuthRequest, res: Response) => {
   try {
-    const { itemName, username, password, websiteUrl, notes, folderId, collectionId } = req.body;
+    const { 
+      itemName, 
+      username, 
+      password, 
+      websiteUrls, 
+      notes, 
+      folderId, 
+      collectionId, 
+      organizationId
+     } = req.body;
     const { id, companyId } = req.user!;
 
     // Encrypt sensitive data
@@ -62,10 +91,11 @@ export const createPassword = async (req: AuthRequest, res: Response) => {
       itemName,
       username: encryptedUsername,
       password: encryptedPassword,
-      websiteUrl,
+      websiteUrls: Array.isArray(websiteUrls) ? websiteUrls : [],
       notes: encryptedNotes,
-      folderId,
-      collectionId,
+      folderId: folderId || undefined,
+      collectionId: collectionId || undefined,
+      organizationId: organizationId || undefined,
       createdBy: id,
     });
 
@@ -78,10 +108,17 @@ export const createPassword = async (req: AuthRequest, res: Response) => {
 
 export const updatePassword = async (req: AuthRequest, res: Response) => {
   try {
-    const { itemName, username, password, websiteUrl, notes, folderId, collectionId } = req.body;
+  const { itemName, username, password, websiteUrls, notes, folderId, collectionId, organizationId } = req.body;
 
     // Encrypt sensitive data if provided
-    const updateData: any = { itemName, websiteUrl, folderId, collectionId, lastModified: new Date() };
+    const updateData: any = { 
+      itemName, 
+      websiteUrls: Array.isArray(websiteUrls) ? websiteUrls : [],
+      folderId: folderId || undefined, 
+      collectionId: collectionId || undefined,
+      organizationId: organizationId || undefined,
+      lastModified: new Date() 
+    };
 
     if (username) updateData.username = encrypt(username);
     if (password) updateData.password = encrypt(password);

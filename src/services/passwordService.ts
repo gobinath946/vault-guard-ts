@@ -5,7 +5,7 @@ export interface Password {
   itemName: string;
   username: string;
   password: string;
-  websiteUrl: string;
+  websiteUrls: string[];
   notes: string;
   folderId?: string;
   collectionId?: string;
@@ -26,8 +26,8 @@ export interface PasswordGeneratorOptions {
 }
 
 export const passwordService = {
-  getAll: async () => {
-    const response = await api.get('/passwords');
+  getAll: async (page = 1, limit = 10) => {
+    const response = await api.get(`/passwords?page=${page}&limit=${limit}`);
     return response.data;
   },
 

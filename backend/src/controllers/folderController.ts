@@ -5,8 +5,28 @@ import { AuthRequest } from '../middleware/auth';
 export const getAllFolders = async (req: AuthRequest, res: Response) => {
   try {
     const { companyId } = req.user!;
-    const folders = await Folder.find({ companyId });
-    res.json(folders);
+    const page = parseInt((req.query.page as string) || '1');
+    const limit = parseInt((req.query.limit as string) || '20');
+    const q = (req.query.q as string) || '';
+    const skip = (page - 1) * limit;
+
+    const organizationId = req.query.organizationId as string;
+    const collectionId = req.query.collectionId as string;
+    const filter: any = { companyId };
+    if (q) {
+      filter.folderName = { $regex: q, $options: 'i' };
+    }
+    if (organizationId) {
+      filter.organizationId = organizationId;
+    }
+    if (collectionId) {
+      filter.collectionId = collectionId;
+    }
+
+    const total = await Folder.countDocuments(filter);
+    const folders = await Folder.find(filter).skip(skip).limit(limit).sort({ folderName: 1 });
+
+    res.json({ folders, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -26,13 +46,15 @@ export const getFolderById = async (req: AuthRequest, res: Response) => {
 
 export const createFolder = async (req: AuthRequest, res: Response) => {
   try {
-    const { folderName, parentFolderId } = req.body;
+    const { folderName, parentFolderId, organizationId, collectionId } = req.body;
     const { id, companyId } = req.user!;
 
     const folder = new Folder({
       companyId,
       folderName,
       parentFolderId,
+      organizationId: organizationId || undefined,
+      collectionId: collectionId || undefined,
       createdBy: id,
     });
 

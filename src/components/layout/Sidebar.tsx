@@ -6,6 +6,7 @@ import {
   Settings, 
   Users, 
   FolderTree, 
+  KeyRound,
   BookOpen, 
   Key,
   ChevronLeft,
@@ -65,6 +66,12 @@ const menuItems: MenuItem[] = [
     roles: ['company_super_admin'],
   },
  
+ {
+  title: 'Password Creation',
+  path: '/password-creation',
+  icon: KeyRound,
+  roles: ['company_super_admin'],
+}
 ];
 
 export const Sidebar = () => {

@@ -4,49 +4,77 @@ interface PasswordOptions {
   lowercase: boolean;
   numbers: boolean;
   special: boolean;
-  minNumbers: number;
-  minSpecial: number;
-  avoidAmbiguous: boolean;
+  minNumbers?: number;
+  minSpecial?: number;
+  avoidAmbiguous?: boolean;
 }
 
-const UPPERCASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';
-const NUMBERS = '0123456789';
-const SPECIAL = '@!*&#$%^&*()_+-=[]{}|;:,.<>?';
-const AMBIGUOUS = 'il1Lo0O';
+const uppercaseChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const lowercaseChars = 'abcdefghijklmnopqrstuvwxyz';
+const numberChars = '0123456789';
+const specialChars = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+const ambiguousChars = '1lI0Oo';
 
 export const generatePassword = (options: PasswordOptions): string => {
-  let charset = '';
+  const {
+    length,
+    uppercase,
+    lowercase,
+    numbers,
+    special,
+    minNumbers = 0,
+    minSpecial = 0,
+    avoidAmbiguous = false,
+  } = options;
+
+  let charPool = '';
   let password = '';
 
-  if (options.uppercase) charset += UPPERCASE;
-  if (options.lowercase) charset += LOWERCASE;
-  if (options.numbers) charset += NUMBERS;
-  if (options.special) charset += SPECIAL;
-
-  if (options.avoidAmbiguous) {
-    charset = charset.split('').filter(char => !AMBIGUOUS.includes(char)).join('');
+  // Build character pool based on options
+  if (uppercase) {
+    charPool += avoidAmbiguous 
+      ? uppercaseChars.split('').filter(c => !ambiguousChars.includes(c)).join('')
+      : uppercaseChars;
+  }
+  if (lowercase) {
+    charPool += avoidAmbiguous
+      ? lowercaseChars.split('').filter(c => !ambiguousChars.includes(c)).join('')
+      : lowercaseChars;
+  }
+  if (numbers) {
+    charPool += avoidAmbiguous
+      ? numberChars.split('').filter(c => !ambiguousChars.includes(c)).join('')
+      : numberChars;
+  }
+  if (special) {
+    charPool += specialChars;
   }
 
-  // Ensure minimum requirements
-  if (options.numbers && options.minNumbers > 0) {
-    for (let i = 0; i < options.minNumbers; i++) {
-      password += NUMBERS[Math.floor(Math.random() * NUMBERS.length)];
-    }
+  // Ensure minimum requirements are met
+  if (charPool.length === 0) {
+    throw new Error('At least one character type must be selected');
   }
 
-  if (options.special && options.minSpecial > 0) {
-    for (let i = 0; i < options.minSpecial; i++) {
-      password += SPECIAL[Math.floor(Math.random() * SPECIAL.length)];
-    }
+  // Add required numbers
+  for (let i = 0; i < minNumbers; i++) {
+    const numChars = avoidAmbiguous
+      ? numberChars.split('').filter(c => !ambiguousChars.includes(c)).join('')
+      : numberChars;
+    password += numChars[Math.floor(Math.random() * numChars.length)];
   }
 
-  // Fill remaining length
-  const remainingLength = options.length - password.length;
-  for (let i = 0; i < remainingLength; i++) {
-    password += charset[Math.floor(Math.random() * charset.length)];
+  // Add required special characters
+  for (let i = 0; i < minSpecial; i++) {
+    password += specialChars[Math.floor(Math.random() * specialChars.length)];
   }
 
-  // Shuffle password
-  return password.split('').sort(() => Math.random() - 0.5).join('');
+  // Fill the rest with random characters from the pool
+  while (password.length < length) {
+    password += charPool[Math.floor(Math.random() * charPool.length)];
+  }
+
+  // Shuffle the password to mix the required characters
+  password = password.split('').sort(() => Math.random() - 0.5).join('');
+
+  return password;
 };

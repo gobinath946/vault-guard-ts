@@ -3,11 +3,9 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SearchBar } from '@/components/common/SearchBar';
+import { Plus, Edit, Trash2, Building2 } from 'lucide-react';
+import { organizationService, Organization } from '@/services/organizationService';
 import { Pagination } from '@/components/common/Pagination';
-import { Plus, Edit, Trash2, Key, Eye, Copy, RefreshCw } from 'lucide-react';
-import { passwordService, PasswordGeneratorOptions } from '@/services/passwordService';
-import { folderService } from '@/services/folderService';
-import { collectionService } from '@/services/collectionService';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -16,194 +14,191 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Slider } from '@/components/ui/slider';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
-interface Password {
-  _id: string;
-  itemName: string;
-  username: string;
-  password: string;
-  websiteUrl: string;
-  notes: string;
-  createdAt: string;
-}
-
-const Organization = () => {
-  const [passwords, setPasswords] = useState<Password[]>([]);
-  const [folders, setFolders] = useState([]);
-  const [collections, setCollections] = useState([]);
+const Organizations = () => {
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalOrganizations, setTotalOrganizations] = useState(0);
+  
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleRowsPerPageChange = (newRows: number) => {
+    setRowsPerPage(newRows);
+    setCurrentPage(1);
+  };
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
   const [formData, setFormData] = useState({
-    itemName: '',
-    username: '',
-    password: '',
-    websiteUrl: '',
-    notes: '',
-    folderId: '',
-    collectionId: '',
+    organizationName: '',
+    organizationEmail: '',
   });
-  const [generatorOptions, setGeneratorOptions] = useState<PasswordGeneratorOptions>({
-    length: 16,
-    uppercase: true,
-    lowercase: true,
-    numbers: true,
-    special: true,
-    minNumbers: 1,
-    minSpecial: 1,
-    avoidAmbiguous: false,
-  });
-  const [generatedPassword, setGeneratedPassword] = useState('');
   const { toast } = useToast();
-  const itemsPerPage = 10;
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchOrganizations(currentPage, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, rowsPerPage]);
 
-  const fetchData = async () => {
+  // Reset form when create dialog opens
+  useEffect(() => {
+    if (isCreateDialogOpen) {
+      setFormData({
+        organizationName: '',
+        organizationEmail: '',
+      });
+    }
+  }, [isCreateDialogOpen]);
+
+  const fetchOrganizations = async (page = 1, limit = 10) => {
     try {
-      const [passwordsData, foldersData, collectionsData] = await Promise.all([
-        passwordService.getAll(),
-        folderService.getAll(),
-        collectionService.getAll(),
-      ]);
-      setPasswords(passwordsData);
-      setFolders(foldersData);
-      setCollections(collectionsData);
+      setLoading(true);
+      const data = await organizationService.getAll(page, limit);
+      // data may be array (old API) or paginated object { organizations, total }
+      if (Array.isArray(data)) {
+        setOrganizations(data);
+        setTotalOrganizations(data.length);
+      } else if (data && Array.isArray(data.organizations)) {
+        setOrganizations(data.organizations);
+        setTotalOrganizations(typeof data.total === 'number' ? data.total : data.organizations.length);
+      } else {
+        setOrganizations([]);
+        setTotalOrganizations(0);
+      }
     } catch (error: any) {
+      console.error('Error fetching organizations:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch data',
+        description: 'Failed to fetch organizations. Please check if the server is running.',
         variant: 'destructive',
       });
+      setOrganizations([]);
+      setTotalOrganizations(0);
     } finally {
       setLoading(false);
     }
   };
 
-  const generatePassword = async () => {
-    try {
-      const response = await passwordService.generate(generatorOptions);
-      setGeneratedPassword(response.password);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: 'Failed to generate password',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const useGeneratedPassword = () => {
-    setFormData({ ...formData, password: generatedPassword });
-    setIsGeneratorOpen(false);
-    toast({
-      title: 'Success',
-      description: 'Password applied to form',
-    });
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this password?')) return;
-
-    try {
-      await passwordService.delete(id);
-      toast({
-        title: 'Success',
-        description: 'Password deleted successfully',
-      });
-      fetchData();
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete password',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await passwordService.create(formData);
+      await organizationService.create(formData);
       toast({
         title: 'Success',
-        description: 'Password created successfully',
+        description: 'Organization created successfully',
       });
-      setIsDialogOpen(false);
-      setFormData({
-        itemName: '',
-        username: '',
-        password: '',
-        websiteUrl: '',
-        notes: '',
-        folderId: '',
-        collectionId: '',
-      });
-      fetchData();
+      setIsCreateDialogOpen(false);
+      // Form will be reset by the useEffect when dialog opens next time
+      // after creating a new org, refresh first page so new item appears
+      setCurrentPage(1);
+      fetchOrganizations(1, rowsPerPage);
     } catch (error: any) {
+      console.error('Error creating organization:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to create organization. Please check your connection.';
       toast({
         title: 'Error',
-        description: 'Failed to create password',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
   };
 
-  const togglePasswordVisibility = async (id: string) => {
-    if (!visiblePasswords.has(id)) {
-      try {
-        const decrypted = await passwordService.getById(id);
-        setPasswords((prev) =>
-          prev.map((p) => (p._id === id ? decrypted : p))
-        );
-        setVisiblePasswords((prev) => new Set(prev).add(id));
-      } catch (error: any) {
-        toast({
-          title: 'Error',
-          description: 'Failed to decrypt password',
-          variant: 'destructive',
-        });
-      }
-    } else {
-      setVisiblePasswords((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrganization) return;
+
+    try {
+      await organizationService.update(selectedOrganization._id, formData);
+      toast({
+        title: 'Success',
+        description: 'Organization updated successfully',
+      });
+      setIsEditDialogOpen(false);
+      setSelectedOrganization(null);
+      setFormData({ organizationName: '', organizationEmail: '' });
+      fetchOrganizations(currentPage, rowsPerPage);
+    } catch (error: any) {
+      console.error('Error updating organization:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to update organization.';
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
       });
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: 'Copied',
-      description: `${label} copied to clipboard`,
-    });
+  const handleDelete = async () => {
+    if (!selectedOrganization) return;
+
+    try {
+      await organizationService.delete(selectedOrganization._id);
+      toast({
+        title: 'Success',
+        description: 'Organization deleted successfully',
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedOrganization(null);
+  // refresh current page
+  fetchOrganizations(currentPage, rowsPerPage);
+    } catch (error: any) {
+      console.error('Error deleting organization:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete organization',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const filteredPasswords = passwords.filter((password) =>
-    password.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    password.websiteUrl.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const openEditDialog = (organization: Organization) => {
+    setSelectedOrganization(organization);
+    setFormData({
+      organizationName: organization.organizationName,
+      organizationEmail: organization.organizationEmail,
+    });
+    setIsEditDialogOpen(true);
+  };
 
-  const totalPages = Math.ceil(filteredPasswords.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedPasswords = filteredPasswords.slice(startIndex, startIndex + itemsPerPage);
+  const openDeleteDialog = (organization: Organization) => {
+    setSelectedOrganization(organization);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const filteredOrganizations = (organizations || []).filter((org) =>
+    org.organizationName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    org.organizationEmail.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (loading) {
     return (
-      <DashboardLayout title="Organization">
+      <DashboardLayout title="Organizations">
         <div className="flex h-96 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
         </div>
@@ -212,266 +207,181 @@ const Organization = () => {
   }
 
   return (
-    <DashboardLayout title="Organization">
+    <DashboardLayout title="Organizations">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Organization</h2>
-            <p className="text-muted-foreground">Manage all your passwords and login entries</p>
+            <h2 className="text-3xl font-bold tracking-tight">Organizations</h2>
+            <p className="text-muted-foreground">Manage your organizations</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Password
+                New Organization
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create New Login Entry</DialogTitle>
+                <DialogTitle>Create New Organization</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleCreateSubmit} className="space-y-4">
                 <div>
-                  <Label>Item Name</Label>
+                  <Label>Organization Name *</Label>
                   <Input
                     required
-                    value={formData.itemName}
-                    onChange={(e) => setFormData({ ...formData, itemName: e.target.value })}
-                    placeholder="e.g., Gmail Account"
+                    value={formData.organizationName}
+                    onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
+                    placeholder="e.g., Acme Corporation"
                   />
                 </div>
                 <div>
-                  <Label>Username</Label>
+                  <Label>Organization Email *</Label>
                   <Input
                     required
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    type="email"
+                    value={formData.organizationEmail}
+                    onChange={(e) => setFormData({ ...formData, organizationEmail: e.target.value })}
+                    placeholder="e.g., admin@acme.com"
                   />
                 </div>
-                <div>
-                  <Label>Password</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      required
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    />
-                    <Button type="button" variant="outline" onClick={() => setIsGeneratorOpen(true)}>
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Label>Website URL</Label>
-                  <Input
-                    type="url"
-                    value={formData.websiteUrl}
-                    onChange={(e) => setFormData({ ...formData, websiteUrl: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Notes</Label>
-                  <Textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Folder</Label>
-                    <Select value={formData.folderId} onValueChange={(value) => setFormData({ ...formData, folderId: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select folder" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {folders.map((folder: any) => (
-                          <SelectItem key={folder._id} value={folder._id}>
-                            {folder.folderName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Collection</Label>
-                    <Select value={formData.collectionId} onValueChange={(value) => setFormData({ ...formData, collectionId: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select collection" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {collections.map((collection: any) => (
-                          <SelectItem key={collection._id} value={collection._id}>
-                            {collection.collectionName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <Button type="submit" className="w-full">Create Entry</Button>
+                <Button type="submit" className="w-full">Create Organization</Button>
               </form>
             </DialogContent>
           </Dialog>
         </div>
 
-        <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search passwords..." />
+        <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search organizations..." />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              All Passwords ({filteredPasswords.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Name</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Username</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Password</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Website</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedPasswords.map((password) => (
-                    <tr key={password._id} className="border-b border-border">
-                      <td className="p-4 text-sm font-medium">{password.itemName}</td>
-                      <td className="p-4 text-sm font-mono">
+        {filteredOrganizations.length === 0 && !loading ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Building2 className="mb-4 h-12 w-12 text-muted-foreground" />
+              <p className="text-center text-muted-foreground">
+                No organizations yet. Create your first organization to get started.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Organizations List</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Organization Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOrganizations.map((organization) => (
+                    <TableRow key={organization._id}>
+                      <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          {visiblePasswords.has(password._id) ? password.username : '••••••••'}
-                          <Button size="sm" variant="ghost" onClick={() => copyToClipboard(password.username, 'Username')}>
-                            <Copy className="h-3 w-3" />
-                          </Button>
+                          <Building2 className="h-4 w-4 text-primary" />
+                          {organization.organizationName}
                         </div>
-                      </td>
-                      <td className="p-4 text-sm font-mono">
-                        <div className="flex items-center gap-2">
-                          {visiblePasswords.has(password._id) ? password.password : '••••••••'}
-                          <Button size="sm" variant="ghost" onClick={() => togglePasswordVisibility(password._id)}>
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => copyToClipboard(password.password, 'Password')}>
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm">{password.websiteUrl}</td>
-                      <td className="p-4">
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="ghost">
+                      </TableCell>
+                      <TableCell>{organization.organizationEmail}</TableCell>
+                      <TableCell>
+                        {new Date(organization.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => openEditDialog(organization)}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(password._id)}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openDeleteDialog(organization)}
+                          >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      </div>
-
-      {/* Password Generator Dialog */}
-      <Dialog open={isGeneratorOpen} onOpenChange={setIsGeneratorOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Password Generator</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Length: {generatorOptions.length}</Label>
-              <Slider
-                value={[generatorOptions.length]}
-                onValueChange={(value) => setGeneratorOptions({ ...generatorOptions, length: value[0] })}
-                min={12}
-                max={128}
-                step={1}
+          {/* Pagination */}
+          
+            <div className="flex justify-end">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.max(1, Math.ceil(totalOrganizations / rowsPerPage))}
+                totalItems={totalOrganizations}
+                rowsPerPage={rowsPerPage}
+                onPageChange={handlePageChange}
+                onRowsPerPageChange={handleRowsPerPageChange}
               />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={generatorOptions.uppercase}
-                  onCheckedChange={(checked) => setGeneratorOptions({ ...generatorOptions, uppercase: checked as boolean })}
-                />
-                <Label>Uppercase (A-Z)</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={generatorOptions.lowercase}
-                  onCheckedChange={(checked) => setGeneratorOptions({ ...generatorOptions, lowercase: checked as boolean })}
-                />
-                <Label>Lowercase (a-z)</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={generatorOptions.numbers}
-                  onCheckedChange={(checked) => setGeneratorOptions({ ...generatorOptions, numbers: checked as boolean })}
-                />
-                <Label>Numbers (0-9)</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={generatorOptions.special}
-                  onCheckedChange={(checked) => setGeneratorOptions({ ...generatorOptions, special: checked as boolean })}
-                />
-                <Label>Special Characters</Label>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+          
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Organization</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
-                <Label>Min Numbers</Label>
+                <Label>Organization Name *</Label>
                 <Input
-                  type="number"
-                  value={generatorOptions.minNumbers}
-                  onChange={(e) => setGeneratorOptions({ ...generatorOptions, minNumbers: parseInt(e.target.value) })}
+                  required
+                  value={formData.organizationName}
+                  onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
+                  placeholder="e.g., Acme Corporation"
                 />
               </div>
               <div>
-                <Label>Min Special</Label>
+                <Label>Organization Email *</Label>
                 <Input
-                  type="number"
-                  value={generatorOptions.minSpecial}
-                  onChange={(e) => setGeneratorOptions({ ...generatorOptions, minSpecial: parseInt(e.target.value) })}
+                  required
+                  type="email"
+                  value={formData.organizationEmail}
+                  onChange={(e) => setFormData({ ...formData, organizationEmail: e.target.value })}
+                  placeholder="e.g., admin@acme.com"
                 />
               </div>
-            </div>
-            <Button onClick={generatePassword} className="w-full">
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Generate Password
-            </Button>
-            {generatedPassword && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <code className="text-sm">{generatedPassword}</code>
-                  <Button size="sm" variant="ghost" onClick={() => copyToClipboard(generatedPassword, 'Password')}>
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Button onClick={useGeneratedPassword} className="w-full">
-                  Use This Password
-                </Button>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+              <Button type="submit" className="w-full">Update Organization</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the organization
+                "{selectedOrganization?.organizationName}" and remove all associated data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </DashboardLayout>
   );
 };
 
-export default Organization;
+export default Organizations;

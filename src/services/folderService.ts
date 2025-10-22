@@ -4,6 +4,8 @@ export interface Folder {
   _id: string;
   folderName: string;
   parentFolderId?: string;
+  organizationId?: string;
+  collectionId?: string;
   companyId: string;
   createdBy: string;
   sharedWith: string[];
@@ -12,8 +14,14 @@ export interface Folder {
 }
 
 export const folderService = {
-  getAll: async () => {
-    const response = await api.get('/folders');
+  getAll: async (page = 1, limit = 20, q = '', organizationId?: string, collectionId?: string) => {
+    const params = new URLSearchParams();
+    params.append('page', String(page));
+    params.append('limit', String(limit));
+    if (q) params.append('q', q);
+    if (organizationId) params.append('organizationId', organizationId);
+    if (collectionId) params.append('collectionId', collectionId);
+    const response = await api.get(`/folders?${params.toString()}`);
     return response.data;
   },
 

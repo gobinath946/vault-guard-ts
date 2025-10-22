@@ -13,8 +13,13 @@ export interface Collection {
 }
 
 export const collectionService = {
-  getAll: async () => {
-    const response = await api.get('/collections');
+  getAll: async (page = 1, limit = 20, q = '', organizationId?: string) => {
+    const params = new URLSearchParams();
+    params.append('page', String(page));
+    params.append('limit', String(limit));
+    if (q) params.append('q', q);
+    if (organizationId) params.append('organizationId', organizationId);
+    const response = await api.get(`/collections?${params.toString()}`);
     return response.data;
   },
 
