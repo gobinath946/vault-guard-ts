@@ -15,7 +15,9 @@ import Folders from "./pages/Folders";
 import Collections from "./pages/Collections";
 import Organization from "./pages/Organization";
 import PasswordCreation from "./pages/password-creation";
+import Trash from "./pages/Trash"
 import NotFound from "./pages/NotFound";
+
 
 const queryClient = new QueryClient();
 
@@ -27,7 +29,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Index />} />app.ts
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
@@ -38,6 +40,7 @@ const App = () => (
             <Route path="/collections" element={<Collections />} />
             <Route path="/organization" element={<Organization />} />
             <Route path="/password-creation" element={<PasswordCreation />} />
+            <Route path="/trash" element={<Trash />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

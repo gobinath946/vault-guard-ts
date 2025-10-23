@@ -4,7 +4,7 @@ import {
   getOrganizationById,
   createOrganization,
   updateOrganization,
-  deleteOrganization,
+  softDeleteOrganization,
 } from '../controllers/organizationController';
 import { authenticate } from '../middleware/auth';
 
@@ -16,6 +16,6 @@ router.get('/', getAllOrganizations);
 router.get('/:id', getOrganizationById);
 router.post('/', createOrganization);
 router.put('/:id', updateOrganization);
-router.delete('/:id', deleteOrganization);
+router.delete('/:id', softDeleteOrganization);
 
 export default router;

@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import Organization from '../models/Organization';
+import Trash from '../models/Trash';
 import { AuthRequest } from '../middleware/auth';
 
 export const getAllOrganizations = async (req: AuthRequest, res: Response) => {
@@ -81,13 +82,31 @@ export const updateOrganization = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deleteOrganization = async (req: AuthRequest, res: Response) => {
+export const softDeleteOrganization = async (req: AuthRequest, res: Response) => {
   try {
-    const organization = await Organization.findByIdAndDelete(req.params.id);
+    const { id: userId } = req.user!;
+    const { companyId } = req.user!;
+
+    const organization = await Organization.findById(req.params.id);
     if (!organization) {
       return res.status(404).json({ message: 'Organization not found' });
     }
-    res.json({ message: 'Organization deleted successfully' });
+
+    // Create trash record
+    const trashRecord = new Trash({
+      companyId,
+      itemId: organization._id,
+      itemType: 'organization',
+      itemName: organization.organizationName,
+      originalData: organization.toObject(),
+      deletedBy: userId,
+      deletedFrom: 'Organizations',
+    });
+
+    await trashRecord.save();
+    await Organization.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Organization moved to trash successfully' });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

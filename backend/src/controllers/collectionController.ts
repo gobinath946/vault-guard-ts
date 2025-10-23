@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import Collection from '../models/Collection';
+import Trash from '../models/Trash';
 import { AuthRequest } from '../middleware/auth';
 
 export const getAllCollections = async (req: AuthRequest, res: Response) => {
@@ -79,13 +80,31 @@ export const updateCollection = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deleteCollection = async (req: AuthRequest, res: Response) => {
+export const softDeleteCollection = async (req: AuthRequest, res: Response) => {
   try {
-    const collection = await Collection.findByIdAndDelete(req.params.id);
+    const { id: userId } = req.user!;
+    const { companyId } = req.user!;
+
+    const collection = await Collection.findById(req.params.id);
     if (!collection) {
       return res.status(404).json({ message: 'Collection not found' });
     }
-    res.json({ message: 'Collection deleted successfully' });
+
+    // Create trash record
+    const trashRecord = new Trash({
+      companyId,
+      itemId: collection._id,
+      itemType: 'collection',
+      itemName: collection.collectionName,
+      originalData: collection.toObject(),
+      deletedBy: userId,
+      deletedFrom: 'Collections',
+    });
+
+    await trashRecord.save();
+    await Collection.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Collection moved to trash successfully' });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

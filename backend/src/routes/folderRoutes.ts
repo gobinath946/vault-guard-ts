@@ -4,7 +4,7 @@ import {
   getFolderById,
   createFolder,
   updateFolder,
-  deleteFolder,
+  softDeleteFolder,
 } from '../controllers/folderController';
 import { authenticate } from '../middleware/auth';
 
@@ -16,6 +16,6 @@ router.get('/', getAllFolders);
 router.get('/:id', getFolderById);
 router.post('/', createFolder);
 router.put('/:id', updateFolder);
-router.delete('/:id', deleteFolder);
+router.delete('/:id', softDeleteFolder);
 
 export default router;

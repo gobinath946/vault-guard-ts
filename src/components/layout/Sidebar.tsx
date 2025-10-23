@@ -10,7 +10,8 @@ import {
   BookOpen, 
   Key,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Trash
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -70,6 +71,13 @@ const menuItems: MenuItem[] = [
   title: 'Password Creation',
   path: '/password-creation',
   icon: KeyRound,
+  roles: ['company_super_admin'],
+},
+
+{
+  title: 'Trash',
+  path: '/trash',
+  icon: Trash,
   roles: ['company_super_admin'],
 }
 ];
