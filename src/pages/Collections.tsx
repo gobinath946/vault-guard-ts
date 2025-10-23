@@ -7,6 +7,7 @@ import { Plus, Edit, Trash2, BookOpen } from 'lucide-react';
 import { collectionService } from '@/services/collectionService';
 import { Pagination } from '@/components/common/Pagination';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog,
   DialogContent,
@@ -49,7 +50,7 @@ const Collections = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
   // Auth context for permission filtering
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { user } = require('@/contexts/AuthContext').useAuth();
+  const { user, isLoading } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCollections, setTotalCollections] = useState(0);
