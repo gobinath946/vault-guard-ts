@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 
 export const getAllFolders = async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId } = req.user!;
+    const { companyId, role, permissions } = req.user!;
     const page = parseInt((req.query.page as string) || '1');
     const limit = parseInt((req.query.limit as string) || '20');
     const q = (req.query.q as string) || '';
@@ -21,6 +21,11 @@ export const getAllFolders = async (req: AuthRequest, res: Response) => {
     }
     if (collectionId) {
       filter.collectionId = collectionId;
+    }
+
+    // Permission-based filtering for company_user
+    if (role === 'company_user') {
+      filter._id = { $in: permissions?.folders || [] };
     }
 
     const total = await Folder.countDocuments(filter);

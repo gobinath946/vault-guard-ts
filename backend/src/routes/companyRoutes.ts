@@ -6,6 +6,9 @@ import {
   updateUser,
   deleteUser,
   updatePermissions,
+  getOrganizations,
+  getCollections,
+  getFolders,
 } from '../controllers/companyController';
 import { authenticate, authorize } from '../middleware/auth';
 
@@ -20,5 +23,10 @@ router.post('/users', createUser);
 router.put('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 router.put('/users/:id/permissions', updatePermissions);
+
+// New routes for hierarchical data
+router.get('/organizations', getOrganizations);
+router.get('/organizations/:organizationId/collections', getCollections);
+router.get('/organizations/:organizationId/folders', getFolders);
 
 export default router;

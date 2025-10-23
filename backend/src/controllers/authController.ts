@@ -55,6 +55,7 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    console.log('[LOGIN] Attempt:', { email });
 
     // Check all user types
     let user: any = await MasterAdmin.findOne({ email });
@@ -71,31 +72,39 @@ export const login = async (req: Request, res: Response) => {
     }
 
     if (!user) {
+      console.log('[LOGIN] No user found for email:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Password is already hashed from frontend, compare with stored hash
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log('[LOGIN] Password mismatch for user:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Check if user is active (for company users)
     if (role !== 'master_admin' && !user.isActive) {
+      console.log('[LOGIN] Inactive user:', email);
       return res.status(403).json({ message: 'Account is inactive' });
     }
 
+    const jwtPayload: any = {
+      id: user._id,
+      email: user.email,
+      role,
+      companyId: role === 'company_user' ? user.companyId._id : user._id,
+    };
+    if (role === 'company_user') {
+      jwtPayload.permissions = user.permissions;
+    }
     const token = jwt.sign(
-      {
-        id: user._id,
-        email: user.email,
-        role,
-        companyId: role === 'company_user' ? user.companyId._id : user._id,
-      },
+      jwtPayload,
       process.env.JWT_SECRET || 'secret',
       { expiresIn: '7d' }
     );
 
+    console.log('[LOGIN] Success:', { email, role });
     res.json({
       token,
       user: {
@@ -103,9 +112,11 @@ export const login = async (req: Request, res: Response) => {
         email: user.email,
         role,
         companyId: role === 'company_user' ? user.companyId._id : user._id,
+        permissions: role === 'company_user' ? user.permissions : undefined,
       },
     });
   } catch (error: any) {
+    console.error('[LOGIN] Error:', error);
     res.status(500).json({ message: error.message });
   }
 };

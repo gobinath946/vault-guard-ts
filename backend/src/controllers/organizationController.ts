@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 
 export const getAllOrganizations = async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId } = req.user!;
+    const { companyId, role, permissions } = req.user!;
     // Pagination and filtering
     const page = parseInt((req.query.page as string) || '1');
     const limit = parseInt((req.query.limit as string) || '20');
@@ -12,6 +12,9 @@ export const getAllOrganizations = async (req: AuthRequest, res: Response) => {
     const skip = (page - 1) * limit;
 
     const filter: any = { companyId };
+    if (role === 'company_user' && permissions?.organizations?.length) {
+      filter._id = { $in: permissions.organizations };
+    }
     if (q) {
       filter.$or = [
         { organizationName: { $regex: q, $options: 'i' } },

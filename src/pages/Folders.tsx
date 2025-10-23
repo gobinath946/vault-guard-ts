@@ -47,6 +47,9 @@ interface Folder {
 
 const Folders = () => {
   const [folders, setFolders] = useState<Folder[]>([]);
+  // Auth context for permission filtering
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { user } = require('@/contexts/AuthContext').useAuth();
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -275,7 +278,11 @@ const Folders = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  // No client-side filtering; folders is already paginated from server
+  // Permission-based filtering for company_user
+  let filteredFolders = folders;
+  if (user?.role === 'company_user' && user.permissions?.folders) {
+    filteredFolders = folders.filter((folder) => user.permissions!.folders!.includes(folder._id));
+  }
 
   if (loading) {
     return (
@@ -356,7 +363,7 @@ const Folders = () => {
 
   <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search folders..." />
 
-  {folders.length === 0 ? (
+  {filteredFolders.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <FolderTree className="mb-4 h-12 w-12 text-muted-foreground" />
@@ -380,7 +387,7 @@ const Folders = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {folders.map((folder) => (
+                  {filteredFolders.map((folder) => (
                     <TableRow key={folder._id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">

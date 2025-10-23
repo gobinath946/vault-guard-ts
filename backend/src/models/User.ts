@@ -8,9 +8,9 @@ export interface IUser extends Document {
   role: 'company_user';
   isActive: boolean;
   permissions: {
-    folders: mongoose.Types.ObjectId[];
+    organizations: mongoose.Types.ObjectId[];
     collections: mongoose.Types.ObjectId[];
-    passwords: mongoose.Types.ObjectId[];
+    folders: mongoose.Types.ObjectId[];
   };
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -50,13 +50,22 @@ const userSchema = new Schema<IUser>(
       default: true,
     },
     permissions: {
-      folders: [{ type: Schema.Types.ObjectId, ref: 'Folder' }],
-      collections: [{ type: Schema.Types.ObjectId, ref: 'Collection' }],
-      passwords: [{ type: Schema.Types.ObjectId, ref: 'Password' }],
+      organizations: [{ 
+        type: Schema.Types.ObjectId, 
+        ref: 'Organization' 
+      }],
+      collections: [{ 
+        type: Schema.Types.ObjectId, 
+        ref: 'Collection' 
+      }],
+      folders: [{ 
+        type: Schema.Types.ObjectId, 
+        ref: 'Folder' 
+      }]
     },
     createdBy: {
       type: Schema.Types.ObjectId,
-      ref: 'Company',
+      ref: 'User',
       required: true,
     },
   },
@@ -64,5 +73,9 @@ const userSchema = new Schema<IUser>(
     timestamps: true,
   }
 );
+
+// Index for better query performance
+userSchema.index({ companyId: 1, email: 1 });
+userSchema.index({ companyId: 1, isActive: 1 });
 
 export default mongoose.model<IUser>('User', userSchema);

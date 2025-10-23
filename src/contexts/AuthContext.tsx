@@ -6,6 +6,11 @@ interface User {
   email: string;
   role: 'master_admin' | 'company_super_admin' | 'company_user';
   companyId?: string;
+  permissions?: {
+    organizations?: string[];
+    collections?: string[];
+    folders?: string[];
+  };
 }
 
 interface AuthContextType {

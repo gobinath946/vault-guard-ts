@@ -37,6 +37,9 @@ import {
 
 const Organizations = () => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  // Auth context for permission filtering
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { user } = require('@/contexts/AuthContext').useAuth();
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -191,7 +194,13 @@ const Organizations = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  const filteredOrganizations = (organizations || []).filter((org) =>
+  // Permission-based filtering for company_user
+  let filteredOrganizations = organizations;
+  if (user?.role === 'company_user' && user.permissions?.organizations) {
+    filteredOrganizations = organizations.filter((org) => user.permissions!.organizations!.includes(org._id));
+  }
+  // Search filter
+  filteredOrganizations = filteredOrganizations.filter((org) =>
     org.organizationName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     org.organizationEmail.toLowerCase().includes(searchTerm.toLowerCase())
   );

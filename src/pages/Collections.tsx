@@ -47,6 +47,9 @@ interface Collection {
 
 const Collections = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
+  // Auth context for permission filtering
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { user } = require('@/contexts/AuthContext').useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCollections, setTotalCollections] = useState(0);
@@ -203,7 +206,13 @@ const Collections = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  const filteredCollections = collections.filter((collection) =>
+  // Permission-based filtering for company_user
+  let filteredCollections = collections;
+  if (user?.role === 'company_user' && user.permissions?.collections) {
+    filteredCollections = collections.filter((col) => user.permissions!.collections!.includes(col._id));
+  }
+  // Search filter
+  filteredCollections = filteredCollections.filter((collection) =>
     collection.collectionName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 

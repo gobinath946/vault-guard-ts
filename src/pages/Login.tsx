@@ -36,11 +36,13 @@ const Login = () => {
   const onSubmit = async (data: LoginFormData) => {
     try {
       setIsLoading(true);
-      
+      console.debug('Login form submitted:', data);
       // Hash password on frontend (first hash)
       const hashedPassword = hashPassword(data.password);
+      console.debug('Hashed password:', hashedPassword);
 
       await login(data.email, hashedPassword);
+      console.debug('Login API call successful');
 
       toast({
         title: 'Success',
@@ -50,6 +52,7 @@ const Login = () => {
       // Redirect based on role will be handled in App.tsx
       navigate('/dashboard');
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: 'Error',
         description: error.response?.data?.message || 'Login failed',

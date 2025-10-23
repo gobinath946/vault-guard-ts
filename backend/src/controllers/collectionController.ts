@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 
 export const getAllCollections = async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId } = req.user!;
+    const { companyId, role, permissions } = req.user!;
     // Pagination and filtering
     const page = parseInt((req.query.page as string) || '1');
     const limit = parseInt((req.query.limit as string) || '20');
@@ -19,6 +19,11 @@ export const getAllCollections = async (req: AuthRequest, res: Response) => {
     }
     if (organizationId) {
       filter.organizationId = organizationId;
+    }
+
+    // Permission-based filtering for company_user
+    if (role === 'company_user') {
+      filter._id = { $in: permissions?.collections || [] };
     }
 
     const total = await Collection.countDocuments(filter);
