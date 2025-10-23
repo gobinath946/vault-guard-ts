@@ -34,13 +34,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Organizations = () => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   // Auth context for permission filtering
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { user } = require('@/contexts/AuthContext').useAuth();
-  const [loading, setLoading] = useState(true);
+  const { user, isLoading } = useAuth();
+    const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);

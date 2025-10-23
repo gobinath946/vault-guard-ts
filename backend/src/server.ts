@@ -18,6 +18,7 @@ import passwordRoutes from './routes/passwordRoutes';
 import folderRoutes from './routes/folderRoutes';
 import collectionRoutes from './routes/collectionRoutes';
 import trashRoutes from './routes/trashRoutes'
+import userRoutes from './routes/companyRoutes'
 
 
 const app = express();
@@ -33,6 +34,10 @@ app.use('/api/organizations', organizationRoutes);
 app.use('/api/passwords', passwordRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/collections', collectionRoutes);
+app.use('/api/trash', trashRoutes);
+app.use('/api/company', userRoutes);
+
+
 
 // Health check
 app.get('/api/health', (req, res) => {

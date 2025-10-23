@@ -258,16 +258,20 @@ const fetchOrganizations = async () => {
   }
 };
 
-const fetchCollections = async (organizationId: string) => {
+const fetchCollections = async (organizationId: string | { _id: string }) => {
+  const finalId = typeof organizationId === 'object'
+    ? organizationId._id
+    : organizationId;
+
   setLoadingCollections(true);
+
   try {
-    const data = await companyService.getCollections(organizationId);
-    // Map the backend response to frontend format
+    const data = await companyService.getCollections(finalId);
     const mappedCollections = data.collections.map((collection: any) => ({
       _id: collection._id,
-      name: collection.collectionName || collection.name, // Handle both field names
+      name: collection.collectionName || collection.name,
       description: collection.description,
-      organizationId: collection.organizationId
+      organizationId: collection.organizationId,
     }));
     setCollections(mappedCollections);
   } catch (error: any) {
@@ -281,29 +285,44 @@ const fetchCollections = async (organizationId: string) => {
   }
 };
 
-const fetchFolders = async (organizationId: string, collectionIds: string[]) => {
+
+const fetchFolders = async (
+  organizationId: string | { _id: string },
+  collectionIds: (string | { _id: string })[]
+) => {
+
+  const finalOrgId =
+    typeof organizationId === "object" ? organizationId._id : organizationId;
+
+  const finalCollectionIds = collectionIds.map((c: any) =>
+    typeof c === "object" ? c._id : c
+  );
+
   setLoadingFolders(true);
+
   try {
-    const data = await companyService.getFolders(organizationId, collectionIds);
-    // Map the backend response to frontend format
+    const data = await companyService.getFolders(finalOrgId, finalCollectionIds);
+
     const mappedFolders = data.folders.map((folder: any) => ({
       _id: folder._id,
-      name: folder.folderName || folder.name, // Handle both field names
-      description: folder.description || '',
+      name: folder.folderName || folder.name,
+      description: folder.description || "",
       collectionId: folder.collectionId,
-      organizationId: folder.organizationId
+      organizationId: folder.organizationId,
     }));
+
     setFolders(mappedFolders);
   } catch (error: any) {
     toast({
-      title: 'Error',
-      description: 'Failed to fetch folders',
-      variant: 'destructive',
+      title: "Error",
+      description: "Failed to fetch folders",
+      variant: "destructive",
     });
   } finally {
     setLoadingFolders(false);
   }
 };
+
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
@@ -343,12 +362,6 @@ const handleEdit = async (user: User) => {
   const userCollections = user.permissions?.collections || [];
   const userFolders = user.permissions?.folders || [];
 
-  console.log('Editing user data:', {
-    userOrg,
-    userCollections,
-    userFolders,
-    organizations: organizations.length
-  });
 
   if (userOrg) {
     // First ensure organizations are loaded

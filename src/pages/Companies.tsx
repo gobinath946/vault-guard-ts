@@ -36,6 +36,7 @@ const Companies = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     companyName: '',
@@ -47,7 +48,6 @@ const Companies = () => {
     country: '',
   });
   const { toast } = useToast();
-  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchCompanies();
@@ -121,9 +121,9 @@ const Companies = () => {
     company.contactName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalPages = Math.ceil(filteredCompanies.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedCompanies = filteredCompanies.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(filteredCompanies.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const paginatedCompanies = filteredCompanies.slice(startIndex, startIndex + rowsPerPage);
 
   if (loading) {
     return (
@@ -279,7 +279,10 @@ const Companies = () => {
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
+          totalItems={filteredCompanies.length}
+          rowsPerPage={rowsPerPage}
           onPageChange={setCurrentPage}
+          onRowsPerPageChange={setRowsPerPage}
         />
       </div>
     </DashboardLayout>

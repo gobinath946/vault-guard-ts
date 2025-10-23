@@ -10,6 +10,7 @@ import { collectionService, Collection } from '@/services/collectionService';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Pagination } from '@/components/common/Pagination';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog,
   DialogContent,
@@ -49,8 +50,8 @@ const Folders = () => {
   const [folders, setFolders] = useState<Folder[]>([]);
   // Auth context for permission filtering
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { user } = require('@/contexts/AuthContext').useAuth();
-  const [loading, setLoading] = useState(true);
+  const { user, isLoading } = useAuth();
+    const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState('');
