@@ -112,15 +112,38 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
       { new: true }
     )
       .select('-password')
-      .populate('permissions.organizations', 'name description')
-      .populate('permissions.collections', 'name description')
-      .populate('permissions.folders', 'name description');
+      .populate('permissions.organizations')
+      .populate('permissions.collections')
+      .populate('permissions.folders');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json(user);
+    // Map permissions to always return { _id, name, description }
+    const mappedUser = user.toObject();
+    mappedUser.permissions = {
+      organizations: (user.permissions.organizations || []).map((org: any) => org && {
+        _id: org._id,
+        name: org.organizationName || org.name,
+        description: org.organizationEmail || org.description || ''
+      }),
+      collections: (user.permissions.collections || []).map((col: any) => col && {
+        _id: col._id,
+        name: col.collectionName || col.name,
+        description: col.description || '',
+        organizationId: col.organizationId
+      }),
+      folders: (user.permissions.folders || []).map((folder: any) => folder && {
+        _id: folder._id,
+        name: folder.folderName || folder.name,
+        description: folder.description || '',
+        collectionId: folder.collectionId,
+        organizationId: folder.organizationId
+      })
+    };
+
+    res.json(mappedUser);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

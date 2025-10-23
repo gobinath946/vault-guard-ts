@@ -324,15 +324,25 @@ const fetchFolders = async (
 };
 
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+  // Delete confirmation modal state
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
+  const handleDelete = (id: string) => {
+    setDeleteUserId(id);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteUserId) return;
     try {
-      await companyService.deleteUser(id);
+      await companyService.deleteUser(deleteUserId);
       toast({
         title: 'Success',
         description: 'User deleted successfully',
       });
+      setIsDeleteDialogOpen(false);
+      setDeleteUserId(null);
       fetchUsers();
     } catch (error: any) {
       toast({
@@ -340,6 +350,8 @@ const fetchFolders = async (
         description: 'Failed to delete user',
         variant: 'destructive',
       });
+      setIsDeleteDialogOpen(false);
+      setDeleteUserId(null);
     }
   };
 
@@ -347,49 +359,47 @@ const fetchFolders = async (
 
 const handleEdit = async (user: User) => {
   setEditingUser(user);
+  // Extract _id from permissions arrays (which may be objects or strings)
+  let orgId = '';
+  if (user.permissions?.organizations?.[0]) {
+    const org = user.permissions.organizations[0];
+    orgId = typeof org === 'object' && org !== null ? (org as any)._id : org;
+  }
+  const collectionIds = (user.permissions?.collections || []).map((c: any) =>
+    typeof c === 'object' && c !== null ? c._id : c
+  );
+  const folderIds = (user.permissions?.folders || []).map((f: any) =>
+    typeof f === 'object' && f !== null ? f._id : f
+  );
+
   setEditFormData({
     username: user.username,
     email: user.email,
     password: '',
-    permissions: user.permissions || {
-      organizations: [],
-      collections: [],
-      folders: []
+    permissions: {
+      organizations: orgId ? [orgId] : [],
+      collections: collectionIds,
+      folders: folderIds
     }
   });
 
-  const userOrg = user.permissions?.organizations?.[0];
-  const userCollections = user.permissions?.collections || [];
-  const userFolders = user.permissions?.folders || [];
-
-
-  if (userOrg) {
+  if (orgId) {
     // First ensure organizations are loaded
     if (organizations.length === 0) {
       await fetchOrganizations();
     }
-    
-    // Set the organization
-    setEditSelectedOrganization(userOrg);
-    
-    // Set collections and folders
-    setEditSelectedCollections(userCollections);
-    setEditSelectedFolders(userFolders);
-
-    // Fetch collections for the organization
-    await fetchCollections(userOrg);
-    
-    // If there are collections, fetch folders for them
-    if (userCollections.length > 0) {
-      await fetchFolders(userOrg, userCollections);
-      
-      // Auto-expand collections that have folders
+    setEditSelectedOrganization(orgId);
+    setEditSelectedCollections(collectionIds);
+    setEditSelectedFolders(folderIds);
+    await fetchCollections(orgId);
+    if (collectionIds.length > 0) {
+      await fetchFolders(orgId, collectionIds);
       setTimeout(() => {
-        const collectionsWithFolders = userCollections.filter(collectionId => 
+        const collectionsWithFolders = collectionIds.filter(collectionId => 
           folders.some(folder => folder.collectionId === collectionId)
         );
         setEditExpandedCollections(collectionsWithFolders);
-      }, 500); // Small delay to ensure folders are loaded
+      }, 500);
     }
   } else {
     setEditSelectedOrganization('');
@@ -397,7 +407,6 @@ const handleEdit = async (user: User) => {
     setEditSelectedFolders([]);
     setEditExpandedCollections([]);
   }
-
   setIsEditDialogOpen(true);
 };
 
@@ -1045,6 +1054,26 @@ const handleEdit = async (user: User) => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete User</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p>Are you sure you want to delete this user? This action cannot be undone.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setIsDeleteDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete}>
+                Delete
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Pagination
           currentPage={currentPage}
