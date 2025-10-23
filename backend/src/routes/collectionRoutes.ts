@@ -4,7 +4,7 @@ import {
   getCollectionById,
   createCollection,
   updateCollection,
-  deleteCollection,
+  softDeleteCollection,
 } from '../controllers/collectionController';
 import { authenticate } from '../middleware/auth';
 
@@ -16,6 +16,6 @@ router.get('/', getAllCollections);
 router.get('/:id', getCollectionById);
 router.post('/', createCollection);
 router.put('/:id', updateCollection);
-router.delete('/:id', deleteCollection);
+router.delete('/:id', softDeleteCollection);
 
 export default router;

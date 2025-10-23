@@ -17,6 +17,8 @@ import organizationRoutes from './routes/organizationRoutes';
 import passwordRoutes from './routes/passwordRoutes';
 import folderRoutes from './routes/folderRoutes';
 import collectionRoutes from './routes/collectionRoutes';
+import trashRoutes from './routes/trashRoutes'
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,6 +33,7 @@ app.use('/api/organizations', organizationRoutes);
 app.use('/api/passwords', passwordRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/collections', collectionRoutes);
+app.use('/api/trash', trashRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import Password from '../models/Password';
+import Trash from '../models/Trash';
 import { AuthRequest } from '../middleware/auth';
 import { encrypt, decrypt } from '../utils/encryption';
 import { generatePassword } from '../utils/passwordGenerator';
@@ -136,15 +137,31 @@ export const updatePassword = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deletePassword = async (req: AuthRequest, res: Response) => {
+export const softDeletePassword = async (req: AuthRequest, res: Response) => {
   try {
-    const password = await Password.findByIdAndDelete(req.params.id);
+    const { id: userId } = req.user!;
+    const { companyId } = req.user!;
 
+    const password = await Password.findById(req.params.id);
     if (!password) {
       return res.status(404).json({ message: 'Password not found' });
     }
 
-    res.json({ message: 'Password deleted successfully' });
+    // Create trash record
+    const trashRecord = new Trash({
+      companyId,
+      itemId: password._id,
+      itemType: 'password',
+      itemName: password.itemName,
+      originalData: password.toObject(),
+      deletedBy: userId,
+      deletedFrom: 'Passwords',
+    });
+
+    await trashRecord.save();
+    await Password.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Password moved to trash successfully' });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

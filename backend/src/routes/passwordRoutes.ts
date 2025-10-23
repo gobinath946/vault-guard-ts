@@ -4,7 +4,7 @@ import {
   getPasswordById,
   createPassword,
   updatePassword,
-  deletePassword,
+  softDeletePassword,
   generatePasswordHandler,
 } from '../controllers/passwordController';
 import { authenticate } from '../middleware/auth';
@@ -17,7 +17,7 @@ router.get('/', getAllPasswords);
 router.get('/:id', getPasswordById);
 router.post('/', createPassword);
 router.put('/:id', updatePassword);
-router.delete('/:id', deletePassword);
+router.delete('/:id', softDeletePassword);
 router.post('/generate', generatePasswordHandler);
 
 export default router;

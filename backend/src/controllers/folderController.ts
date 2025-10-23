@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import Folder from '../models/Folder';
+import Trash from '../models/Trash';
 import { AuthRequest } from '../middleware/auth';
 
 export const getAllFolders = async (req: AuthRequest, res: Response) => {
@@ -77,13 +78,31 @@ export const updateFolder = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deleteFolder = async (req: AuthRequest, res: Response) => {
+export const softDeleteFolder = async (req: AuthRequest, res: Response) => {
   try {
-    const folder = await Folder.findByIdAndDelete(req.params.id);
+    const { id: userId } = req.user!;
+    const { companyId } = req.user!;
+
+    const folder = await Folder.findById(req.params.id);
     if (!folder) {
       return res.status(404).json({ message: 'Folder not found' });
     }
-    res.json({ message: 'Folder deleted successfully' });
+
+    // Create trash record
+    const trashRecord = new Trash({
+      companyId,
+      itemId: folder._id,
+      itemType: 'folder',
+      itemName: folder.folderName,
+      originalData: folder.toObject(),
+      deletedBy: userId,
+      deletedFrom: 'Folders',
+    });
+
+    await trashRecord.save();
+    await Folder.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Folder moved to trash successfully' });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
