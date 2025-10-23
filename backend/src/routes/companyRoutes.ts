@@ -9,6 +9,7 @@ import {
   getOrganizations,
   getCollections,
   getFolders,
+  updateUserStatus,
 } from '../controllers/companyController';
 import { authenticate, authorize } from '../middleware/auth';
 
@@ -23,7 +24,7 @@ router.post('/users', createUser);
 router.put('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 router.put('/users/:id/permissions', updatePermissions);
-
+router.put('/users/:id/status', updateUserStatus); 
 // New routes for hierarchical data
 router.get('/organizations', getOrganizations);
 router.get('/organizations/:organizationId/collections', getCollections);

@@ -60,7 +60,7 @@ export const companyService = {
     params.append('page', String(page));
     params.append('limit', String(limit));
     if (q) params.append('q', q);
-    
+
     const response = await api.get(`/company/users?${params.toString()}`);
     return response.data;
   },
@@ -77,6 +77,10 @@ export const companyService = {
 
   updateUser: async (id: string, userData: any) => {
     const response = await api.put(`/company/users/${id}`, userData);
+    return response.data;
+  },
+  updateUserStatus: async (userId: string, isActive: boolean): Promise<any> => {
+    const response = await api.put(`/company/users/${userId}/status`, { isActive });
     return response.data;
   },
 
@@ -96,7 +100,7 @@ export const companyService = {
     params.append('page', String(page));
     params.append('limit', String(limit));
     if (q) params.append('q', q);
-    
+
     const response = await api.get(`/company/organizations?${params.toString()}`);
     return response.data;
   },
@@ -106,7 +110,7 @@ export const companyService = {
     params.append('page', String(page));
     params.append('limit', String(limit));
     if (q) params.append('q', q);
-    
+
     const response = await api.get(`/company/organizations/${organizationId}/collections?${params.toString()}`);
     return response.data;
   },
@@ -117,7 +121,7 @@ export const companyService = {
     params.append('limit', String(limit));
     params.append('collectionIds', collectionIds.join(','));
     if (q) params.append('q', q);
-    
+
     const response = await api.get(`/company/organizations/${organizationId}/folders?${params.toString()}`);
     return response.data;
   },

@@ -234,94 +234,94 @@ const Users = () => {
     }
   };
 
-// In your Users component, update the fetch functions:
+  // In your Users component, update the fetch functions:
 
-const fetchOrganizations = async () => {
-  setLoadingOrganizations(true);
-  try {
-    const data = await companyService.getOrganizations();
-    // Map the backend response to frontend format
-    const mappedOrganizations = data.organizations.map((org: any) => ({
-      _id: org._id,
-      name: org.organizationName || org.name, // Handle both field names
-      description: org.organizationEmail || org.description
-    }));
-    setOrganizations(mappedOrganizations);
-  } catch (error: any) {
-    toast({
-      title: 'Error',
-      description: 'Failed to fetch organizations',
-      variant: 'destructive',
-    });
-  } finally {
-    setLoadingOrganizations(false);
-  }
-};
+  const fetchOrganizations = async () => {
+    setLoadingOrganizations(true);
+    try {
+      const data = await companyService.getOrganizations();
+      // Map the backend response to frontend format
+      const mappedOrganizations = data.organizations.map((org: any) => ({
+        _id: org._id,
+        name: org.organizationName || org.name, // Handle both field names
+        description: org.organizationEmail || org.description
+      }));
+      setOrganizations(mappedOrganizations);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch organizations',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingOrganizations(false);
+    }
+  };
 
-const fetchCollections = async (organizationId: string | { _id: string }) => {
-  const finalId = typeof organizationId === 'object'
-    ? organizationId._id
-    : organizationId;
+  const fetchCollections = async (organizationId: string | { _id: string }) => {
+    const finalId = typeof organizationId === 'object'
+      ? organizationId._id
+      : organizationId;
 
-  setLoadingCollections(true);
+    setLoadingCollections(true);
 
-  try {
-    const data = await companyService.getCollections(finalId);
-    const mappedCollections = data.collections.map((collection: any) => ({
-      _id: collection._id,
-      name: collection.collectionName || collection.name,
-      description: collection.description,
-      organizationId: collection.organizationId,
-    }));
-    setCollections(mappedCollections);
-  } catch (error: any) {
-    toast({
-      title: 'Error',
-      description: 'Failed to fetch collections',
-      variant: 'destructive',
-    });
-  } finally {
-    setLoadingCollections(false);
-  }
-};
+    try {
+      const data = await companyService.getCollections(finalId);
+      const mappedCollections = data.collections.map((collection: any) => ({
+        _id: collection._id,
+        name: collection.collectionName || collection.name,
+        description: collection.description,
+        organizationId: collection.organizationId,
+      }));
+      setCollections(mappedCollections);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch collections',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingCollections(false);
+    }
+  };
 
 
-const fetchFolders = async (
-  organizationId: string | { _id: string },
-  collectionIds: (string | { _id: string })[]
-) => {
+  const fetchFolders = async (
+    organizationId: string | { _id: string },
+    collectionIds: (string | { _id: string })[]
+  ) => {
 
-  const finalOrgId =
-    typeof organizationId === "object" ? organizationId._id : organizationId;
+    const finalOrgId =
+      typeof organizationId === "object" ? organizationId._id : organizationId;
 
-  const finalCollectionIds = collectionIds.map((c: any) =>
-    typeof c === "object" ? c._id : c
-  );
+    const finalCollectionIds = collectionIds.map((c: any) =>
+      typeof c === "object" ? c._id : c
+    );
 
-  setLoadingFolders(true);
+    setLoadingFolders(true);
 
-  try {
-    const data = await companyService.getFolders(finalOrgId, finalCollectionIds);
+    try {
+      const data = await companyService.getFolders(finalOrgId, finalCollectionIds);
 
-    const mappedFolders = data.folders.map((folder: any) => ({
-      _id: folder._id,
-      name: folder.folderName || folder.name,
-      description: folder.description || "",
-      collectionId: folder.collectionId,
-      organizationId: folder.organizationId,
-    }));
+      const mappedFolders = data.folders.map((folder: any) => ({
+        _id: folder._id,
+        name: folder.folderName || folder.name,
+        description: folder.description || "",
+        collectionId: folder.collectionId,
+        organizationId: folder.organizationId,
+      }));
 
-    setFolders(mappedFolders);
-  } catch (error: any) {
-    toast({
-      title: "Error",
-      description: "Failed to fetch folders",
-      variant: "destructive",
-    });
-  } finally {
-    setLoadingFolders(false);
-  }
-};
+      setFolders(mappedFolders);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch folders",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingFolders(false);
+    }
+  };
 
 
   // Delete confirmation modal state
@@ -357,58 +357,58 @@ const fetchFolders = async (
 
   // Update the handleEdit function to ensure proper data loading:
 
-const handleEdit = async (user: User) => {
-  setEditingUser(user);
-  // Extract _id from permissions arrays (which may be objects or strings)
-  let orgId = '';
-  if (user.permissions?.organizations?.[0]) {
-    const org = user.permissions.organizations[0];
-    orgId = typeof org === 'object' && org !== null ? (org as any)._id : org;
-  }
-  const collectionIds = (user.permissions?.collections || []).map((c: any) =>
-    typeof c === 'object' && c !== null ? c._id : c
-  );
-  const folderIds = (user.permissions?.folders || []).map((f: any) =>
-    typeof f === 'object' && f !== null ? f._id : f
-  );
+  const handleEdit = async (user: User) => {
+    setEditingUser(user);
+    // Extract _id from permissions arrays (which may be objects or strings)
+    let orgId = '';
+    if (user.permissions?.organizations?.[0]) {
+      const org = user.permissions.organizations[0];
+      orgId = typeof org === 'object' && org !== null ? (org as any)._id : org;
+    }
+    const collectionIds = (user.permissions?.collections || []).map((c: any) =>
+      typeof c === 'object' && c !== null ? c._id : c
+    );
+    const folderIds = (user.permissions?.folders || []).map((f: any) =>
+      typeof f === 'object' && f !== null ? f._id : f
+    );
 
-  setEditFormData({
-    username: user.username,
-    email: user.email,
-    password: '',
-    permissions: {
-      organizations: orgId ? [orgId] : [],
-      collections: collectionIds,
-      folders: folderIds
-    }
-  });
+    setEditFormData({
+      username: user.username,
+      email: user.email,
+      password: '',
+      permissions: {
+        organizations: orgId ? [orgId] : [],
+        collections: collectionIds,
+        folders: folderIds
+      }
+    });
 
-  if (orgId) {
-    // First ensure organizations are loaded
-    if (organizations.length === 0) {
-      await fetchOrganizations();
+    if (orgId) {
+      // First ensure organizations are loaded
+      if (organizations.length === 0) {
+        await fetchOrganizations();
+      }
+      setEditSelectedOrganization(orgId);
+      setEditSelectedCollections(collectionIds);
+      setEditSelectedFolders(folderIds);
+      await fetchCollections(orgId);
+      if (collectionIds.length > 0) {
+        await fetchFolders(orgId, collectionIds);
+        setTimeout(() => {
+          const collectionsWithFolders = collectionIds.filter(collectionId =>
+            folders.some(folder => folder.collectionId === collectionId)
+          );
+          setEditExpandedCollections(collectionsWithFolders);
+        }, 500);
+      }
+    } else {
+      setEditSelectedOrganization('');
+      setEditSelectedCollections([]);
+      setEditSelectedFolders([]);
+      setEditExpandedCollections([]);
     }
-    setEditSelectedOrganization(orgId);
-    setEditSelectedCollections(collectionIds);
-    setEditSelectedFolders(folderIds);
-    await fetchCollections(orgId);
-    if (collectionIds.length > 0) {
-      await fetchFolders(orgId, collectionIds);
-      setTimeout(() => {
-        const collectionsWithFolders = collectionIds.filter(collectionId => 
-          folders.some(folder => folder.collectionId === collectionId)
-        );
-        setEditExpandedCollections(collectionsWithFolders);
-      }, 500);
-    }
-  } else {
-    setEditSelectedOrganization('');
-    setEditSelectedCollections([]);
-    setEditSelectedFolders([]);
-    setEditExpandedCollections([]);
-  }
-  setIsEditDialogOpen(true);
-};
+    setIsEditDialogOpen(true);
+  };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -456,6 +456,23 @@ const handleEdit = async (user: User) => {
       });
     }
   };
+  const handleStatusToggle = async (userId: string, newStatus: boolean) => {
+    try {
+      await companyService.updateUserStatus(userId, newStatus);
+      toast({
+        title: 'Success',
+        description: `User ${newStatus ? 'activated' : 'deactivated'} successfully`,
+      });
+      fetchUsers(currentPage, rowsPerPage, searchTerm);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update user status',
+        variant: 'destructive',
+      });
+    }
+  };
+
 
   const handleOrganizationChange = (orgId: string) => {
     setSelectedOrganization(orgId);
@@ -1022,17 +1039,30 @@ const handleEdit = async (user: User) => {
                       <td className="p-4 text-sm">{user.email}</td>
                       <td className="p-4 text-sm capitalize">{user.role?.replace('_', ' ')}</td>
                       <td className="p-4">
-                        <Badge variant={user.isActive ? 'default' : 'secondary'}>
-                          {user.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
+                        <div className="flex items-center gap-3">
+                           <div
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${user.isActive ? 'bg-[#8C47D1]' : 'bg-gray-300'
+                              }`}
+                            onClick={() => handleStatusToggle(user._id, !user.isActive)}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isActive ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                            />
+                          </div>
+                          <Badge variant={user.isActive ? 'default' : 'secondary'}>
+                            {user.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                         
+                        </div>
                       </td>
                       <td className="p-4 text-sm">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
                       <td className="p-4">
                         <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="ghost"
                             onClick={() => handleEdit(user)}
                           >

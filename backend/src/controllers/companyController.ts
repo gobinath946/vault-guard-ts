@@ -148,6 +148,60 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+export const updateUserStatus = async (req: AuthRequest, res: Response) => {
+  try {
+    const { isActive } = req.body;
+    const userId = req.params.id;
+
+    // Validate that the user belongs to the same company
+    const user = await User.findOne({ _id: userId, companyId: req.user!.id });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Prevent users from deactivating themselves
+    if (userId === req.user!.id) {
+      return res.status(400).json({ message: 'Cannot deactivate your own account' });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { isActive },
+      { new: true }
+    )
+      .select('-password')
+      .populate('permissions.organizations', 'name description')
+      .populate('permissions.collections', 'name description')
+      .populate('permissions.folders', 'name description');
+
+    // Map permissions to always return { _id, name, description }
+    const mappedUser = updatedUser!.toObject();
+    mappedUser.permissions = {
+      organizations: (updatedUser!.permissions.organizations || []).map((org: any) => org && {
+        _id: org._id,
+        name: org.organizationName || org.name,
+        description: org.organizationEmail || org.description || ''
+      }),
+      collections: (updatedUser!.permissions.collections || []).map((col: any) => col && {
+        _id: col._id,
+        name: col.collectionName || col.name,
+        description: col.description || '',
+        organizationId: col.organizationId
+      }),
+      folders: (updatedUser!.permissions.folders || []).map((folder: any) => folder && {
+        _id: folder._id,
+        name: folder.folderName || folder.name,
+        description: folder.description || '',
+        collectionId: folder.collectionId,
+        organizationId: folder.organizationId
+      })
+    };
+
+    res.json(mappedUser);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 export const deleteUser = async (req: AuthRequest, res: Response) => {
   try {
