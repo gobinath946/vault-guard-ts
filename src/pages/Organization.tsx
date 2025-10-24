@@ -281,6 +281,8 @@ const Organizations = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+
+                    <TableHead>S.No</TableHead>
                     <TableHead>Organization Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Created At</TableHead>
@@ -288,8 +290,11 @@ const Organizations = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrganizations.map((organization) => (
-                    <TableRow key={organization._id}>
+                  {filteredOrganizations.map((organization ,index) => (
+                    
+                       <TableRow key={organization._id}>
+        {/* S.No */}
+        <TableCell>{index + 1}</TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <Building2 className="h-4 w-4 text-primary" />

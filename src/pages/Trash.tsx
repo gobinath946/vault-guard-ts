@@ -223,6 +223,9 @@ const Trash = () => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
+                        S.No
+                      </th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Item Name</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Type</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Deleted From</th>
@@ -240,8 +243,11 @@ const Trash = () => {
                       </td>
                     </tr>
                   ) : (
-                    trashItems.map((item) => (
+                    filteredItems.map((item, index) => (
                       <tr key={item._id} className="border-b border-border hover:bg-muted/50">
+                        <td className="p-4 align-middle">
+                          {(currentPage - 1) * rowsPerPage + index + 1}
+                        </td>
                         <td className="p-4 text-sm font-medium">{item.itemName}</td>
                         <td className="p-4 text-sm">
                           {getItemTypeBadge(item.itemType)}

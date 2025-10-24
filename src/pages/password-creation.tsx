@@ -502,6 +502,9 @@ const Password = () => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
+                        S.No
+                      </th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Name</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Username</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Password</th>
@@ -511,8 +514,11 @@ const Password = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedPasswords.map((password) => (
+                  {paginatedPasswords.map((password , index) => (
                     <tr key={password._id} className="border-b border-border">
+                      <td className="p-4 align-middle">
+                          {(currentPage - 1) * rowsPerPage + index + 1}
+                        </td>
                       <td className="p-4 text-sm font-medium">{password.itemName}</td>
                       <td className="p-4 text-sm font-mono">
                         <div className="flex items-center gap-2">
