@@ -28,6 +28,112 @@ export const getDashboard = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const getEnhancedDashboard = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.user!;
+
+    // Basic counts
+    const totalUsers = await User.countDocuments({ companyId: id });
+    const activeUsers = await User.countDocuments({ companyId: id, isActive: true });
+    const inactiveUsers = await User.countDocuments({ companyId: id, isActive: false });
+    const totalPasswords = await Password.countDocuments({ companyId: id });
+    const totalCollections = await Collection.countDocuments({ companyId: id });
+    const totalFolders = await Folder.countDocuments({ companyId: id });
+    const totalOrganizations = await Organization.countDocuments({ companyId: id });
+
+    // Password growth data (last 7 days)
+    const passwordGrowth = await Password.aggregate([
+      {
+        $match: {
+          companyId: new mongoose.Types.ObjectId(id),
+          createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // User activity data (last 7 days)
+    const userActivity = await User.aggregate([
+      {
+        $match: {
+          companyId: new mongoose.Types.ObjectId(id),
+          createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+          },
+          newUsers: { $sum: 1 },
+          activeUsers: {
+            $sum: { $cond: [{ $eq: ["$isActive", true] }, 1, 0] }
+          }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Fill in missing dates for charts
+    const last7Days = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      last7Days.push(date.toISOString().split('T')[0]);
+    }
+
+    const filledPasswordGrowth = last7Days.map(date => {
+      const existing = passwordGrowth.find(item => item._id === date);
+      return {
+        date,
+        count: existing ? existing.count : 0
+      };
+    });
+
+    const filledUserActivity = last7Days.map(date => {
+      const existing = userActivity.find(item => item._id === date);
+      return {
+        date,
+        activeUsers: existing ? existing.activeUsers : 0,
+        newUsers: existing ? existing.newUsers : 0
+      };
+    });
+
+    // Category distribution
+    const categoryDistribution = [
+      { name: 'Passwords', value: totalPasswords, color: '#0088FE' },
+      { name: 'Collections', value: totalCollections, color: '#00C49F' },
+      { name: 'Folders', value: totalFolders, color: '#FFBB28' },
+      { name: 'Organizations', value: totalOrganizations, color: '#FF8042' },
+      { name: 'Users', value: totalUsers, color: '#8884D8' },
+      { name: 'Active Users', value: activeUsers, color: '#82CA9D' }
+    ];
+
+    res.json({
+      totalUsers,
+      activeUsers,
+      inactiveUsers,
+      totalPasswords,
+      totalCollections,
+      totalFolders,
+      totalOrganizations,
+      passwordGrowth: filledPasswordGrowth,
+      userActivity: filledUserActivity,
+      categoryDistribution
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const getAllUsers = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.user!;
@@ -106,10 +212,26 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 
 export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
+    const { password, ...updateData } = req.body;
+    
+    // If password is provided, hash it
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 12);
+    }
+
+    // Process permissions if provided
+    if (updateData.permissions) {
+      updateData.permissions = {
+        organizations: updateData.permissions?.organizations?.map((id: string) => new mongoose.Types.ObjectId(id)) || [],
+        collections: updateData.permissions?.collections?.map((id: string) => new mongoose.Types.ObjectId(id)) || [],
+        folders: updateData.permissions?.folders?.map((id: string) => new mongoose.Types.ObjectId(id)) || []
+      };
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { ...req.body },
-      { new: true }
+      updateData,
+      { new: true, runValidators: true }
     )
       .select('-password')
       .populate('permissions.organizations')
@@ -148,6 +270,7 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 export const updateUserStatus = async (req: AuthRequest, res: Response) => {
   try {
     const { isActive } = req.body;
@@ -174,21 +297,25 @@ export const updateUserStatus = async (req: AuthRequest, res: Response) => {
       .populate('permissions.collections', 'name description')
       .populate('permissions.folders', 'name description');
 
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found after update' });
+    }
+
     // Map permissions to always return { _id, name, description }
-    const mappedUser = updatedUser!.toObject();
+    const mappedUser = updatedUser.toObject();
     mappedUser.permissions = {
-      organizations: (updatedUser!.permissions.organizations || []).map((org: any) => org && {
+      organizations: (updatedUser.permissions.organizations || []).map((org: any) => org && {
         _id: org._id,
         name: org.organizationName || org.name,
         description: org.organizationEmail || org.description || ''
       }),
-      collections: (updatedUser!.permissions.collections || []).map((col: any) => col && {
+      collections: (updatedUser.permissions.collections || []).map((col: any) => col && {
         _id: col._id,
         name: col.collectionName || col.name,
         description: col.description || '',
         organizationId: col.organizationId
       }),
-      folders: (updatedUser!.permissions.folders || []).map((folder: any) => folder && {
+      folders: (updatedUser.permissions.folders || []).map((folder: any) => folder && {
         _id: folder._id,
         name: folder.folderName || folder.name,
         description: folder.description || '',
@@ -245,6 +372,10 @@ export const updatePermissions = async (req: AuthRequest, res: Response) => {
       .populate('permissions.collections', 'name description')
       .populate('permissions.folders', 'name description');
 
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found after update' });
+    }
+
     res.json(updatedUser);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -252,8 +383,6 @@ export const updatePermissions = async (req: AuthRequest, res: Response) => {
 };
 
 // Hierarchical data methods
-// In your companyController.ts, update the response format:
-
 export const getOrganizations = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.user!;
@@ -390,6 +519,60 @@ export const getFolders = async (req: AuthRequest, res: Response) => {
     }));
 
     res.json({ folders: mappedFolders, total });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Additional dashboard statistics
+export const getDashboardStats = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.user!;
+
+    // Get all basic counts in parallel for better performance
+    const [
+      totalUsers,
+      activeUsers,
+      totalPasswords,
+      totalCollections,
+      totalFolders,
+      totalOrganizations
+    ] = await Promise.all([
+      User.countDocuments({ companyId: id }),
+      User.countDocuments({ companyId: id, isActive: true }),
+      Password.countDocuments({ companyId: id }),
+      Collection.countDocuments({ companyId: id }),
+      Folder.countDocuments({ companyId: id }),
+      Organization.countDocuments({ companyId: id })
+    ]);
+
+    // Get recent activity (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentPasswords = await Password.countDocuments({
+      companyId: id,
+      createdAt: { $gte: thirtyDaysAgo }
+    });
+
+    const recentUsers = await User.countDocuments({
+      companyId: id,
+      createdAt: { $gte: thirtyDaysAgo }
+    });
+
+    res.json({
+      totalUsers,
+      activeUsers,
+      inactiveUsers: totalUsers - activeUsers,
+      totalPasswords,
+      totalCollections,
+      totalFolders,
+      totalOrganizations,
+      recentPasswords,
+      recentUsers,
+      passwordPerUser: totalUsers > 0 ? (totalPasswords / totalUsers).toFixed(1) : 0,
+      activeUserRate: totalUsers > 0 ? ((activeUsers / totalUsers) * 100).toFixed(1) : 0
+    });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

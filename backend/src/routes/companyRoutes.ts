@@ -1,33 +1,41 @@
+// routes/companyRoutes.ts
 import express from 'express';
 import {
   getDashboard,
+  getEnhancedDashboard,
   getAllUsers,
   createUser,
   updateUser,
+  updateUserStatus,
   deleteUser,
   updatePermissions,
   getOrganizations,
   getCollections,
   getFolders,
-  updateUserStatus,
+  getDashboardStats
 } from '../controllers/companyController';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
 
 const router = express.Router();
 
 router.use(authenticate);
-router.use(authorize('company_super_admin'));
 
-router.get('/dashboard', getDashboard);
-router.get('/users', getAllUsers);
-router.post('/users', createUser);
-router.put('/users/:id', updateUser);
-router.delete('/users/:id', deleteUser);
-router.put('/users/:id/permissions', updatePermissions);
-router.put('/users/:id/status', updateUserStatus); 
-// New routes for hierarchical data
+// Dashboard routes
+router.get('/dashboard',  getDashboard);
+router.get('/dashboard/enhanced', getEnhancedDashboard);
+router.get('/dashboard/stats',  getDashboardStats);
+
+// User management routes
+router.get('/users',getAllUsers);
+router.post('/users',createUser);
+router.put('/users/:id',updateUser);
+router.patch('/users/:id/status',updateUserStatus);
+router.delete('/users/:id',  deleteUser);
+router.patch('/users/:id/permissions',updatePermissions);
+
+// Hierarchical data routes
 router.get('/organizations', getOrganizations);
-router.get('/organizations/:organizationId/collections', getCollections);
-router.get('/organizations/:organizationId/folders', getFolders);
+router.get('/organizations/:organizationId/collections',  getCollections);
+router.get('/organizations/:organizationId/folders',  getFolders);
 
 export default router;
