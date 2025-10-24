@@ -1150,6 +1150,9 @@ const Users = () => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
+                        S.No
+                      </th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Username</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Email</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Role</th>
@@ -1159,8 +1162,11 @@ const Users = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => (
+                  {users.map((user , index) => (
                     <tr key={user._id} className="border-b border-border">
+                       <td className="p-4 align-middle">
+                          {(currentPage - 1) * rowsPerPage + index + 1}
+                        </td>
                       <td className="p-4 text-sm font-medium">{user.username}</td>
                       <td className="p-4 text-sm">{user.email}</td>
                       <td className="p-4 text-sm capitalize">{user.role?.replace('_', ' ')}</td>

@@ -382,14 +382,16 @@ const Folders = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                     <TableHead>S.No</TableHead>
                     <TableHead>Folder Name</TableHead>
                     <TableHead>Created At</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredFolders.map((folder) => (
+                  {filteredFolders.map((folder ,index) => (
                     <TableRow key={folder._id}>
+                       <TableCell>{index + 1}</TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <FolderIcon className="h-4 w-4 text-primary" />

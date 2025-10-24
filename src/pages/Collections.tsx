@@ -307,6 +307,7 @@ const Collections = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                     <TableHead>S.No</TableHead>
                     <TableHead>Collection Name</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Created At</TableHead>
@@ -314,8 +315,9 @@ const Collections = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCollections.map((collection) => (
+                  {filteredCollections.map((collection , index) => (
                     <TableRow key={collection._id}>
+                       <TableCell>{index + 1}</TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <BookOpen className="h-4 w-4 text-primary" />
