@@ -20,17 +20,6 @@ const router = express.Router();
 
 router.use(authenticate);
 
-<<<<<<< HEAD
-router.get('/dashboard', getDashboard);
-router.get('/users', getAllUsers);
-router.post('/users', createUser);
-router.put('/users/:id', updateUser);
-router.delete('/users/:id', deleteUser);
-router.put('/users/:id/permissions', updatePermissions);
-router.put('/users/:id/status', updateUserStatus); 
-router.get('/folders', getFolders);
-// New routes for hierarchical data
-=======
 // Dashboard routes
 router.get('/dashboard',  getDashboard);
 router.get('/dashboard/enhanced', getEnhancedDashboard);
@@ -45,7 +34,6 @@ router.delete('/users/:id',  deleteUser);
 router.patch('/users/:id/permissions',updatePermissions);
 
 // Hierarchical data routes
->>>>>>> c3b7dd8a4d779e125bc8e003440f7824f12653cc
 router.get('/organizations', getOrganizations);
 router.get('/organizations/:organizationId/collections',  getCollections);
 router.get('/organizations/:organizationId/folders',  getFolders);

@@ -159,28 +159,6 @@ export const companyService = {
     return response.data;
   },
 
-<<<<<<< HEAD
-  // Updated getFolders to accept multiple organization IDs
-  getFolders: async (organizationIds: string | string[], collectionIds: string[], page = 1, limit = 50, q = '') => {
-    const params = new URLSearchParams();
-    params.append('page', String(page));
-    params.append('limit', String(limit));
-    
-    // Handle both single organization ID and array of organization IDs
-    if (Array.isArray(organizationIds)) {
-      params.append('organizationIds', organizationIds.join(','));
-    } else {
-      params.append('organizationIds', organizationIds);
-    }
-    
-    if (Array.isArray(collectionIds) && collectionIds.length > 0) {
-      params.append('collectionIds', collectionIds.join(','));
-    }
-    
-    if (q) params.append('q', q);
-
-    const response = await api.get(`/company/folders?${params.toString()}`);
-=======
   getFolders: async (organizationId: string, collectionIds: string[] = [], page = 1, limit = 50, q = ''): Promise<{ folders: Folder[]; total: number }> => {
     const response = await api.get(`/company/organizations/${organizationId}/folders`, {
       params: { 
@@ -190,7 +168,6 @@ export const companyService = {
         q 
       }
     });
->>>>>>> c3b7dd8a4d779e125bc8e003440f7824f12653cc
     return response.data;
   },
 

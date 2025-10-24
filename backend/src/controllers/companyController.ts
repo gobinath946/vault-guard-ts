@@ -212,24 +212,6 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 
 export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
-<<<<<<< HEAD
-    const { permissions, ...otherData } = req.body;
-
-    // Process permissions - convert string IDs to ObjectIds
-    const processedPermissions = {
-      organizations: permissions?.organizations?.map((id: string) => new mongoose.Types.ObjectId(id)) || [],
-      collections: permissions?.collections?.map((id: string) => new mongoose.Types.ObjectId(id)) || [],
-      folders: permissions?.folders?.map((id: string) => new mongoose.Types.ObjectId(id)) || []
-    };
-
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      {
-        ...otherData,
-        permissions: processedPermissions
-      },
-      { new: true }
-=======
     const { password, ...updateData } = req.body;
     
     // If password is provided, hash it
@@ -250,7 +232,6 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
       req.params.id,
       updateData,
       { new: true, runValidators: true }
->>>>>>> c3b7dd8a4d779e125bc8e003440f7824f12653cc
     )
       .select('-password')
       .populate('permissions.organizations')
