@@ -39,6 +39,7 @@ const Trash = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEmptyTrashDialogOpen, setIsEmptyTrashDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<TrashItem | null>(null);
+  const [totalPages, setTotalPages] = useState(1);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -51,6 +52,7 @@ const Trash = () => {
       const response = await trashService.getAll(currentPage, rowsPerPage);
       setTrashItems(response.trashItems);
       setTotalItems(response.total);
+      setTotalPages(response.totalPages || 1);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -59,6 +61,7 @@ const Trash = () => {
       });
       setTrashItems([]);
       setTotalItems(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -168,13 +171,10 @@ const Trash = () => {
     );
   };
 
-  const filteredItems = trashItems.filter((item) =>
-    item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.deletedFrom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.itemType.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Use only backend paginated items
+  const filteredItems = trashItems;
 
-  const totalPages = Math.ceil(totalItems / rowsPerPage);
+  // Use backend totalPages
 
   if (loading) {
     return (
@@ -215,7 +215,7 @@ const Trash = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Archive className="h-5 w-5" />
-              Deleted Items ({filteredItems.length})
+              Deleted Items ({totalItems})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -232,7 +232,7 @@ const Trash = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.length === 0 ? (
+                  {trashItems.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-8 text-center text-muted-foreground">
                         <Archive className="mx-auto h-12 w-12 mb-4 opacity-50" />
@@ -240,7 +240,7 @@ const Trash = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredItems.map((item) => (
+                    trashItems.map((item) => (
                       <tr key={item._id} className="border-b border-border hover:bg-muted/50">
                         <td className="p-4 text-sm font-medium">{item.itemName}</td>
                         <td className="p-4 text-sm">
@@ -293,16 +293,14 @@ const Trash = () => {
           </CardContent>
         </Card>
 
-        {totalPages > 1 && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            rowsPerPage={rowsPerPage}
-            onPageChange={setCurrentPage}
-            onRowsPerPageChange={setRowsPerPage}
-          />
-        )}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          rowsPerPage={rowsPerPage}
+          onPageChange={setCurrentPage}
+          onRowsPerPageChange={setRowsPerPage}
+        />
 
         {/* View Details Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>

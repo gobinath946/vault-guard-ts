@@ -90,6 +90,21 @@ export const restoreTrashItem = async (req: AuthRequest, res: Response) => {
         await restoredItem.save();
         break;
 
+      case 'user':
+        // Avoid restoring password hash if not present, and ensure required fields
+        const userData = { ...trashItem.originalData };
+        // Remove _id to let MongoDB assign a new one if needed (or keep original if safe)
+        if (userData._id) delete userData._id;
+        // Optionally, ensure companyId is set
+        userData.companyId = trashItem.companyId;
+        // Optionally, set isActive true on restore
+        userData.isActive = true;
+        // Import User model here to avoid circular dependency
+        const User = require('../models/User').default;
+        restoredItem = new User(userData);
+        await restoredItem.save();
+        break;
+
       default:
         return res.status(400).json({ message: 'Invalid item type' });
     }

@@ -477,42 +477,35 @@ export const getCollections = async (req: AuthRequest, res: Response) => {
 export const getFolders = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.user!;
-  let organizationIds = (req.query.organizationIds as string)?.split(',') || [];
-  let collectionIds = (req.query.collectionIds as string)?.split(',') || [];
-  // Filter out empty string IDs
-  organizationIds = organizationIds.filter(id => id && id.trim() !== '');
-  collectionIds = collectionIds.filter(id => id && id.trim() !== '');
+    // Accept organizationId from path param (as used by frontend)
+    const organizationId = req.params.organizationId;
+    let collectionIds = (req.query.collectionIds as string)?.split(',') || [];
+    collectionIds = collectionIds.filter(cid => cid && cid.trim() !== '');
     const page = parseInt((req.query.page as string) || '1', 10);
     const limit = parseInt((req.query.limit as string) || '50', 10);
     const q = (req.query.q as string) || '';
 
-    // Validate organizations belong to company
-    const organizations = await Organization.find({
-      _id: { $in: organizationIds },
-      companyId: id
-    });
-
-    if (organizations.length !== organizationIds.length) {
-      return res.status(400).json({ message: 'Invalid organization IDs' });
+    // Validate organization belongs to company
+    const organization = await Organization.findOne({ _id: organizationId, companyId: id });
+    if (!organization) {
+      return res.status(400).json({ message: 'Invalid organization ID' });
     }
 
     const query: any = {
       companyId: id,
-      organizationId: { $in: organizationIds.map(id => new mongoose.Types.ObjectId(id)) }
+      organizationId: new mongoose.Types.ObjectId(organizationId)
     };
 
     if (collectionIds.length > 0 && collectionIds[0] !== '') {
       const validCollections = await Collection.find({
         _id: { $in: collectionIds },
-        organizationId: { $in: organizationIds },
+        organizationId: organizationId,
         companyId: id
       });
-
       if (validCollections.length !== collectionIds.length) {
         return res.status(400).json({ message: 'Invalid collection IDs' });
       }
-
-      query.collectionId = { $in: collectionIds.map(id => new mongoose.Types.ObjectId(id)) };
+      query.collectionId = { $in: collectionIds.map(cid => new mongoose.Types.ObjectId(cid)) };
     }
 
     if (q) {
