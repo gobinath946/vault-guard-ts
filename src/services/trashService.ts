@@ -3,13 +3,13 @@ import { api } from '@/lib/api';
 export interface TrashItem {
   _id: string;
   itemId: string;
-  itemType: 'collection' | 'folder' | 'organization' | 'password';
+  itemType: 'collection' | 'folder' | 'organization' | 'password' | 'user';
   itemName: string;
   originalData: any;
   deletedBy: {
     _id: string;
-    name: string;
-    email: string;
+    name?: string;
+    email?: string;
   };
   deletedFrom: string;
   deletedAt: string;
@@ -17,8 +17,8 @@ export interface TrashItem {
   restoredAt?: string;
   restoredBy?: {
     _id: string;
-    name: string;
-    email: string;
+    name?: string;
+    email?: string;
   };
 }
 

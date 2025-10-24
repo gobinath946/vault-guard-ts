@@ -49,8 +49,20 @@ const Login = () => {
         description: 'Logged in successfully',
       });
 
-      // Redirect based on role will be handled in App.tsx
-      navigate('/dashboard');
+      // Redirect based on role
+      const userStr = sessionStorage.getItem('user');
+      let userRole = '';
+      if (userStr) {
+        try {
+          const userObj = JSON.parse(userStr);
+          userRole = userObj.role;
+        } catch {}
+      }
+      if (userRole === 'company_user') {
+        navigate('/password-creation');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error: any) {
       console.error('Login error:', error);
       toast({

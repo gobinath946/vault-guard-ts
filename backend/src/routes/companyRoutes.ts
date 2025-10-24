@@ -25,6 +25,7 @@ router.put('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 router.put('/users/:id/permissions', updatePermissions);
 router.put('/users/:id/status', updateUserStatus); 
+router.get('/folders', getFolders);
 // New routes for hierarchical data
 router.get('/organizations', getOrganizations);
 router.get('/organizations/:organizationId/collections', getCollections);

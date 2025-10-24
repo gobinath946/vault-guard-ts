@@ -54,7 +54,7 @@ const menuItems: MenuItem[] = [
     icon: Key,
     roles: ['company_super_admin'],
   },
-   {
+  {
     title: 'Collections',
     path: '/collections',
     icon: BookOpen,
@@ -66,29 +66,30 @@ const menuItems: MenuItem[] = [
     icon: FolderTree,
     roles: ['company_super_admin'],
   },
- 
- {
-  title: 'Password Creation',
-  path: '/password-creation',
-  icon: KeyRound,
-  roles: ['company_super_admin'],
-},
-
-{
-  title: 'Trash',
-  path: '/trash',
-  icon: Trash,
-  roles: ['company_super_admin'],
-}
+  {
+    title: 'Password Creation',
+    path: '/password-creation',
+    icon: KeyRound,
+    roles: ['company_super_admin', 'company_user'],
+  },
+  {
+    title: 'Trash',
+    path: '/trash',
+    icon: Trash,
+    roles: ['company_super_admin'],
+  }
 ];
 
 export const Sidebar = () => {
   const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
-  const filteredMenuItems = menuItems.filter((item) =>
-    item.roles.includes(user?.role || '')
-  );
+
+  // If user is 'company_user', only show Password Creation
+  let filteredMenuItems = menuItems.filter((item) => item.roles.includes(user?.role || ''));
+  if (user?.role === 'company_user') {
+    filteredMenuItems = menuItems.filter((item) => item.title === 'Password Creation');
+  }
 
   return (
     <aside

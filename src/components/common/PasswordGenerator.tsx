@@ -51,8 +51,8 @@ const PasswordGenerator: React.FC<PasswordGeneratorProps> = ({
 
   const generatePassword = async () => {
     try {
-      const response = await passwordService.generate(generatorOptions);
-      setGeneratedPassword(response.data.password);
+  const response = await passwordService.generate(generatorOptions);
+  setGeneratedPassword(response.password);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -100,14 +100,40 @@ const PasswordGenerator: React.FC<PasswordGeneratorProps> = ({
           </div>
 
           <div>
-            <Label>Length: {generatorOptions.length}</Label>
-            <Slider
-              value={[generatorOptions.length]}
-              onValueChange={(value) => setGeneratorOptions({ ...generatorOptions, length: value[0] })}
-              min={8}
-              max={128}
-              step={1}
-            />
+            <Label htmlFor="min-number">length</Label>
+            <div className="flex items-center gap-2 mt-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setGeneratorOptions(opts => ({ ...opts, length: Math.max(8, opts.length - 1) }))}
+                disabled={generatorOptions.length <= 8}
+              >
+                -
+              </Button>
+              <Input
+                id="min-number"
+                type="number"
+                min={8}
+                max={128}
+                value={generatorOptions.length}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val)) val = 8;
+                  setGeneratorOptions(opts => ({ ...opts, length: Math.max(8, Math.min(128, val)) }));
+                }}
+                className="w-16 text-center"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setGeneratorOptions(opts => ({ ...opts, length: Math.min(128, opts.length + 1) }))}
+                disabled={generatorOptions.length >= 128}
+              >
+                +
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               Use 14 characters or more to generate a strong password.
             </p>

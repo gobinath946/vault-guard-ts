@@ -62,7 +62,7 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
     const { email, username, password, permissions } = req.body;
-    const { id: companyId, id: createdBy } = req.user!; // Use id for both companyId and createdBy
+    const { id: companyId, id: createdBy } = req.user!;
 
     // Check if user exists within the same company
     const existingUser = await User.findOne({ email, companyId });
@@ -86,7 +86,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       username,
       password: hashedPassword,
       permissions: processedPermissions,
-      createdBy: new mongoose.Types.ObjectId(createdBy), // Convert to ObjectId
+      createdBy: new mongoose.Types.ObjectId(createdBy),
     });
 
     await user.save();
@@ -106,9 +106,21 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 
 export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
+    const { permissions, ...otherData } = req.body;
+
+    // Process permissions - convert string IDs to ObjectIds
+    const processedPermissions = {
+      organizations: permissions?.organizations?.map((id: string) => new mongoose.Types.ObjectId(id)) || [],
+      collections: permissions?.collections?.map((id: string) => new mongoose.Types.ObjectId(id)) || [],
+      folders: permissions?.folders?.map((id: string) => new mongoose.Types.ObjectId(id)) || []
+    };
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { ...req.body },
+      {
+        ...otherData,
+        permissions: processedPermissions
+      },
       { new: true }
     )
       .select('-password')
@@ -203,15 +215,28 @@ export const updateUserStatus = async (req: AuthRequest, res: Response) => {
   }
 };
 
+import Trash from '../models/Trash';
+
 export const deleteUser = async (req: AuthRequest, res: Response) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
-
+    const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
-    res.json({ message: 'User deleted successfully' });
+    // Move user to Trash
+    await Trash.create({
+      companyId: user.companyId,
+      itemId: user._id,
+      itemType: 'user',
+      itemName: user.username || user.email,
+      originalData: user.toObject(),
+      deletedBy: req.user?.id ? new mongoose.Types.ObjectId(req.user.id) : undefined,
+      deletedFrom: 'users',
+      deletedAt: new Date(),
+      isRestored: false,
+    });
+    await user.deleteOne();
+    res.json({ message: 'User moved to trash successfully' });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -335,30 +360,34 @@ export const getCollections = async (req: AuthRequest, res: Response) => {
 export const getFolders = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.user!;
-    const { organizationId } = req.params;
-    const collectionIds = (req.query.collectionIds as string)?.split(',') || [];
+  let organizationIds = (req.query.organizationIds as string)?.split(',') || [];
+  let collectionIds = (req.query.collectionIds as string)?.split(',') || [];
+  // Filter out empty string IDs
+  organizationIds = organizationIds.filter(id => id && id.trim() !== '');
+  collectionIds = collectionIds.filter(id => id && id.trim() !== '');
     const page = parseInt((req.query.page as string) || '1', 10);
     const limit = parseInt((req.query.limit as string) || '50', 10);
     const q = (req.query.q as string) || '';
 
-    // Validate organization belongs to company
-    const organization = await Organization.findOne({
-      _id: organizationId,
+    // Validate organizations belong to company
+    const organizations = await Organization.find({
+      _id: { $in: organizationIds },
       companyId: id
     });
-    if (!organization) {
-      return res.status(404).json({ message: 'Organization not found' });
+
+    if (organizations.length !== organizationIds.length) {
+      return res.status(400).json({ message: 'Invalid organization IDs' });
     }
 
     const query: any = {
       companyId: id,
-      organizationId: new mongoose.Types.ObjectId(organizationId)
+      organizationId: { $in: organizationIds.map(id => new mongoose.Types.ObjectId(id)) }
     };
 
     if (collectionIds.length > 0 && collectionIds[0] !== '') {
       const validCollections = await Collection.find({
         _id: { $in: collectionIds },
-        organizationId,
+        organizationId: { $in: organizationIds },
         companyId: id
       });
 
@@ -383,7 +412,7 @@ export const getFolders = async (req: AuthRequest, res: Response) => {
     // Return in consistent format that frontend expects
     const mappedFolders = folders.map(folder => ({
       _id: folder._id,
-      name: folder.folderName, // Use consistent 'name' field
+      name: folder.folderName,
       description: '',
       collectionId: folder.collectionId?.toString(),
       organizationId: folder.organizationId?.toString()

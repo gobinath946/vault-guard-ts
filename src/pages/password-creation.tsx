@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,6 +60,7 @@ interface PasswordLog {
 }
 
 const Password = () => {
+  const { user } = useAuth();
   const [passwords, setPasswords] = useState<Password[]>([]);
   const [folders, setFolders] = useState([]);
   const [collections, setCollections] = useState([]);
@@ -100,19 +102,18 @@ const Password = () => {
   const [generatedPassword, setGeneratedPassword] = useState('');
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, rowsPerPage]);
+  // Check if user has permission to access this page
+  const hasPermission = user && (user.role === 'company_super_admin' || (user.role === 'company_user' && user.permissions));
 
   const fetchData = async () => {
+    if (!hasPermission) return;
+    
     try {
       const [passwordsData, foldersDataRaw, collectionsDataRaw] = await Promise.all([
         passwordService.getAll(currentPage, rowsPerPage),
         folderService.getAll(),
         collectionService.getAll(),
       ]);
-      // passwordsData may be either an array (old API) or a paginated object { passwords, total }
       if (Array.isArray(passwordsData)) {
         setPasswords(passwordsData);
         setTotalPasswords(passwordsData.length);
@@ -120,12 +121,11 @@ const Password = () => {
         setPasswords(passwordsData.passwords);
         setTotalPasswords(typeof passwordsData.total === 'number' ? passwordsData.total : passwordsData.passwords.length);
       } else {
-        // Fallback: ensure passwords is an array
         setPasswords([]);
         setTotalPasswords(0);
       }
 
-      // foldersDataRaw may be array, { folders }, or { data }
+      // Permission-based filtering for folders/collections
       let foldersArr = [];
       if (Array.isArray(foldersDataRaw)) {
         foldersArr = foldersDataRaw;
@@ -134,9 +134,11 @@ const Password = () => {
       } else if (foldersDataRaw && Array.isArray(foldersDataRaw.data)) {
         foldersArr = foldersDataRaw.data;
       }
+      if (user.role === 'company_user' && user.permissions?.folders) {
+        foldersArr = foldersArr.filter((f: any) => user.permissions!.folders!.includes(f._id));
+      }
       setFolders(foldersArr);
 
-      // collectionsDataRaw may be array, { collections }, or { data }
       let collectionsArr = [];
       if (Array.isArray(collectionsDataRaw)) {
         collectionsArr = collectionsDataRaw;
@@ -144,6 +146,9 @@ const Password = () => {
         collectionsArr = collectionsDataRaw.collections;
       } else if (collectionsDataRaw && Array.isArray(collectionsDataRaw.data)) {
         collectionsArr = collectionsDataRaw.data;
+      }
+      if (user.role === 'company_user' && user.permissions?.collections) {
+        collectionsArr = collectionsArr.filter((c: any) => user.permissions!.collections!.includes(c._id));
       }
       setCollections(collectionsArr);
     } catch (error: any) {
@@ -158,6 +163,11 @@ const Password = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, rowsPerPage, hasPermission]);
 
   const generatePassword = async () => {
     try {
@@ -215,7 +225,7 @@ const Password = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -226,7 +236,7 @@ const Password = () => {
         ...formData,
         websiteUrls: formData.websiteUrls.filter(url => url.trim() !== '')
       };
-      
+
       if (isEditMode && editingPassword) {
         await passwordService.update(editingPassword._id, submitData);
         toast({
@@ -240,7 +250,7 @@ const Password = () => {
           description: 'Password created successfully',
         });
       }
-      
+
       setIsDialogOpen(false);
       resetForm();
       fetchData();
@@ -281,7 +291,7 @@ const Password = () => {
     try {
       // Fetch the decrypted password for editing
       const decryptedPassword = await passwordService.getById(password._id);
-      
+
       setEditingPassword(decryptedPassword);
       setIsEditMode(true);
       setFormData({
@@ -382,9 +392,9 @@ const Password = () => {
 
   // Add a new website URL field
   const addWebsiteUrl = () => {
-    setFormData({ 
-      ...formData, 
-      websiteUrls: [...formData.websiteUrls, ''] 
+    setFormData({
+      ...formData,
+      websiteUrls: [...formData.websiteUrls, '']
     });
   };
 
@@ -401,13 +411,34 @@ const Password = () => {
 
   const filteredPasswords = passwords.filter((password) =>
     password.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (password.websiteUrls && password.websiteUrls.some(url => 
+    (password.websiteUrls && password.websiteUrls.some(url =>
       url.toLowerCase().includes(searchTerm.toLowerCase())
     ))
   );
 
   const totalPages = Math.ceil(totalPasswords / rowsPerPage);
   const paginatedPasswords = filteredPasswords;
+
+  // Render permission denied screens
+  if (!user) {
+    return (
+      <DashboardLayout title="Password Creation">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-lg text-muted-foreground">You must be logged in to access this page.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <DashboardLayout title="Password Creation">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-lg text-muted-foreground">You do not have permission to create passwords.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (loading) {
     return (
@@ -427,7 +458,7 @@ const Password = () => {
             <h2 className="text-3xl font-bold tracking-tight">Password</h2>
             <p className="text-muted-foreground">Manage all your passwords and login entries</p>
           </div>
-          {/* Add Password Dialog */}
+          {/* Add Password Dialog - Always render but conditionally enable */}
           <AddPasswordForm
             trigger={
               <Button>
@@ -438,7 +469,7 @@ const Password = () => {
             sourceType="organization"
             onSuccess={fetchData}
           />
-          {/* Edit Password Dialog */}
+          {/* Edit Password Dialog - Always render but conditionally open */}
           <AddPasswordForm
             isEditMode
             password={editingPassword}
@@ -506,10 +537,10 @@ const Password = () => {
                         {password.websiteUrls && password.websiteUrls.length > 0 ? (
                           <div className="space-y-1">
                             {password.websiteUrls.slice(0, 2).map((url, index) => (
-                              <a 
+                              <a
                                 key={index}
-                                href={url} 
-                                target="_blank" 
+                                href={url}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:underline block text-xs"
                               >
@@ -537,6 +568,7 @@ const Password = () => {
                           <Button size="sm" variant="ghost" onClick={() => viewLogs(password)}>
                             <History className="h-4 w-4" />
                           </Button>
+                          {/* Show delete button for all users */}
                           <Button size="sm" variant="ghost" onClick={() => confirmDelete(password._id)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -572,9 +604,9 @@ const Password = () => {
               <div className="flex items-center justify-between">
                 <code className="text-sm font-mono break-all">{generatedPassword || 'Your password will appear here'}</code>
                 {generatedPassword && (
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     onClick={() => copyToClipboard(generatedPassword, 'Password')}
                     className="ml-2 shrink-0"
                   >
@@ -718,81 +750,80 @@ const Password = () => {
         </DialogContent>
       </Dialog>
 
-     
-    {/* Logs Dialog */}
-<Dialog open={isLogsOpen} onOpenChange={setIsLogsOpen}>
-  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-    <DialogHeader>
-      <DialogTitle>Password Activity Logs</DialogTitle>
-      <p className="text-sm text-muted-foreground">
-        {selectedPassword?.itemName} - Complete history of changes
-      </p>
-    </DialogHeader>
-    <div className="space-y-4">
-      {selectedLogs.length === 0 ? (
-        <p className="text-center text-muted-foreground py-8">No activity logs found</p>
-      ) : (
-        selectedLogs.map((log, index) => (
-          <div key={log._id} className="border rounded-lg p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <Badge variant={
-                log.action === 'create' ? 'default' :
-                log.action === 'update' ? 'secondary' : 'destructive'
-              }>
-                {log.action.toUpperCase()}
-              </Badge>
-              <span className="text-sm text-muted-foreground">
-                {new Date(log.timestamp).toLocaleString()}
-              </span>
-            </div>
-            
-            <div className="text-sm">
-              <strong>Performed by:</strong>{" "}
-              {log.performedBy 
-                ? `${log.performedBy.name} (${log.performedBy.email})`
-                : 'Unknown user'
-              }
-            </div>
+      {/* Logs Dialog */}
+      <Dialog open={isLogsOpen} onOpenChange={setIsLogsOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Password Activity Logs</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {selectedPassword?.itemName} - Complete history of changes
+            </p>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedLogs.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No activity logs found</p>
+            ) : (
+              selectedLogs.map((log, index) => (
+                <div key={log._id} className="border rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Badge variant={
+                      log.action === 'create' ? 'default' :
+                        log.action === 'update' ? 'secondary' : 'destructive'
+                    }>
+                      {log.action.toUpperCase()}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      {new Date(log.timestamp).toLocaleString()}
+                    </span>
+                  </div>
 
-            {log.action === 'create' && (
-              <div className="text-sm">
-                <strong>Original Password:</strong>{' '}
-                <code className="bg-muted px-1 rounded">{log.newValue}</code>
-              </div>
-            )}
+                  <div className="text-sm">
+                    <strong>Performed by:</strong>{" "}
+                    {log.performedBy
+                      ? `${log.performedBy.name} (${log.performedBy.email})`
+                      : 'Unknown user'
+                    }
+                  </div>
 
-            {log.action === 'update' && log.field === 'password' && (
-              <div className="space-y-1 text-sm">
-                <div>
-                  <strong>Previous Password:</strong>{' '}
-                  <code className="bg-muted px-1 rounded">{log.oldValue}</code>
-                </div>
-                <div>
-                  <strong>New Password:</strong>{' '}
-                  <code className="bg-muted px-1 rounded">{log.newValue}</code>
-                </div>
-              </div>
-            )}
+                  {log.action === 'create' && (
+                    <div className="text-sm">
+                      <strong>Original Password:</strong>{' '}
+                      <code className="bg-muted px-1 rounded">{log.newValue}</code>
+                    </div>
+                  )}
 
-            {log.action === 'update' && log.field && log.field !== 'password' && (
-              <div className="space-y-1 text-sm">
-                <div>
-                  <strong>Field:</strong> {log.field}
+                  {log.action === 'update' && log.field === 'password' && (
+                    <div className="space-y-1 text-sm">
+                      <div>
+                        <strong>Previous Password:</strong>{' '}
+                        <code className="bg-muted px-1 rounded">{log.oldValue}</code>
+                      </div>
+                      <div>
+                        <strong>New Password:</strong>{' '}
+                        <code className="bg-muted px-1 rounded">{log.newValue}</code>
+                      </div>
+                    </div>
+                  )}
+
+                  {log.action === 'update' && log.field && log.field !== 'password' && (
+                    <div className="space-y-1 text-sm">
+                      <div>
+                        <strong>Field:</strong> {log.field}
+                      </div>
+                      <div>
+                        <strong>Previous Value:</strong> {log.oldValue || 'N/A'}
+                      </div>
+                      <div>
+                        <strong>New Value:</strong> {log.newValue || 'N/A'}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <strong>Previous Value:</strong> {log.oldValue || 'N/A'}
-                </div>
-                <div>
-                  <strong>New Value:</strong> {log.newValue || 'N/A'}
-                </div>
-              </div>
+              ))
             )}
           </div>
-        ))
-      )}
-    </div>
-  </DialogContent>
-</Dialog>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

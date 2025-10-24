@@ -3,7 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface ITrash extends Document {
   companyId: mongoose.Types.ObjectId;
   itemId: mongoose.Types.ObjectId;
-  itemType: 'collection' | 'folder' | 'organization' | 'password';
+  itemType: 'collection' | 'folder' | 'organization' | 'password' | 'user';
   itemName: string;
   originalData: any;
   deletedBy: mongoose.Types.ObjectId;
@@ -27,7 +27,7 @@ const trashSchema = new Schema<ITrash>(
     },
     itemType: {
       type: String,
-      enum: ['collection', 'folder', 'organization', 'password'],
+      enum: ['collection', 'folder', 'organization', 'password', 'user'],
       required: true,
     },
     itemName: {

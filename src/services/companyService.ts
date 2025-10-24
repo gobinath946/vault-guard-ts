@@ -115,14 +115,26 @@ export const companyService = {
     return response.data;
   },
 
-  getFolders: async (organizationId: string, collectionIds: string[], page = 1, limit = 50, q = '') => {
+  // Updated getFolders to accept multiple organization IDs
+  getFolders: async (organizationIds: string | string[], collectionIds: string[], page = 1, limit = 50, q = '') => {
     const params = new URLSearchParams();
     params.append('page', String(page));
     params.append('limit', String(limit));
-    params.append('collectionIds', collectionIds.join(','));
+    
+    // Handle both single organization ID and array of organization IDs
+    if (Array.isArray(organizationIds)) {
+      params.append('organizationIds', organizationIds.join(','));
+    } else {
+      params.append('organizationIds', organizationIds);
+    }
+    
+    if (Array.isArray(collectionIds) && collectionIds.length > 0) {
+      params.append('collectionIds', collectionIds.join(','));
+    }
+    
     if (q) params.append('q', q);
 
-    const response = await api.get(`/company/organizations/${organizationId}/folders?${params.toString()}`);
+    const response = await api.get(`/company/folders?${params.toString()}`);
     return response.data;
   },
 };

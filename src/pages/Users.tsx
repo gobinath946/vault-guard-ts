@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
-import { Plus, Edit, Trash2, Users as UsersIcon, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Users as UsersIcon, ChevronDown, ChevronUp, Eye, EyeOff, X } from 'lucide-react';
 import { companyService } from '@/services/companyService';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -85,7 +85,7 @@ const Users = () => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [selectedOrganization, setSelectedOrganization] = useState<string>('');
+  const [selectedOrganizations, setSelectedOrganizations] = useState<string[]>([]);
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
   const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
   const [expandedCollections, setExpandedCollections] = useState<string[]>([]);
@@ -108,10 +108,11 @@ const Users = () => {
       folders: []
     }
   });
-  const [editSelectedOrganization, setEditSelectedOrganization] = useState<string>('');
+  const [editSelectedOrganizations, setEditSelectedOrganizations] = useState<string[]>([]);
   const [editSelectedCollections, setEditSelectedCollections] = useState<string[]>([]);
   const [editSelectedFolders, setEditSelectedFolders] = useState<string[]>([]);
   const [editExpandedCollections, setEditExpandedCollections] = useState<string[]>([]);
+  const [editFoldersAutoExpanded, setEditFoldersAutoExpanded] = useState(false);
 
   const { toast } = useToast();
 
@@ -137,15 +138,18 @@ const Users = () => {
   }, [isDialogOpen, isEditDialogOpen]);
 
   useEffect(() => {
-    if (selectedOrganization) {
-      fetchCollections(selectedOrganization);
+    if (selectedOrganizations.length > 0) {
+      // Fetch collections for all selected organizations
+      selectedOrganizations.forEach(orgId => {
+        fetchCollections(orgId);
+      });
       setSelectedCollections([]);
       setSelectedFolders([]);
       setFolders([]);
       setFormData(prev => ({
         ...prev,
         permissions: {
-          organizations: selectedOrganization ? [selectedOrganization] : [],
+          organizations: selectedOrganizations,
           collections: [],
           folders: []
         }
@@ -164,58 +168,80 @@ const Users = () => {
         }
       }));
     }
-  }, [selectedOrganization]);
+  }, [selectedOrganizations]);
 
   useEffect(() => {
-    if (editSelectedOrganization) {
-      fetchCollections(editSelectedOrganization);
+    if (editSelectedOrganizations.length > 0) {
+      // Fetch collections for all selected organizations in edit mode
+      editSelectedOrganizations.forEach(orgId => {
+        fetchCollections(orgId);
+      });
       setEditFormData(prev => ({
         ...prev,
         permissions: {
-          organizations: editSelectedOrganization ? [editSelectedOrganization] : [],
+          organizations: editSelectedOrganizations,
           collections: editSelectedCollections,
           folders: editSelectedFolders
         }
       }));
     }
-  }, [editSelectedOrganization]);
+  }, [editSelectedOrganizations]);
 
   useEffect(() => {
-    if (selectedOrganization && selectedCollections.length > 0) {
-      fetchFolders(selectedOrganization, selectedCollections);
+    if (selectedOrganizations.length > 0 && selectedCollections.length > 0) {
+      fetchFolders(selectedOrganizations, selectedCollections);
     } else {
       setFolders([]);
       setSelectedFolders([]);
     }
-  }, [selectedOrganization, selectedCollections]);
+  }, [selectedOrganizations, selectedCollections]);
 
   useEffect(() => {
-    if (editSelectedOrganization && editSelectedCollections.length > 0) {
-      fetchFolders(editSelectedOrganization, editSelectedCollections);
-    }
-  }, [editSelectedOrganization, editSelectedCollections]);
+    (async () => {
+      if (editSelectedOrganizations.length > 0 && editSelectedCollections.length > 0) {
+        const allFolders: Folder[] = [];
+        for (const orgId of editSelectedOrganizations) {
+          const orgCollections = collections
+            .filter(col => col.organizationId === orgId)
+            .map(col => col._id)
+            .filter(id => editSelectedCollections.includes(id));
+          if (orgCollections.length === 0) continue;
+          const data = await companyService.getFolders(orgId, orgCollections);
+          const mappedFolders = data.folders.map((folder: any) => ({
+            _id: folder._id,
+            name: folder.folderName || folder.name,
+            description: folder.description || "",
+            collectionId: folder.collectionId,
+            organizationId: folder.organizationId,
+          }));
+          allFolders.push(...mappedFolders);
+        }
+        setFolders(allFolders);
+      }
+    })();
+  }, [editSelectedOrganizations, editSelectedCollections]);
 
   useEffect(() => {
     setFormData(prev => ({
       ...prev,
       permissions: {
-        organizations: selectedOrganization ? [selectedOrganization] : [],
+        organizations: selectedOrganizations,
         collections: selectedCollections,
         folders: selectedFolders
       }
     }));
-  }, [selectedOrganization, selectedCollections, selectedFolders]);
+  }, [selectedOrganizations, selectedCollections, selectedFolders]);
 
   useEffect(() => {
     setEditFormData(prev => ({
       ...prev,
       permissions: {
-        organizations: editSelectedOrganization ? [editSelectedOrganization] : [],
+        organizations: editSelectedOrganizations,
         collections: editSelectedCollections,
         folders: editSelectedFolders
       }
     }));
-  }, [editSelectedOrganization, editSelectedCollections, editSelectedFolders]);
+  }, [editSelectedOrganizations, editSelectedCollections, editSelectedFolders]);
 
   const fetchUsers = async (page = 1, limit = 10, q = '') => {
     setLoading(true);
@@ -234,16 +260,13 @@ const Users = () => {
     }
   };
 
-  // In your Users component, update the fetch functions:
-
   const fetchOrganizations = async () => {
     setLoadingOrganizations(true);
     try {
       const data = await companyService.getOrganizations();
-      // Map the backend response to frontend format
       const mappedOrganizations = data.organizations.map((org: any) => ({
         _id: org._id,
-        name: org.organizationName || org.name, // Handle both field names
+        name: org.organizationName || org.name,
         description: org.organizationEmail || org.description
       }));
       setOrganizations(mappedOrganizations);
@@ -273,7 +296,16 @@ const Users = () => {
         description: collection.description,
         organizationId: collection.organizationId,
       }));
-      setCollections(mappedCollections);
+      // Merge with existing collections
+      setCollections(prev => {
+        const newCollections = [...prev];
+        mappedCollections.forEach(newCol => {
+          if (!newCollections.find(col => col._id === newCol._id)) {
+            newCollections.push(newCol);
+          }
+        });
+        return newCollections;
+      });
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -285,33 +317,31 @@ const Users = () => {
     }
   };
 
-
   const fetchFolders = async (
-    organizationId: string | { _id: string },
-    collectionIds: (string | { _id: string })[]
+    organizationIds: string[],
+    collectionIds: string[]
   ) => {
-
-    const finalOrgId =
-      typeof organizationId === "object" ? organizationId._id : organizationId;
-
-    const finalCollectionIds = collectionIds.map((c: any) =>
-      typeof c === "object" ? c._id : c
-    );
-
     setLoadingFolders(true);
-
     try {
-      const data = await companyService.getFolders(finalOrgId, finalCollectionIds);
-
-      const mappedFolders = data.folders.map((folder: any) => ({
-        _id: folder._id,
-        name: folder.folderName || folder.name,
-        description: folder.description || "",
-        collectionId: folder.collectionId,
-        organizationId: folder.organizationId,
-      }));
-
-      setFolders(mappedFolders);
+      const allFolders: Folder[] = [];
+      for (const orgId of organizationIds) {
+        // Only send collections that belong to this org
+        const orgCollections = collections
+          .filter(col => col.organizationId === orgId)
+          .map(col => col._id)
+          .filter(id => collectionIds.includes(id));
+        if (orgCollections.length === 0) continue;
+        const data = await companyService.getFolders(orgId, orgCollections);
+        const mappedFolders = data.folders.map((folder: any) => ({
+          _id: folder._id,
+          name: folder.folderName || folder.name,
+          description: folder.description || "",
+          collectionId: folder.collectionId,
+          organizationId: folder.organizationId,
+        }));
+        allFolders.push(...mappedFolders);
+      }
+      setFolders(allFolders);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -322,7 +352,6 @@ const Users = () => {
       setLoadingFolders(false);
     }
   };
-
 
   // Delete confirmation modal state
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
@@ -355,16 +384,14 @@ const Users = () => {
     }
   };
 
-  // Update the handleEdit function to ensure proper data loading:
-
+  // Update the handleEdit function for multiple organizations
   const handleEdit = async (user: User) => {
     setEditingUser(user);
-    // Extract _id from permissions arrays (which may be objects or strings)
-    let orgId = '';
-    if (user.permissions?.organizations?.[0]) {
-      const org = user.permissions.organizations[0];
-      orgId = typeof org === 'object' && org !== null ? (org as any)._id : org;
-    }
+    
+    // Extract _id from permissions arrays
+    const orgIds = (user.permissions?.organizations || []).map((org: any) =>
+      typeof org === 'object' && org !== null ? (org as any)._id : org
+    );
     const collectionIds = (user.permissions?.collections || []).map((c: any) =>
       typeof c === 'object' && c !== null ? c._id : c
     );
@@ -377,37 +404,43 @@ const Users = () => {
       email: user.email,
       password: '',
       permissions: {
-        organizations: orgId ? [orgId] : [],
+        organizations: orgIds,
         collections: collectionIds,
         folders: folderIds
       }
     });
 
-    if (orgId) {
+    if (orgIds.length > 0) {
       // First ensure organizations are loaded
       if (organizations.length === 0) {
         await fetchOrganizations();
       }
-      setEditSelectedOrganization(orgId);
+      setEditSelectedOrganizations(orgIds);
       setEditSelectedCollections(collectionIds);
       setEditSelectedFolders(folderIds);
-      await fetchCollections(orgId);
+      
+      // Fetch collections for all organizations
+      orgIds.forEach(orgId => {
+        fetchCollections(orgId);
+      });
+      
       if (collectionIds.length > 0) {
-        await fetchFolders(orgId, collectionIds);
+        await fetchFolders(orgIds, collectionIds);
         setTimeout(() => {
-          const collectionsWithFolders = collectionIds.filter(collectionId =>
+          const collectionsWithFolders = collectionIds.filter(collectionId => 
             folders.some(folder => folder.collectionId === collectionId)
           );
           setEditExpandedCollections(collectionsWithFolders);
         }, 500);
       }
     } else {
-      setEditSelectedOrganization('');
+      setEditSelectedOrganizations([]);
       setEditSelectedCollections([]);
       setEditSelectedFolders([]);
       setEditExpandedCollections([]);
     }
-    setIsEditDialogOpen(true);
+  setEditFoldersAutoExpanded(false);
+  setIsEditDialogOpen(true);
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -422,7 +455,6 @@ const Users = () => {
       };
 
       if (editFormData.password.trim() !== '') {
-        // Double hash: SHA256 on frontend before sending to backend
         updateData.password = hashPassword(editFormData.password);
       }
 
@@ -443,7 +475,7 @@ const Users = () => {
           folders: []
         }
       });
-      setEditSelectedOrganization('');
+      setEditSelectedOrganizations([]);
       setEditSelectedCollections([]);
       setEditSelectedFolders([]);
       setShowEditPassword(false);
@@ -456,6 +488,7 @@ const Users = () => {
       });
     }
   };
+
   const handleStatusToggle = async (userId: string, newStatus: boolean) => {
     try {
       await companyService.updateUserStatus(userId, newStatus);
@@ -473,17 +506,66 @@ const Users = () => {
     }
   };
 
+  // Organization handlers
+  const handleOrganizationToggle = (orgId: string) => {
+    setSelectedOrganizations(prev => {
+      const newOrganizations = prev.includes(orgId)
+        ? prev.filter(id => id !== orgId)
+        : [...prev, orgId];
 
-  const handleOrganizationChange = (orgId: string) => {
-    setSelectedOrganization(orgId);
+      if (!newOrganizations.includes(orgId)) {
+        // Remove collections and folders that belong to the deselected organization
+        const collectionsToRemove = collections
+          .filter(collection => collection.organizationId === orgId)
+          .map(collection => collection._id);
+        
+        setSelectedCollections(prevCols => 
+          prevCols.filter(colId => !collectionsToRemove.includes(colId))
+        );
+
+        const foldersToRemove = folders
+          .filter(folder => folder.organizationId === orgId)
+          .map(folder => folder._id);
+        
+        setSelectedFolders(prevFolders => 
+          prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
+        );
+      }
+
+      return newOrganizations;
+    });
   };
 
-  const handleEditOrganizationChange = (orgId: string) => {
-    setEditSelectedOrganization(orgId);
-    setEditSelectedCollections([]);
-    setEditSelectedFolders([]);
+  const handleEditOrganizationToggle = (orgId: string) => {
+    setEditSelectedOrganizations(prev => {
+      const newOrganizations = prev.includes(orgId)
+        ? prev.filter(id => id !== orgId)
+        : [...prev, orgId];
+
+      if (!newOrganizations.includes(orgId)) {
+        // Remove collections and folders that belong to the deselected organization
+        const collectionsToRemove = collections
+          .filter(collection => collection.organizationId === orgId)
+          .map(collection => collection._id);
+        
+        setEditSelectedCollections(prevCols => 
+          prevCols.filter(colId => !collectionsToRemove.includes(colId))
+        );
+
+        const foldersToRemove = folders
+          .filter(folder => folder.organizationId === orgId)
+          .map(folder => folder._id);
+        
+        setEditSelectedFolders(prevFolders => 
+          prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
+        );
+      }
+
+      return newOrganizations;
+    });
   };
 
+  // Collection handlers
   const handleCollectionToggle = (collectionId: string) => {
     setSelectedCollections(prev => {
       const newCollections = prev.includes(collectionId)
@@ -522,6 +604,7 @@ const Users = () => {
     });
   };
 
+  // Folder handlers
   const handleFolderToggle = (folderId: string) => {
     setSelectedFolders(prev => {
       return prev.includes(folderId)
@@ -572,12 +655,27 @@ const Users = () => {
     );
   };
 
-  const toggleEditCollectionExpansion = (collectionId: string) => {
+  const toggleEditCollectionExpansion = async (collectionId: string) => {
     setEditExpandedCollections(prev =>
       prev.includes(collectionId)
         ? prev.filter(id => id !== collectionId)
         : [...prev, collectionId]
     );
+    // If expanding, fetch folders for this collection if not already present
+    if (!editExpandedCollections.includes(collectionId)) {
+      const orgId = collections.find(col => col._id === collectionId)?.organizationId;
+      if (orgId && !folders.some(f => f.collectionId === collectionId)) {
+        const data = await companyService.getFolders(orgId, [collectionId]);
+        const mappedFolders = data.folders.map((folder: any) => ({
+          _id: folder._id,
+          name: folder.folderName || folder.name,
+          description: folder.description || "",
+          collectionId: folder.collectionId,
+          organizationId: folder.organizationId,
+        }));
+        setFolders(prev => [...prev, ...mappedFolders]);
+      }
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -599,19 +697,23 @@ const Users = () => {
   }, [folders, selectedCollections]);
 
   useEffect(() => {
-    if (folders.length > 0 && editSelectedCollections.length > 0) {
-      const collectionsWithFolders = new Set(folders.map(folder => folder.collectionId));
-      const newExpanded = editSelectedCollections.filter(collectionId =>
-        collectionsWithFolders.has(collectionId)
-      );
-      setEditExpandedCollections(newExpanded);
-    }
-  }, [folders, editSelectedCollections]);
+      if (!isEditDialogOpen) {
+        setEditFoldersAutoExpanded(false);
+        return;
+      }
+      if (!editFoldersAutoExpanded && folders.length > 0 && editSelectedCollections.length > 0) {
+        const collectionsWithFolders = new Set(folders.map(folder => folder.collectionId));
+        const newExpanded = editSelectedCollections.filter(collectionId =>
+          collectionsWithFolders.has(collectionId)
+        );
+        setEditExpandedCollections(newExpanded);
+        setEditFoldersAutoExpanded(true);
+      }
+    }, [folders, editSelectedCollections, isEditDialogOpen, editFoldersAutoExpanded]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Double hash: SHA256 on frontend before sending to backend
       const userData = {
         ...formData,
         password: formData.password ? hashPassword(formData.password) : '',
@@ -628,7 +730,7 @@ const Users = () => {
         password: '',
         permissions: { organizations: [], collections: [], folders: [] }
       });
-      setSelectedOrganization('');
+      setSelectedOrganizations([]);
       setSelectedCollections([]);
       setSelectedFolders([]);
       setExpandedCollections([]);
@@ -645,13 +747,55 @@ const Users = () => {
 
   const totalPages = Math.ceil(totalUsers / rowsPerPage);
 
+  // Helper function to render organization selection
+  const renderOrganizationSelection = (
+    isEdit: boolean,
+    selectedOrgs: string[],
+    onOrgToggle: (orgId: string) => void
+  ) => (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label>Organizations *</Label>
+        <span className="text-sm text-muted-foreground">
+          {selectedOrgs.length} selected
+        </span>
+      </div>
+      {loadingOrganizations ? (
+        <div className="text-sm text-muted-foreground mt-2">Loading organizations...</div>
+      ) : (
+        <div className="space-y-2 mt-2">
+          {organizations.map((org) => (
+            <div key={org._id} className="flex items-center space-x-2">
+              <Checkbox
+                checked={selectedOrgs.includes(org._id)}
+                onCheckedChange={() => onOrgToggle(org._id)}
+                disabled={loadingOrganizations}
+              />
+              <Label className="flex-1 cursor-pointer">
+                {org.name}
+                {org.description && (
+                  <span className="text-sm text-muted-foreground ml-2">
+                    {org.description}
+                  </span>
+                )}
+              </Label>
+            </div>
+          ))}
+          {organizations.length === 0 && !loadingOrganizations && (
+            <div className="text-sm text-muted-foreground">No organizations found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   const renderPermissionSection = (
     isEdit: boolean,
-    selectedOrg: string,
+    selectedOrgs: string[],
     selectedCols: string[],
     selectedFolds: string[],
     expandedCols: string[],
-    onOrgChange: (orgId: string) => void,
+    onOrgToggle: (orgId: string) => void,
     onColToggle: (colId: string) => void,
     onFolderToggle: (folderId: string) => void,
     onSelectAllFolders: (colId: string) => void,
@@ -666,33 +810,9 @@ const Users = () => {
         </p>
       </div>
 
-      <div>
-        <Label htmlFor={isEdit ? "edit-organization" : "organization"}>Organization *</Label>
-        <Select
-          value={selectedOrg}
-          onValueChange={onOrgChange}
-          disabled={loadingOrganizations}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder={loadingOrganizations ? "Loading organizations..." : "Select an organization"} />
-          </SelectTrigger>
-          <SelectContent>
-            {organizations.map((org) => (
-              <SelectItem key={org._id} value={org._id}>
-                {org.name}
-                {org.description && ` - ${org.description}`}
-              </SelectItem>
-            ))}
-            {organizations.length === 0 && !loadingOrganizations && (
-              <SelectItem value="no-org" disabled>
-                No organizations found
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+      {renderOrganizationSelection(isEdit, selectedOrgs, onOrgToggle)}
 
-      {selectedOrg && (
+      {selectedOrgs.length > 0 && (
         <div>
           <div className="flex items-center justify-between">
             <Label>Collections</Label>
@@ -704,106 +824,112 @@ const Users = () => {
             <div className="text-sm text-muted-foreground mt-2">Loading collections...</div>
           ) : (
             <div className="space-y-2 mt-2">
-              {collections.map((collection) => (
-                <div key={collection._id} className="flex items-center space-x-2">
-                  <Checkbox
-                    checked={selectedCols.includes(collection._id)}
-                    onCheckedChange={() => onColToggle(collection._id)}
-                    disabled={loadingCollections}
-                  />
-                  <Label className="flex-1 cursor-pointer">
-                    {collection.name}
-                    {collection.description && (
-                      <span className="text-sm text-muted-foreground ml-2">
-                        {collection.description}
-                      </span>
-                    )}
-                  </Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onToggleExpand(collection._id)}
-                    disabled={!selectedCols.includes(collection._id)}
-                  >
-                    {expandedCols.includes(collection._id) ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              ))}
-              {collections.length === 0 && (
-                <div className="text-sm text-muted-foreground">No collections found in this organization</div>
+              {collections
+                .filter(collection => selectedOrgs.includes(collection.organizationId))
+                .map((collection) => (
+                  <div key={collection._id} className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={selectedCols.includes(collection._id)}
+                      onCheckedChange={() => onColToggle(collection._id)}
+                      disabled={loadingCollections}
+                    />
+                    <Label className="flex-1 cursor-pointer">
+                      {collection.name}
+                      {collection.description && (
+                        <span className="text-sm text-muted-foreground ml-2">
+                          {collection.description}
+                        </span>
+                      )}
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onToggleExpand(collection._id)}
+                      disabled={!selectedCols.includes(collection._id)}
+                    >
+                      {expandedCols.includes(collection._id) ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              {collections.filter(col => selectedOrgs.includes(col.organizationId)).length === 0 && (
+                <div className="text-sm text-muted-foreground">No collections found in selected organizations</div>
               )}
             </div>
           )}
         </div>
       )}
 
-      {selectedOrg && selectedCols.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between">
-            <Label>Folders</Label>
-            <span className="text-sm text-muted-foreground">
-              {selectedFolds.length} selected
-            </span>
-          </div>
-          {loadingFolders ? (
-            <div className="text-sm text-muted-foreground mt-2">Loading folders...</div>
-          ) : (
-            <div className="space-y-3 mt-2">
-              {collections
-                .filter(collection => selectedCols.includes(collection._id))
-                .map(collection => {
-                  const collectionFolders = folders.filter(
-                    folder => folder.collectionId === collection._id
-                  );
-                  const allFoldersSelected = collectionFolders.length > 0 &&
-                    collectionFolders.every(folder => selectedFolds.includes(folder._id));
+  {selectedOrgs.length > 0 && (
+        selectedCols.length > 0 ? (
+          <div>
+            <div className="flex items-center justify-between">
+              <Label>Folders</Label>
+              <span className="text-sm text-muted-foreground">
+                {selectedFolds.length} selected
+              </span>
+            </div>
+            {loadingFolders ? (
+              <div className="text-sm text-muted-foreground mt-2">Loading folders...</div>
+            ) : (
+              <div className="space-y-3 mt-2">
+                {collections
+                  .filter(collection => selectedCols.includes(collection._id))
+                  .map(collection => {
+                    const collectionFolders = folders.filter(
+                      folder => folder.collectionId === collection._id
+                    );
+                    const allFoldersSelected = collectionFolders.length > 0 &&
+                      collectionFolders.every(folder => selectedFolds.includes(folder._id));
 
-                  return (
-                    <div key={collection._id}>
-                      {expandedCols.includes(collection._id) && collectionFolders.length > 0 && (
-                        <div className="ml-4 space-y-2 border-l-2 border-border pl-4">
-                          <div className="flex items-center space-x-2 p-2 bg-muted/30 rounded">
-                            <Checkbox
-                              checked={allFoldersSelected}
-                              onCheckedChange={() => onSelectAllFolders(collection._id)}
-                            />
-                            <Label className="cursor-pointer font-medium">
-                              Select all folders in {collection.name}
-                            </Label>
-                          </div>
-
-                          {collectionFolders.map(folder => (
-                            <div key={folder._id} className="flex items-center space-x-2 p-2 border rounded">
+                    return (
+                      <div key={collection._id}>
+                        {expandedCols.includes(collection._id) && collectionFolders.length > 0 && (
+                          <div className="ml-4 space-y-2 border-l-2 border-border pl-4">
+                            <div className="flex items-center space-x-2 p-2 bg-muted/30 rounded">
                               <Checkbox
-                                checked={selectedFolds.includes(folder._id)}
-                                onCheckedChange={() => onFolderToggle(folder._id)}
+                                checked={allFoldersSelected}
+                                onCheckedChange={() => onSelectAllFolders(collection._id)}
                               />
-                              <Label className="cursor-pointer flex-1">
-                                {folder.name}
+                              <Label className="cursor-pointer font-medium">
+                                Select all folders in {collection.name}
                               </Label>
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
+
+                            {collectionFolders.map(folder => (
+                              <div key={folder._id} className="flex items-center space-x-2 p-2 border rounded">
+                                <Checkbox
+                                  checked={selectedFolds.includes(folder._id)}
+                                  onCheckedChange={() => onFolderToggle(folder._id)}
+                                />
+                                <Label className="cursor-pointer flex-1">
+                                  {folder.name}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground mt-2">Select at least one collection to view folders.</div>
+        )
       )}
 
-      {(selectedOrg || selectedCols.length > 0 || selectedFolds.length > 0) && (
+      {(selectedOrgs.length > 0 || selectedCols.length > 0 || selectedFolds.length > 0) && (
         <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border">
           <h4 className="font-medium text-sm mb-2">Access Summary:</h4>
           <div className="text-sm space-y-1">
-            {selectedOrg && (
-              <div>• Organization: {organizations.find(org => org._id === selectedOrg)?.name}</div>
+            {selectedOrgs.length > 0 && (
+              <div>• Organizations: {selectedOrgs.length} selected</div>
             )}
             {selectedCols.length > 0 && (
               <div>• Collections: {selectedCols.length} selected</div>
@@ -902,11 +1028,11 @@ const Users = () => {
 
                   {renderPermissionSection(
                     false,
-                    selectedOrganization,
+                    selectedOrganizations,
                     selectedCollections,
                     selectedFolders,
                     expandedCollections,
-                    handleOrganizationChange,
+                    handleOrganizationToggle,
                     handleCollectionToggle,
                     handleFolderToggle,
                     handleSelectAllFoldersInCollection,
@@ -916,7 +1042,7 @@ const Users = () => {
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={!selectedOrganization || !formData.username || !formData.email || !formData.password}
+                    disabled={!selectedOrganizations.length || !formData.username || !formData.email || !formData.password}
                   >
                     Create User
                   </Button>
@@ -987,11 +1113,11 @@ const Users = () => {
 
                 {renderPermissionSection(
                   true,
-                  editSelectedOrganization,
+                  editSelectedOrganizations,
                   editSelectedCollections,
                   editSelectedFolders,
                   editExpandedCollections,
-                  handleEditOrganizationChange,
+                  handleEditOrganizationToggle,
                   handleEditCollectionToggle,
                   handleEditFolderToggle,
                   handleEditSelectAllFoldersInCollection,
@@ -1001,7 +1127,7 @@ const Users = () => {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={!editSelectedOrganization || !editFormData.username || !editFormData.email}
+                  disabled={!editSelectedOrganizations.length || !editFormData.username || !editFormData.email}
                 >
                   Update User
                 </Button>
@@ -1053,7 +1179,6 @@ const Users = () => {
                           <Badge variant={user.isActive ? 'default' : 'secondary'}>
                             {user.isActive ? 'Active' : 'Inactive'}
                           </Badge>
-                         
                         </div>
                       </td>
                       <td className="p-4 text-sm">

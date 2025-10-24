@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw, Eye, Copy, Sparkles } from 'lucide-react';
+import { RefreshCw, Eye, Copy, Sparkles, X as LucideX } from 'lucide-react';
 import { passwordService } from '@/services/passwordService';
 import { folderService } from '@/services/folderService';
 import { collectionService } from '@/services/collectionService';
@@ -41,7 +42,7 @@ interface FormData {
   itemName: string;
   username: string;
   password: string;
-  websiteUrl: string;
+  websiteUrls: string[];
   notes: string;
   folderId: string;
   collectionId: string;
@@ -65,12 +66,13 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
   const [orgOptions, setOrgOptions] = useState<any[]>([]);
   const [collectionOptions, setCollectionOptions] = useState<any[]>([]);
   const [folderOptions, setFolderOptions] = useState<any[]>([]);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     itemName: '',
     username: '',
     password: '',
-    websiteUrl: '',
+    websiteUrls: [''],
     notes: '',
     folderId: '',
     collectionId: '',
@@ -82,15 +84,19 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
   const fetchOrganizations = async () => {
     try {
       const data = await organizationService.getAll(1, 1000, '');
+      let orgs: any[] = [];
       if (Array.isArray(data)) {
-        setOrgOptions(data);
+        orgs = data;
       } else if (data && Array.isArray(data.organizations)) {
-        setOrgOptions(data.organizations);
+        orgs = data.organizations;
       } else if (data && Array.isArray(data.data)) {
-        setOrgOptions(data.data);
-      } else {
-        setOrgOptions([]);
+        orgs = data.data;
       }
+      // Filter for company_user
+      if (user?.role === 'company_user' && user.permissions?.organizations) {
+        orgs = orgs.filter((org) => user.permissions.organizations.includes(org._id));
+      }
+      setOrgOptions(orgs);
     } catch {
       setOrgOptions([]);
     }
@@ -104,15 +110,19 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
     }
     try {
       const response = await collectionService.getAll(1, 1000, '', organizationId);
+      let cols: any[] = [];
       if (Array.isArray(response)) {
-        setCollectionOptions(response);
+        cols = response;
       } else if (response && Array.isArray(response.collections)) {
-        setCollectionOptions(response.collections);
+        cols = response.collections;
       } else if (response && Array.isArray(response.data)) {
-        setCollectionOptions(response.data);
-      } else {
-        setCollectionOptions([]);
+        cols = response.data;
       }
+      // Filter for company_user
+      if (user?.role === 'company_user' && user.permissions?.collections) {
+        cols = cols.filter((col) => user.permissions.collections.includes(col._id));
+      }
+      setCollectionOptions(cols);
     } catch {
       setCollectionOptions([]);
     }
@@ -126,15 +136,19 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
     }
     try {
       const response = await folderService.getAll(1, 1000, '', organizationId, collectionId);
+      let folds: any[] = [];
       if (Array.isArray(response)) {
-        setFolderOptions(response);
+        folds = response;
       } else if (response && Array.isArray(response.folders)) {
-        setFolderOptions(response.folders);
+        folds = response.folders;
       } else if (response && Array.isArray(response.data)) {
-        setFolderOptions(response.data);
-      } else {
-        setFolderOptions([]);
+        folds = response.data;
       }
+      // Filter for company_user
+      if (user?.role === 'company_user' && user.permissions?.folders) {
+        folds = folds.filter((fold) => user.permissions.folders.includes(fold._id));
+      }
+      setFolderOptions(folds);
     } catch {
       setFolderOptions([]);
     }
@@ -150,7 +164,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
           itemName: password.itemName || '',
           username: password.username || '',
           password: password.password || '',
-          websiteUrl: (password.websiteUrls && password.websiteUrls[0]) || '',
+          websiteUrls: Array.isArray(password.websiteUrls) && password.websiteUrls.length > 0 ? password.websiteUrls : [''],
           notes: password.notes || '',
           folderId: password.folderId || '',
           collectionId: password.collectionId || '',
@@ -175,7 +189,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
           itemName: '',
           username: '',
           password: '',
-          websiteUrl: '',
+          websiteUrls: [''],
           notes: '',
           folderId: '',
           collectionId: '',
@@ -224,6 +238,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
     try {
       const submitData = {
         ...formData,
+        websiteUrls: formData.websiteUrls.filter(url => url.trim() !== ''),
         sourceType, // Add source type flag
       };
       if (isEditMode && password && password._id) {
@@ -247,7 +262,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
         itemName: '',
         username: '',
         password: '',
-        websiteUrl: '',
+  websiteUrls: [''],
         notes: '',
         folderId: '',
         collectionId: '',
@@ -341,13 +356,48 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
             </div>
 
             <div>
-              <Label>Website URL</Label>
-              <Input
-                type="url"
-                value={formData.websiteUrl}
-                onChange={(e) => setFormData({ ...formData, websiteUrl: e.target.value })}
-                placeholder="https://example.com"
-              />
+              <Label>Website URLs</Label>
+              {formData.websiteUrls.map((url, idx) => (
+                <div key={idx} className="flex gap-2 mb-2">
+                  <Input
+                    type="url"
+                    value={url}
+                    onChange={e => {
+                      const newUrls = [...formData.websiteUrls];
+                      newUrls[idx] = e.target.value;
+                      setFormData({ ...formData, websiteUrls: newUrls });
+                    }}
+                    placeholder="https://example.com"
+                  />
+                  {formData.websiteUrls.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          websiteUrls: formData.websiteUrls.filter((_, i) => i !== idx),
+                        });
+                      }}
+                      // Removed text-destructive to make icon black
+                      aria-label="Remove URL"
+                    >
+                      <LucideX className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {idx === formData.websiteUrls.length - 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setFormData({ ...formData, websiteUrls: [...formData.websiteUrls, ''] })}
+                    >
+                      +
+                    </Button>
+                  )}
+                </div>
+              ))}
             </div>
 
             <div>
