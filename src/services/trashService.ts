@@ -8,7 +8,7 @@ export interface TrashItem {
   originalData: any;
   deletedBy: {
     _id: string;
-    name?: string;
+    username?: string;
     email?: string;
   };
   deletedFrom: string;
@@ -17,7 +17,7 @@ export interface TrashItem {
   restoredAt?: string;
   restoredBy?: {
     _id: string;
-    name?: string;
+    username?: string;
     email?: string;
   };
 }

@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw, Eye, Copy, Sparkles, X as LucideX } from 'lucide-react';
+import { RefreshCw, Eye, EyeOff, Copy, Sparkles, X as LucideX } from 'lucide-react';
 import { passwordService } from '@/services/passwordService';
 import { folderService } from '@/services/folderService';
 import { collectionService } from '@/services/collectionService';
@@ -61,6 +61,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [isUsernameGeneratorOpen, setIsUsernameGeneratorOpen] = useState(false);
   // Dropdown state (no search/pagination)
   const [orgOptions, setOrgOptions] = useState<any[]>([]);
@@ -336,14 +337,26 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
               </div>
               <div>
                 <Label>Password *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="password"
-                    required
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="Password"
-                  />
+                <div className="flex gap-2 items-center">
+                  <div className="relative w-full">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Password"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   <Button
                     type="button"
                     variant="outline"

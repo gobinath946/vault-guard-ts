@@ -49,24 +49,6 @@ const menuItems: MenuItem[] = [
     roles: ['company_super_admin'],
   },
   {
-    title: 'Organization',
-    path: '/organization',
-    icon: Key,
-    roles: ['company_super_admin'],
-  },
-  {
-    title: 'Collections',
-    path: '/collections',
-    icon: BookOpen,
-    roles: ['company_super_admin'],
-  },
-  {
-    title: 'Folders',
-    path: '/folders',
-    icon: FolderTree,
-    roles: ['company_super_admin'],
-  },
-  {
     title: 'Password Creation',
     path: '/password-creation',
     icon: KeyRound,
@@ -80,10 +62,18 @@ const menuItems: MenuItem[] = [
   }
 ];
 
-export const Sidebar = () => {
+export const Sidebar = ({
+  collapsed,
+  setCollapsed,
+  mobileOpen,
+  setMobileOpen
+}: {
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+  mobileOpen: boolean;
+  setMobileOpen: (v: boolean) => void;
+}) => {
   const { user } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
-
 
   // If user is 'company_user', only show Password Creation
   let filteredMenuItems = menuItems.filter((item) => item.roles.includes(user?.role || ''));
@@ -91,47 +81,68 @@ export const Sidebar = () => {
     filteredMenuItems = menuItems.filter((item) => item.title === 'Password Creation');
   }
 
-  return (
-    <aside
-      className={cn(
-        'fixed left-0 top-16 h-[calc(100vh-4rem)] border-r border-border bg-card transition-all duration-300',
-        collapsed ? 'w-16' : 'w-64'
-      )}
-    >
-      <div className="flex h-full flex-col">
-        <div className="flex items-center justify-end p-2">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="rounded-lg p-2 hover:bg-accent transition-colors"
-          >
-            {collapsed ? (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronLeft className="h-5 w-5 text-muted-foreground" />
-            )}
-          </button>
-        </div>
-
-        <nav className="flex-1 space-y-1 px-2">
-          {filteredMenuItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                )
-              }
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {!collapsed && <span>{item.title}</span>}
-            </NavLink>
-          ))}
-        </nav>
+  // Desktop sidebar
+  const sidebarContent = (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-end p-2">
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="rounded-lg p-2 hover:bg-accent transition-colors"
+        >
+          {collapsed ? (
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+          )}
+        </button>
       </div>
-    </aside>
+      <nav className="flex-1 space-y-1 px-2">
+        {filteredMenuItems.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                collapsed && 'justify-center px-0'
+              )
+            }
+            onClick={() => {
+              if (mobileOpen) setMobileOpen(false);
+            }}
+          >
+            <item.icon className="h-5 w-5 flex-shrink-0" />
+            {!collapsed && <span>{item.title}</span>}
+          </NavLink>
+        ))}
+      </nav>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          'z-40 hidden md:fixed md:left-0 md:top-16 md:h-[calc(100vh-4rem)] border-r border-border bg-card transition-all duration-300 md:flex flex-col',
+          collapsed ? 'md:w-16' : 'md:w-64'
+        )}
+      >
+        {sidebarContent}
+      </aside>
+      {/* Mobile sidebar overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div className="w-64 bg-card border-r border-border flex flex-col h-full animate-slide-in-left">
+            {sidebarContent}
+          </div>
+          {/* Backdrop */}
+          <div className="flex-1 bg-black/40" onClick={() => setMobileOpen(false)} />
+        </div>
+      )}
+    </>
   );
 };

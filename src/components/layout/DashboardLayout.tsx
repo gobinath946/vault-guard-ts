@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Shield, LogOut, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
+import { useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
     navigate('/login');
   };
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-background">
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -38,10 +42,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
 
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">{user?.email}</span>
+            {/* Hamburger for mobile sidebar */}
+            <button className="md:hidden rounded-lg p-2 hover:bg-accent" onClick={() => setSidebarMobileOpen(true)} aria-label="Open sidebar">
+              <Menu className="h-5 w-5" />
+            </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
-                  <Menu className="h-5 w-5" />
+                  <LogOut className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -55,9 +63,18 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
         </div>
       </header>
 
-      <Sidebar />
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
+        mobileOpen={sidebarMobileOpen}
+        setMobileOpen={setSidebarMobileOpen}
+      />
 
-      <main className="ml-64 mt-16 p-6">{children}</main>
+      <main
+        className={`mt-16 p-6 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'} md:block`}
+      >
+        {children}
+      </main>
     </div>
   );
 };

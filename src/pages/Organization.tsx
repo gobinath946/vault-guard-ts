@@ -36,7 +36,8 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
 
-const Organizations = () => {
+// Extracted content component without DashboardLayout
+export const OrganizationsContent = () => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   // Auth context for permission filtering
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -208,16 +209,13 @@ const Organizations = () => {
 
   if (loading) {
     return (
-      <DashboardLayout title="Organizations">
-        <div className="flex h-96 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        </div>
-      </DashboardLayout>
+      <div className="flex h-96 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout title="Organizations">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -395,6 +393,14 @@ const Organizations = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+  );
+};
+
+// Wrapper component with DashboardLayout for standalone page
+const Organizations = () => {
+  return (
+    <DashboardLayout title="Organizations">
+      <OrganizationsContent />
     </DashboardLayout>
   );
 };

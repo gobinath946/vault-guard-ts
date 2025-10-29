@@ -20,7 +20,7 @@ export const getAllTrashItems = async (req: AuthRequest, res: Response) => {
 
     const total = await Trash.countDocuments(filter);
     const trashItems = await Trash.find(filter)
-      .populate('deletedBy', 'name email')
+      .populate('deletedBy', 'username email')
       .sort({ deletedAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -39,8 +39,8 @@ export const getAllTrashItems = async (req: AuthRequest, res: Response) => {
 export const getTrashItemById = async (req: AuthRequest, res: Response) => {
   try {
     const trashItem = await Trash.findById(req.params.id)
-      .populate('deletedBy', 'name email')
-      .populate('restoredBy', 'name email');
+      .populate('deletedBy', 'username email')
+      .populate('restoredBy', 'username email');
 
     if (!trashItem) {
       return res.status(404).json({ message: 'Trash item not found' });

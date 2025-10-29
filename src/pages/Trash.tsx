@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { AuthContext } from '@/contexts/AuthContext';
 
 const Trash = () => {
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
@@ -41,6 +42,8 @@ const Trash = () => {
   const [selectedItem, setSelectedItem] = useState<TrashItem | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const { toast } = useToast();
+  const auth = useContext(AuthContext) as any;
+  const user = auth?.user;
 
   useEffect(() => {
     fetchTrashItems();
@@ -171,6 +174,17 @@ const Trash = () => {
     );
   };
 
+  // Helper to get deleted by display
+  const getDeletedByDisplay = (item: TrashItem) => {
+    if (item.deletedBy && (item.deletedBy.username || item.deletedBy.email)) {
+      return item.deletedBy.username || item.deletedBy.email;
+    }
+    if (user) {
+      return user.email;
+    }
+    return 'Unknown User';
+  };
+
   // Use only backend paginated items
   const filteredItems = trashItems;
 
@@ -256,7 +270,7 @@ const Trash = () => {
                         <td className="p-4 text-sm">
                           <div className="flex items-center gap-2">
                             <User className="h-3 w-3" />
-                            {item.deletedBy?.name || 'Unknown User'}
+                            {getDeletedByDisplay(item)}
                           </div>
                         </td>
                         <td className="p-4 text-sm text-muted-foreground">
@@ -334,7 +348,7 @@ const Trash = () => {
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Deleted By</label>
                     <p className="text-sm">
-                      {selectedItem.deletedBy?.name || 'Unknown User'} 
+                      {getDeletedByDisplay(selectedItem)}
                       {selectedItem.deletedBy?.email && ` (${selectedItem.deletedBy.email})`}
                     </p>
                   </div>

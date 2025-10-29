@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
-import { Plus, Edit, Trash2, Users as UsersIcon, ChevronDown, ChevronUp, Eye, EyeOff, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Users as UsersIcon, ChevronDown, ChevronUp, Eye, EyeOff, X, Building2, BookOpen, FolderTree } from 'lucide-react';
 import { companyService } from '@/services/companyService';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -25,8 +25,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import MultiSelectDropdown, { OptionType } from '@/components/common/MultiSelectDropdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { OrganizationsContent } from '@/pages/Organization';
+import { CollectionsContent } from '@/pages/Collections';
+import { FoldersContent } from '@/pages/Folders';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface User {
   _id: string;
@@ -97,6 +119,11 @@ const Users = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
 
+  // Manage dialog states
+  const [isManageOrgDialogOpen, setIsManageOrgDialogOpen] = useState(false);
+  const [isManageCollectionDialogOpen, setIsManageCollectionDialogOpen] = useState(false);
+  const [isManageFolderDialogOpen, setIsManageFolderDialogOpen] = useState(false);
+
   // Edit form states
   const [editFormData, setEditFormData] = useState<FormData>({
     username: '',
@@ -136,6 +163,25 @@ const Users = () => {
       fetchOrganizations();
     }
   }, [isDialogOpen, isEditDialogOpen]);
+
+  // Clear form data when create dialog opens
+  useEffect(() => {
+    if (isDialogOpen) {
+      setFormData({
+        username: '',
+        email: '',
+        password: '',
+        permissions: { organizations: [], collections: [], folders: [] }
+      });
+      setSelectedOrganizations([]);
+      setSelectedCollections([]);
+      setSelectedFolders([]);
+      setCollections([]);
+      setFolders([]);
+      setExpandedCollections([]);
+      setShowPassword(false);
+    }
+  }, [isDialogOpen]);
 
   useEffect(() => {
     if (selectedOrganizations.length > 0) {
@@ -387,7 +433,7 @@ const Users = () => {
   // Update the handleEdit function for multiple organizations
   const handleEdit = async (user: User) => {
     setEditingUser(user);
-    
+
     // Extract _id from permissions arrays
     const orgIds = (user.permissions?.organizations || []).map((org: any) =>
       typeof org === 'object' && org !== null ? (org as any)._id : org
@@ -418,16 +464,16 @@ const Users = () => {
       setEditSelectedOrganizations(orgIds);
       setEditSelectedCollections(collectionIds);
       setEditSelectedFolders(folderIds);
-      
+
       // Fetch collections for all organizations
       orgIds.forEach(orgId => {
         fetchCollections(orgId);
       });
-      
+
       if (collectionIds.length > 0) {
         await fetchFolders(orgIds, collectionIds);
         setTimeout(() => {
-          const collectionsWithFolders = collectionIds.filter(collectionId => 
+          const collectionsWithFolders = collectionIds.filter(collectionId =>
             folders.some(folder => folder.collectionId === collectionId)
           );
           setEditExpandedCollections(collectionsWithFolders);
@@ -439,8 +485,8 @@ const Users = () => {
       setEditSelectedFolders([]);
       setEditExpandedCollections([]);
     }
-  setEditFoldersAutoExpanded(false);
-  setIsEditDialogOpen(true);
+    setEditFoldersAutoExpanded(false);
+    setIsEditDialogOpen(true);
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -518,16 +564,16 @@ const Users = () => {
         const collectionsToRemove = collections
           .filter(collection => collection.organizationId === orgId)
           .map(collection => collection._id);
-        
-        setSelectedCollections(prevCols => 
+
+        setSelectedCollections(prevCols =>
           prevCols.filter(colId => !collectionsToRemove.includes(colId))
         );
 
         const foldersToRemove = folders
           .filter(folder => folder.organizationId === orgId)
           .map(folder => folder._id);
-        
-        setSelectedFolders(prevFolders => 
+
+        setSelectedFolders(prevFolders =>
           prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
         );
       }
@@ -547,16 +593,16 @@ const Users = () => {
         const collectionsToRemove = collections
           .filter(collection => collection.organizationId === orgId)
           .map(collection => collection._id);
-        
-        setEditSelectedCollections(prevCols => 
+
+        setEditSelectedCollections(prevCols =>
           prevCols.filter(colId => !collectionsToRemove.includes(colId))
         );
 
         const foldersToRemove = folders
           .filter(folder => folder.organizationId === orgId)
           .map(folder => folder._id);
-        
-        setEditSelectedFolders(prevFolders => 
+
+        setEditSelectedFolders(prevFolders =>
           prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
         );
       }
@@ -697,19 +743,19 @@ const Users = () => {
   }, [folders, selectedCollections]);
 
   useEffect(() => {
-      if (!isEditDialogOpen) {
-        setEditFoldersAutoExpanded(false);
-        return;
-      }
-      if (!editFoldersAutoExpanded && folders.length > 0 && editSelectedCollections.length > 0) {
-        const collectionsWithFolders = new Set(folders.map(folder => folder.collectionId));
-        const newExpanded = editSelectedCollections.filter(collectionId =>
-          collectionsWithFolders.has(collectionId)
-        );
-        setEditExpandedCollections(newExpanded);
-        setEditFoldersAutoExpanded(true);
-      }
-    }, [folders, editSelectedCollections, isEditDialogOpen, editFoldersAutoExpanded]);
+    if (!isEditDialogOpen) {
+      setEditFoldersAutoExpanded(false);
+      return;
+    }
+    if (!editFoldersAutoExpanded && folders.length > 0 && editSelectedCollections.length > 0) {
+      const collectionsWithFolders = new Set(folders.map(folder => folder.collectionId));
+      const newExpanded = editSelectedCollections.filter(collectionId =>
+        collectionsWithFolders.has(collectionId)
+      );
+      setEditExpandedCollections(newExpanded);
+      setEditFoldersAutoExpanded(true);
+    }
+  }, [folders, editSelectedCollections, isEditDialogOpen, editFoldersAutoExpanded]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -751,43 +797,25 @@ const Users = () => {
   const renderOrganizationSelection = (
     isEdit: boolean,
     selectedOrgs: string[],
-    onOrgToggle: (orgId: string) => void
-  ) => (
-    <div>
-      <div className="flex items-center justify-between">
-        <Label>Organizations *</Label>
-        <span className="text-sm text-muted-foreground">
-          {selectedOrgs.length} selected
-        </span>
+    onOrgChange: (orgIds: string[]) => void
+  ) => {
+    const orgOptions: OptionType[] = organizations.map(org => ({
+      value: org._id,
+      label: org.name + (org.description ? ` (${org.description})` : "")
+    }));
+    return (
+      <div className="my-2">
+        <MultiSelectDropdown
+          options={orgOptions}
+          value={selectedOrgs}
+          onChange={onOrgChange}
+          label="Organizations *"
+          placeholder="Select organizations..."
+          isDisabled={loadingOrganizations}
+        />
       </div>
-      {loadingOrganizations ? (
-        <div className="text-sm text-muted-foreground mt-2">Loading organizations...</div>
-      ) : (
-        <div className="space-y-2 mt-2">
-          {organizations.map((org) => (
-            <div key={org._id} className="flex items-center space-x-2">
-              <Checkbox
-                checked={selectedOrgs.includes(org._id)}
-                onCheckedChange={() => onOrgToggle(org._id)}
-                disabled={loadingOrganizations}
-              />
-              <Label className="flex-1 cursor-pointer">
-                {org.name}
-                {org.description && (
-                  <span className="text-sm text-muted-foreground ml-2">
-                    {org.description}
-                  </span>
-                )}
-              </Label>
-            </div>
-          ))}
-          {organizations.length === 0 && !loadingOrganizations && (
-            <div className="text-sm text-muted-foreground">No organizations found</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderPermissionSection = (
     isEdit: boolean,
@@ -801,7 +829,7 @@ const Users = () => {
     onSelectAllFolders: (colId: string) => void,
     onToggleExpand: (colId: string) => void
   ) => (
-    <div className="space-y-4">
+  <div className="space-y-4">
       <h3 className="text-lg font-medium">Permissions & Access</h3>
 
       <div className="p-3 bg-muted/50 rounded-lg">
@@ -810,118 +838,116 @@ const Users = () => {
         </p>
       </div>
 
-      {renderOrganizationSelection(isEdit, selectedOrgs, onOrgToggle)}
+      <div className="max-h-56 overflow-y-auto">
+        {renderOrganizationSelection(isEdit, selectedOrgs, (ids) => {
+        // Update organizations and handle cascade
+        if (isEdit) {
+          setEditSelectedOrganizations(ids);
+
+          // Remove collections and folders that belong to deselected organizations
+          const removed = editSelectedOrganizations.filter(id => !ids.includes(id));
+          removed.forEach(orgId => {
+            const collectionsToRemove = collections
+              .filter(collection => collection.organizationId === orgId)
+              .map(collection => collection._id);
+
+            setEditSelectedCollections(prevCols =>
+              prevCols.filter(colId => !collectionsToRemove.includes(colId))
+            );
+
+            const foldersToRemove = folders
+              .filter(folder => folder.organizationId === orgId)
+              .map(folder => folder._id);
+
+            setEditSelectedFolders(prevFolders =>
+              prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
+            );
+          });
+        } else {
+          setSelectedOrganizations(ids);
+
+          // Remove collections and folders that belong to deselected organizations
+          const removed = selectedOrganizations.filter(id => !ids.includes(id));
+          removed.forEach(orgId => {
+            const collectionsToRemove = collections
+              .filter(collection => collection.organizationId === orgId)
+              .map(collection => collection._id);
+
+            setSelectedCollections(prevCols =>
+              prevCols.filter(colId => !collectionsToRemove.includes(colId))
+            );
+
+            const foldersToRemove = folders
+              .filter(folder => folder.organizationId === orgId)
+              .map(folder => folder._id);
+
+            setSelectedFolders(prevFolders =>
+              prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
+            );
+          });
+        }
+        })}
+      </div>
 
       {selectedOrgs.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between">
-            <Label>Collections</Label>
-            <span className="text-sm text-muted-foreground">
-              {selectedCols.length} selected
-            </span>
-          </div>
-          {loadingCollections ? (
-            <div className="text-sm text-muted-foreground mt-2">Loading collections...</div>
-          ) : (
-            <div className="space-y-2 mt-2">
-              {collections
-                .filter(collection => selectedOrgs.includes(collection.organizationId))
-                .map((collection) => (
-                  <div key={collection._id} className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={selectedCols.includes(collection._id)}
-                      onCheckedChange={() => onColToggle(collection._id)}
-                      disabled={loadingCollections}
-                    />
-                    <Label className="flex-1 cursor-pointer">
-                      {collection.name}
-                      {collection.description && (
-                        <span className="text-sm text-muted-foreground ml-2">
-                          {collection.description}
-                        </span>
-                      )}
-                    </Label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onToggleExpand(collection._id)}
-                      disabled={!selectedCols.includes(collection._id)}
-                    >
-                      {expandedCols.includes(collection._id) ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                ))}
-              {collections.filter(col => selectedOrgs.includes(col.organizationId)).length === 0 && (
-                <div className="text-sm text-muted-foreground">No collections found in selected organizations</div>
-              )}
-            </div>
-          )}
+        <div className="my-2 max-h-56 overflow-y-auto">
+          <MultiSelectDropdown
+            options={collections.filter(col => selectedOrgs.includes(col.organizationId)).map(col => ({ value: col._id, label: col.name + (col.description ? ` (${col.description})` : "") }))}
+            value={selectedCols}
+            onChange={(ids) => {
+              if (isEdit) {
+                setEditSelectedCollections(ids);
+
+                // Remove folders that belong to deselected collections
+                const prevCols = editSelectedCollections;
+                const removed = prevCols.filter(id => !ids.includes(id));
+                removed.forEach(colId => {
+                  const foldersToRemove = folders
+                    .filter(folder => folder.collectionId === colId)
+                    .map(folder => folder._id);
+
+                  setEditSelectedFolders(prevFolders =>
+                    prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
+                  );
+                });
+              } else {
+                setSelectedCollections(ids);
+
+                // Remove folders that belong to deselected collections
+                const prevCols = selectedCollections;
+                const removed = prevCols.filter(id => !ids.includes(id));
+                removed.forEach(colId => {
+                  const foldersToRemove = folders
+                    .filter(folder => folder.collectionId === colId)
+                    .map(folder => folder._id);
+
+                  setSelectedFolders(prevFolders =>
+                    prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
+                  );
+                });
+              }
+            }}
+            label="Collections"
+            placeholder="Select collections..."
+            isDisabled={loadingCollections}
+          />
         </div>
       )}
 
-  {selectedOrgs.length > 0 && (
-        selectedCols.length > 0 ? (
-          <div>
-            <div className="flex items-center justify-between">
-              <Label>Folders</Label>
-              <span className="text-sm text-muted-foreground">
-                {selectedFolds.length} selected
-              </span>
-            </div>
-            {loadingFolders ? (
-              <div className="text-sm text-muted-foreground mt-2">Loading folders...</div>
-            ) : (
-              <div className="space-y-3 mt-2">
-                {collections
-                  .filter(collection => selectedCols.includes(collection._id))
-                  .map(collection => {
-                    const collectionFolders = folders.filter(
-                      folder => folder.collectionId === collection._id
-                    );
-                    const allFoldersSelected = collectionFolders.length > 0 &&
-                      collectionFolders.every(folder => selectedFolds.includes(folder._id));
-
-                    return (
-                      <div key={collection._id}>
-                        {expandedCols.includes(collection._id) && collectionFolders.length > 0 && (
-                          <div className="ml-4 space-y-2 border-l-2 border-border pl-4">
-                            <div className="flex items-center space-x-2 p-2 bg-muted/30 rounded">
-                              <Checkbox
-                                checked={allFoldersSelected}
-                                onCheckedChange={() => onSelectAllFolders(collection._id)}
-                              />
-                              <Label className="cursor-pointer font-medium">
-                                Select all folders in {collection.name}
-                              </Label>
-                            </div>
-
-                            {collectionFolders.map(folder => (
-                              <div key={folder._id} className="flex items-center space-x-2 p-2 border rounded">
-                                <Checkbox
-                                  checked={selectedFolds.includes(folder._id)}
-                                  onCheckedChange={() => onFolderToggle(folder._id)}
-                                />
-                                <Label className="cursor-pointer flex-1">
-                                  {folder.name}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-sm text-muted-foreground mt-2">Select at least one collection to view folders.</div>
-        )
+      {selectedOrgs.length > 0 && selectedCols.length > 0 && (
+        <div className="my-2 max-h-56 overflow-y-auto">
+          <MultiSelectDropdown
+            options={folders.filter(f => selectedCols.includes(f.collectionId)).map(f => {
+              const collectionName = collections.find(c => c._id === f.collectionId)?.name || '';
+              return { value: f._id, label: `${f.name}${collectionName ? ` (${collectionName})` : ''}` };
+            })}
+            value={selectedFolds}
+            onChange={isEdit ? setEditSelectedFolders : setSelectedFolders}
+            label="Folders"
+            placeholder="Select folders..."
+            isDisabled={loadingFolders}
+          />
+        </div>
       )}
 
       {(selectedOrgs.length > 0 || selectedCols.length > 0 || selectedFolds.length > 0) && (
@@ -956,100 +982,126 @@ const Users = () => {
   return (
     <DashboardLayout title="Users">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Users</h2>
             <p className="text-muted-foreground">Manage company users and permissions</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add User
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
-              <DialogHeader>
-                <DialogTitle>Create New User</DialogTitle>
-              </DialogHeader>
-              <ScrollArea className="max-h-[70vh] pr-4">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Basic Information</h3>
-                    <div>
-                      <Label htmlFor="username">Username *</Label>
-                      <Input
-                        id="username"
-                        required
-                        value={formData.username}
-                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                        placeholder="Enter username"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="Enter email address"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="password">Password *</Label>
-                      <div className="relative">
+          <div className="grid grid-cols-1 gap-2 w-full sm:w-auto sm:flex sm:flex-row sm:gap-2">
+            <Button
+              className="w-full sm:w-auto"
+              size="sm"
+              onClick={() => setIsManageOrgDialogOpen(true)}
+            >
+              <Building2 className="mr-2 h-4 w-4" />
+              Manage Organization
+            </Button>
+            <Button
+              className="w-full sm:w-auto"
+              size="sm"
+              onClick={() => setIsManageCollectionDialogOpen(true)}
+            >
+              <BookOpen className="mr-2 h-4 w-4" />
+              Manage Collection
+            </Button>
+            <Button
+              className="w-full sm:w-auto"
+              size="sm"
+              onClick={() => setIsManageFolderDialogOpen(true)}
+            >
+              <FolderTree className="mr-2 h-4 w-4" />
+              Manage Folder
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full sm:w-auto" size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add User
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+                <DialogHeader>
+                  <DialogTitle>Create New User</DialogTitle>
+                </DialogHeader>
+                <ScrollArea className="max-h-[70vh] pr-4">
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Basic Information</h3>
+                      <div>
+                        <Label htmlFor="username">Username *</Label>
                         <Input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
+                          id="username"
                           required
-                          value={formData.password}
-                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                          placeholder="Enter password"
-                          className="pr-10"
+                          value={formData.username}
+                          onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                          placeholder="Enter username"
                         />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                          onClick={togglePasswordVisibility}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </Button>
+                      </div>
+                      <div>
+                        <Label htmlFor="email">Email *</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          required
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="Enter email address"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="password">Password *</Label>
+                        <div className="relative">
+                          <Input
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            required
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            placeholder="Enter password"
+                            className="pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={togglePasswordVisibility}
+                          >
+                            {showPassword ? (
+                              <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {renderPermissionSection(
-                    false,
-                    selectedOrganizations,
-                    selectedCollections,
-                    selectedFolders,
-                    expandedCollections,
-                    handleOrganizationToggle,
-                    handleCollectionToggle,
-                    handleFolderToggle,
-                    handleSelectAllFoldersInCollection,
-                    toggleCollectionExpansion
-                  )}
+                    {renderPermissionSection(
+                      false,
+                      selectedOrganizations,
+                      selectedCollections,
+                      selectedFolders,
+                      expandedCollections,
+                      handleOrganizationToggle,
+                      handleCollectionToggle,
+                      handleFolderToggle,
+                      handleSelectAllFoldersInCollection,
+                      toggleCollectionExpansion
+                    )}
 
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={!selectedOrganizations.length || !formData.username || !formData.email || !formData.password}
-                  >
-                    Create User
-                  </Button>
-                </form>
-              </ScrollArea>
-            </DialogContent>
-          </Dialog>
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={!selectedOrganizations.length || !formData.username || !formData.email || !formData.password}
+                    >
+                      Create User
+                    </Button>
+                  </form>
+                </ScrollArea>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Edit User Dialog */}
@@ -1151,8 +1203,8 @@ const Users = () => {
                 <thead>
                   <tr className="border-b border-border">
                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
-                        S.No
-                      </th>
+                      S.No
+                    </th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Username</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Email</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Role</th>
@@ -1162,17 +1214,17 @@ const Users = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user , index) => (
+                  {users.map((user, index) => (
                     <tr key={user._id} className="border-b border-border">
-                       <td className="p-4 align-middle">
-                          {(currentPage - 1) * rowsPerPage + index + 1}
-                        </td>
+                      <td className="p-4 align-middle">
+                        {(currentPage - 1) * rowsPerPage + index + 1}
+                      </td>
                       <td className="p-4 text-sm font-medium">{user.username}</td>
                       <td className="p-4 text-sm">{user.email}</td>
                       <td className="p-4 text-sm capitalize">{user.role?.replace('_', ' ')}</td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                           <div
+                          <div
                             className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${user.isActive ? 'bg-[#8C47D1]' : 'bg-gray-300'
                               }`}
                             onClick={() => handleStatusToggle(user._id, !user.isActive)}
@@ -1233,6 +1285,39 @@ const Users = () => {
                 Delete
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Organization Dialog */}
+        <Dialog open={isManageOrgDialogOpen} onOpenChange={setIsManageOrgDialogOpen}>
+          <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
+            <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
+              <div className="p-6">
+                <OrganizationsContent />
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Collection Dialog */}
+        <Dialog open={isManageCollectionDialogOpen} onOpenChange={setIsManageCollectionDialogOpen}>
+          <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
+            <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
+              <div className="p-6">
+                <CollectionsContent />
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Folder Dialog */}
+        <Dialog open={isManageFolderDialogOpen} onOpenChange={setIsManageFolderDialogOpen}>
+          <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
+            <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
+              <div className="p-6">
+                <FoldersContent />
+              </div>
+            </ScrollArea>
           </DialogContent>
         </Dialog>
 

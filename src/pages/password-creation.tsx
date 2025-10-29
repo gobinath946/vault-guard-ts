@@ -47,16 +47,19 @@ interface Password {
 
 interface PasswordLog {
   _id: string;
-  action: 'create' | 'update' | 'delete';
+  passwordId: string;
+  action: 'create' | 'update' | 'delete' | 'view';
   field?: string;
   oldValue?: string;
   newValue?: string;
   performedBy: {
     _id: string;
-    name: string;
+    name?: string;
+    username?: string;
     email: string;
   };
   timestamp: string;
+  details?: string;
 }
 
 const Password = () => {
@@ -360,6 +363,34 @@ const Password = () => {
     }
   };
 
+  // Username visibility state
+  const [visibleUsernames, setVisibleUsernames] = useState<Set<string>>(new Set());
+
+  // Toggle username visibility in the table
+  const toggleUsernameVisibility = async (id: string) => {
+    if (!visibleUsernames.has(id)) {
+      try {
+        const decrypted = await passwordService.getById(id);
+        setPasswords((prev) =>
+          prev.map((p) => (p._id === id ? decrypted : p))
+        );
+        setVisibleUsernames((prev) => new Set(prev).add(id));
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to decrypt username',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      setVisibleUsernames((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+    }
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -522,7 +553,10 @@ const Password = () => {
                       <td className="p-4 text-sm font-medium">{password.itemName}</td>
                       <td className="p-4 text-sm font-mono">
                         <div className="flex items-center gap-2">
-                          {visiblePasswords.has(password._id) ? password.username : '••••••••'}
+                          {visibleUsernames.has(password._id) ? password.username : '••••••••'}
+                          <Button size="sm" variant="ghost" onClick={() => toggleUsernameVisibility(password._id)}>
+                            <Eye className="h-3 w-3" />
+                          </Button>
                           <Button size="sm" variant="ghost" onClick={() => copyToClipboard(password.username, 'Username')}>
                             <Copy className="h-3 w-3" />
                           </Button>
@@ -786,42 +820,65 @@ const Password = () => {
                   <div className="text-sm">
                     <strong>Performed by:</strong>{" "}
                     {log.performedBy
-                      ? `${log.performedBy.name} (${log.performedBy.email})`
+                      ? `${log.performedBy.username || log.performedBy.name || 'User'} (${log.performedBy.email})`
                       : 'Unknown user'
                     }
                   </div>
 
                   {log.action === 'create' && (
                     <div className="text-sm">
-                      <strong>Original Password:</strong>{' '}
-                      <code className="bg-muted px-1 rounded">{log.newValue}</code>
+                      <strong>Details:</strong> Password entry was created successfully
                     </div>
                   )}
 
                   {log.action === 'update' && log.field === 'password' && (
+                    <div className="text-sm">
+                      <strong>Details:</strong> Password was changed (value hidden for security)
+                    </div>
+                  )}
+
+                  {log.action === 'update' && log.field === 'username' && (
+                    <div className="text-sm">
+                      <strong>Details:</strong> Username was changed
+                    </div>
+                  )}
+
+                  {log.action === 'update' && log.field === 'itemName' && log.oldValue && log.newValue && (
                     <div className="space-y-1 text-sm">
                       <div>
-                        <strong>Previous Password:</strong>{' '}
-                        <code className="bg-muted px-1 rounded">{log.oldValue}</code>
+                        <strong>Field:</strong> Item Name
                       </div>
                       <div>
-                        <strong>New Password:</strong>{' '}
-                        <code className="bg-muted px-1 rounded">{log.newValue}</code>
+                        <strong>Previous Value:</strong> {log.oldValue}
+                      </div>
+                      <div>
+                        <strong>New Value:</strong> {log.newValue}
                       </div>
                     </div>
                   )}
 
-                  {log.action === 'update' && log.field && log.field !== 'password' && (
+                  {log.action === 'update' && log.field && !['password', 'username', 'itemName'].includes(log.field) && (
                     <div className="space-y-1 text-sm">
                       <div>
                         <strong>Field:</strong> {log.field}
                       </div>
-                      <div>
-                        <strong>Previous Value:</strong> {log.oldValue || 'N/A'}
-                      </div>
-                      <div>
-                        <strong>New Value:</strong> {log.newValue || 'N/A'}
-                      </div>
+                      {log.details && (
+                        <div>
+                          <strong>Details:</strong> {log.details}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {log.action === 'delete' && (
+                    <div className="text-sm">
+                      <strong>Details:</strong> Password was deleted and moved to trash
+                    </div>
+                  )}
+
+                  {log.action === 'view' && (
+                    <div className="text-sm">
+                      <strong>Details:</strong> Password was viewed
                     </div>
                   )}
                 </div>

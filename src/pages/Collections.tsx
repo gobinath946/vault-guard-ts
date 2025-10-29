@@ -46,7 +46,8 @@ interface Collection {
   createdAt: string;
 }
 
-const Collections = () => {
+// Extracted content component without DashboardLayout
+export const CollectionsContent = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
   // Auth context for permission filtering
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -221,16 +222,13 @@ const Collections = () => {
 
   if (loading) {
     return (
-      <DashboardLayout title="Collections">
-        <div className="flex h-96 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        </div>
-      </DashboardLayout>
+      <div className="flex h-96 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout title="Collections">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -430,6 +428,14 @@ const Collections = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+  );
+};
+
+// Wrapper component with DashboardLayout for standalone page
+const Collections = () => {
+  return (
+    <DashboardLayout title="Collections">
+      <CollectionsContent />
     </DashboardLayout>
   );
 };

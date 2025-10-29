@@ -9,6 +9,7 @@ export interface Password {
   notes: string;
   folderId?: string;
   collectionId?: string;
+  organizationId?: string;
   createdAt: string;
   updatedAt: string;
   lastModified: string;

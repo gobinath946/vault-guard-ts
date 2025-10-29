@@ -13,6 +13,7 @@ export interface IPassword extends Document {
   sourceType: string;
   createdBy: mongoose.Types.ObjectId;
   sharedWith: mongoose.Types.ObjectId[];
+  logs?: mongoose.Types.ObjectId[]; // References to PasswordLog entries
   createdAt: Date;
   updatedAt: Date;
   lastModified: Date;
@@ -66,6 +67,12 @@ const passwordSchema = new Schema<IPassword>(
       {
         type: Schema.Types.ObjectId,
         ref: 'User',
+      },
+    ],
+    logs: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'PasswordLog',
       },
     ],
     lastModified: {

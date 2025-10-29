@@ -46,7 +46,8 @@ interface Folder {
   createdAt: string;
 }
 
-const Folders = () => {
+// Extracted content component without DashboardLayout
+export const FoldersContent = () => {
   const [folders, setFolders] = useState<Folder[]>([]);
   // Auth context for permission filtering
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -287,16 +288,13 @@ const Folders = () => {
 
   if (loading) {
     return (
-      <DashboardLayout title="Folders">
-        <div className="flex h-96 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        </div>
-      </DashboardLayout>
+      <div className="flex h-96 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout title="Folders">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -519,6 +517,14 @@ const Folders = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+  );
+};
+
+// Wrapper component with DashboardLayout for standalone page
+const Folders = () => {
+  return (
+    <DashboardLayout title="Folders">
+      <FoldersContent />
     </DashboardLayout>
   );
 };
