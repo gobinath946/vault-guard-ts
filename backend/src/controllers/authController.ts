@@ -96,7 +96,18 @@ export const login = async (req: Request, res: Response) => {
       companyId: role === 'company_user' ? user.companyId._id : user._id,
     };
     if (role === 'company_user') {
-      jwtPayload.permissions = user.permissions;
+      // Convert permissions ObjectIds to strings for JWT storage
+      jwtPayload.permissions = {
+        organizations: (user.permissions?.organizations || []).map((oid: any) => 
+          oid._id ? oid._id.toString() : oid.toString()
+        ),
+        collections: (user.permissions?.collections || []).map((cid: any) => 
+          cid._id ? cid._id.toString() : cid.toString()
+        ),
+        folders: (user.permissions?.folders || []).map((fid: any) => 
+          fid._id ? fid._id.toString() : fid.toString()
+        )
+      };
     }
     const token = jwt.sign(
       jwtPayload,

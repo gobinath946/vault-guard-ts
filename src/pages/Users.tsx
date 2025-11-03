@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { hashPassword } from '@/lib/crypto';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -242,9 +242,17 @@ const Users = () => {
     }
   }, [selectedOrganizations, selectedCollections]);
 
+  // Ref to track if we're initializing edit mode to prevent useEffect from interfering
+  const isInitializingEditRef = useRef(false);
+
   useEffect(() => {
+    // Skip if we're in the middle of initializing edit mode (folders are being set manually)
+    if (isInitializingEditRef.current) {
+      return;
+    }
+
     (async () => {
-      if (editSelectedOrganizations.length > 0 && editSelectedCollections.length > 0) {
+      if (editSelectedOrganizations.length > 0 && editSelectedCollections.length > 0 && collections.length > 0) {
         const allFolders: Folder[] = [];
         for (const orgId of editSelectedOrganizations) {
           const orgCollections = collections
@@ -254,18 +262,68 @@ const Users = () => {
           if (orgCollections.length === 0) continue;
           const data = await companyService.getFolders(orgId, orgCollections);
           const mappedFolders = data.folders.map((folder: any) => ({
-            _id: folder._id,
-            name: folder.folderName || folder.name,
+            _id: folder._id ? (typeof folder._id === 'string' ? folder._id : folder._id.toString()) : '',
+            name: folder.folderName || folder.name || '',
             description: folder.description || "",
-            collectionId: folder.collectionId,
-            organizationId: folder.organizationId,
+            collectionId: folder.collectionId ? (typeof folder.collectionId === 'string' ? folder.collectionId : folder.collectionId.toString()) : '',
+            organizationId: folder.organizationId ? (typeof folder.organizationId === 'string' ? folder.organizationId : folder.organizationId.toString()) : '',
           }));
           allFolders.push(...mappedFolders);
         }
         setFolders(allFolders);
+      } else {
+        setFolders([]);
       }
     })();
-  }, [editSelectedOrganizations, editSelectedCollections]);
+  }, [editSelectedOrganizations, editSelectedCollections, collections]);
+
+  // Set editSelectedFolders after folders are loaded when dialog is open
+  // This ensures folders are properly prefilled when dialog reopens or on first open
+  useEffect(() => {
+    if (isEditDialogOpen && folders.length > 0 && editingUser) {
+      // Get folder IDs from editingUser's permissions
+      const folderIds = (editingUser.permissions?.folders || []).map((f: any) => {
+        if (typeof f === 'object' && f !== null) {
+          return f._id ? f._id.toString() : f.toString();
+        }
+        return f.toString();
+      });
+      // Only set if folders match what's available - normalize IDs for comparison
+      const validFolderIds = folders.map(f => f._id.toString());
+      const validSelectedFolders = folderIds.filter(id => validFolderIds.includes(id));
+
+      // Always update if folders are loaded - check current state using functional update
+      setEditSelectedFolders(prevFolders => {
+        const prevFoldersStr = prevFolders.map(f => f.toString()).sort().join(',');
+        const newFoldersStr = validSelectedFolders.sort().join(',');
+
+        // Update if:
+        // 1. Folders don't match
+        // 2. Previous selection is empty but we have valid folders
+        if (prevFoldersStr !== newFoldersStr ||
+          (prevFolders.length === 0 && validSelectedFolders.length > 0)) {
+          return validSelectedFolders;
+        }
+        return prevFolders;
+      });
+    } else if (isEditDialogOpen && folders.length === 0 && editingUser) {
+      // If folders are empty, clear selection
+      setEditSelectedFolders([]);
+    }
+  }, [isEditDialogOpen, folders, editingUser]);
+
+  // Clear folders and selected folders when edit dialog closes - but delay slightly to allow dialog to close smoothly
+  useEffect(() => {
+    if (!isEditDialogOpen) {
+      // Delay clearing to ensure dialog closes smoothly and doesn't interfere with reopening
+      const timeoutId = setTimeout(() => {
+        setFolders([]);
+        setEditSelectedFolders([]);
+      }, 300); // Delay clearing until after dialog animation completes
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isEditDialogOpen]);
 
   useEffect(() => {
     setFormData(prev => ({
@@ -327,7 +385,7 @@ const Users = () => {
     }
   };
 
-  const fetchCollections = async (organizationId: string | { _id: string }) => {
+  const fetchCollections = async (organizationId: string | { _id: string }): Promise<Collection[]> => {
     const finalId = typeof organizationId === 'object'
       ? organizationId._id
       : organizationId;
@@ -352,12 +410,14 @@ const Users = () => {
         });
         return newCollections;
       });
+      return mappedCollections; // Return collections so we can use them immediately
     } catch (error: any) {
       toast({
         title: 'Error',
         description: 'Failed to fetch collections',
         variant: 'destructive',
       });
+      return [];
     } finally {
       setLoadingCollections(false);
     }
@@ -365,35 +425,51 @@ const Users = () => {
 
   const fetchFolders = async (
     organizationIds: string[],
-    collectionIds: string[]
-  ) => {
+    collectionIds: string[],
+    collectionsData?: Collection[] // Optional: pass collections directly instead of using state
+  ): Promise<Folder[]> => {
     setLoadingFolders(true);
     try {
       const allFolders: Folder[] = [];
+      // Use passed collectionsData if provided, otherwise use state
+      const collectionsToUse = collectionsData || collections;
+
       for (const orgId of organizationIds) {
         // Only send collections that belong to this org
-        const orgCollections = collections
-          .filter(col => col.organizationId === orgId)
+        const orgCollections = collectionsToUse
+          .filter(col => {
+            const colOrgId = col.organizationId ? (typeof col.organizationId === 'string' ? col.organizationId : String(col.organizationId)) : '';
+            const normalizedOrgId = typeof orgId === 'string' ? orgId : String(orgId);
+            return colOrgId === normalizedOrgId;
+          })
           .map(col => col._id)
-          .filter(id => collectionIds.includes(id));
+          .filter(id => {
+            const colId = typeof id === 'string' ? id : String(id);
+            return collectionIds.some(cid => {
+              const normalizedCid = typeof cid === 'string' ? cid : String(cid);
+              return colId === normalizedCid;
+            });
+          });
         if (orgCollections.length === 0) continue;
         const data = await companyService.getFolders(orgId, orgCollections);
         const mappedFolders = data.folders.map((folder: any) => ({
-          _id: folder._id,
-          name: folder.folderName || folder.name,
+          _id: folder._id ? (typeof folder._id === 'string' ? folder._id : folder._id.toString()) : '',
+          name: folder.folderName || folder.name || '',
           description: folder.description || "",
-          collectionId: folder.collectionId,
-          organizationId: folder.organizationId,
+          collectionId: folder.collectionId ? (typeof folder.collectionId === 'string' ? folder.collectionId : folder.collectionId.toString()) : '',
+          organizationId: folder.organizationId ? (typeof folder.organizationId === 'string' ? folder.organizationId : folder.organizationId.toString()) : '',
         }));
         allFolders.push(...mappedFolders);
       }
       setFolders(allFolders);
+      return allFolders; // Return folders so we can use them immediately
     } catch (error: any) {
       toast({
         title: "Error",
         description: "Failed to fetch folders",
         variant: "destructive",
       });
+      return [];
     } finally {
       setLoadingFolders(false);
     }
@@ -432,6 +508,12 @@ const Users = () => {
 
   // Update the handleEdit function for multiple organizations
   const handleEdit = async (user: User) => {
+    // Clear previous state first to ensure clean start
+    setFolders([]);
+    setEditSelectedFolders([]);
+    setEditSelectedOrganizations([]);
+    setEditSelectedCollections([]);
+
     setEditingUser(user);
 
     // Extract _id from permissions arrays
@@ -457,28 +539,63 @@ const Users = () => {
     });
 
     if (orgIds.length > 0) {
+      // Set flag to prevent useEffect from interfering during initialization
+      isInitializingEditRef.current = true;
+
       // First ensure organizations are loaded
       if (organizations.length === 0) {
         await fetchOrganizations();
       }
+
+      // Fetch collections for all organizations and wait for them FIRST
+      // This ensures collections are loaded before we set editSelectedCollections
+      const collectionPromises = orgIds.map(orgId => fetchCollections(orgId));
+      const fetchedCollectionsArrays = await Promise.all(collectionPromises);
+      // Flatten all collections into a single array
+      const allFetchedCollections = fetchedCollectionsArrays.flat();
+
+      // Now set the selected organizations and collections
+      // This would normally trigger the useEffect that fetches folders, but we're blocking it
       setEditSelectedOrganizations(orgIds);
       setEditSelectedCollections(collectionIds);
-      setEditSelectedFolders(folderIds);
 
-      // Fetch collections for all organizations
-      orgIds.forEach(orgId => {
-        fetchCollections(orgId);
-      });
+      // Wait a moment for collections state to update (for useEffect that uses state)
+      await new Promise(resolve => setTimeout(resolve, 50));
 
+      // Now fetch folders and wait for them - pass collections directly to avoid state timing issues
       if (collectionIds.length > 0) {
-        await fetchFolders(orgIds, collectionIds);
-        setTimeout(() => {
-          const collectionsWithFolders = collectionIds.filter(collectionId =>
-            folders.some(folder => folder.collectionId === collectionId)
-          );
-          setEditExpandedCollections(collectionsWithFolders);
-        }, 500);
+        const fetchedFolders = await fetchFolders(orgIds, collectionIds, allFetchedCollections);
+        // After fetchFolders completes, it returns the folders and sets folders state
+        // Use the returned folders immediately to set editSelectedFolders
+        const normalizedFolderIds = folderIds.map(id => typeof id === 'string' ? id : id.toString());
+        const validFolderIds = fetchedFolders.map(f => f._id.toString());
+        const validSelectedFolders = normalizedFolderIds.filter(id => validFolderIds.includes(id));
+
+        // Set folders state - this will trigger the useEffect to set editSelectedFolders
+        setFolders(fetchedFolders);
+        // Also set editSelectedFolders directly as a backup (useEffect will handle it too)
+        setEditSelectedFolders(validSelectedFolders);
+        // Wait a moment to ensure state is set before dialog opens
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        // Set expanded collections
+        const collectionsWithFolders = collectionIds.filter(collectionId => {
+          const normalizedCollectionId = typeof collectionId === 'string' ? collectionId : String(collectionId);
+          return fetchedFolders.some(folder => {
+            const folderCollectionId = folder.collectionId ? (typeof folder.collectionId === 'string' ? folder.collectionId : String(folder.collectionId)) : '';
+            return folderCollectionId === normalizedCollectionId;
+          });
+        });
+        setEditExpandedCollections(collectionsWithFolders);
+      } else {
+        setFolders([]);
+        setEditSelectedFolders([]);
       }
+
+      // Clear the flag after initialization is complete
+      setTimeout(() => {
+        isInitializingEditRef.current = false;
+      }, 100);
     } else {
       setEditSelectedOrganizations([]);
       setEditSelectedCollections([]);
@@ -486,6 +603,7 @@ const Users = () => {
       setEditExpandedCollections([]);
     }
     setEditFoldersAutoExpanded(false);
+    // Open dialog after all data is loaded
     setIsEditDialogOpen(true);
   };
 
@@ -829,7 +947,7 @@ const Users = () => {
     onSelectAllFolders: (colId: string) => void,
     onToggleExpand: (colId: string) => void
   ) => (
-  <div className="space-y-4">
+    <div className="space-y-4">
       <h3 className="text-lg font-medium">Permissions & Access</h3>
 
       <div className="p-3 bg-muted/50 rounded-lg">
@@ -840,52 +958,52 @@ const Users = () => {
 
       <div className="max-h-56 overflow-y-auto">
         {renderOrganizationSelection(isEdit, selectedOrgs, (ids) => {
-        // Update organizations and handle cascade
-        if (isEdit) {
-          setEditSelectedOrganizations(ids);
+          // Update organizations and handle cascade
+          if (isEdit) {
+            setEditSelectedOrganizations(ids);
 
-          // Remove collections and folders that belong to deselected organizations
-          const removed = editSelectedOrganizations.filter(id => !ids.includes(id));
-          removed.forEach(orgId => {
-            const collectionsToRemove = collections
-              .filter(collection => collection.organizationId === orgId)
-              .map(collection => collection._id);
+            // Remove collections and folders that belong to deselected organizations
+            const removed = editSelectedOrganizations.filter(id => !ids.includes(id));
+            removed.forEach(orgId => {
+              const collectionsToRemove = collections
+                .filter(collection => collection.organizationId === orgId)
+                .map(collection => collection._id);
 
-            setEditSelectedCollections(prevCols =>
-              prevCols.filter(colId => !collectionsToRemove.includes(colId))
-            );
+              setEditSelectedCollections(prevCols =>
+                prevCols.filter(colId => !collectionsToRemove.includes(colId))
+              );
 
-            const foldersToRemove = folders
-              .filter(folder => folder.organizationId === orgId)
-              .map(folder => folder._id);
+              const foldersToRemove = folders
+                .filter(folder => folder.organizationId === orgId)
+                .map(folder => folder._id);
 
-            setEditSelectedFolders(prevFolders =>
-              prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
-            );
-          });
-        } else {
-          setSelectedOrganizations(ids);
+              setEditSelectedFolders(prevFolders =>
+                prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
+              );
+            });
+          } else {
+            setSelectedOrganizations(ids);
 
-          // Remove collections and folders that belong to deselected organizations
-          const removed = selectedOrganizations.filter(id => !ids.includes(id));
-          removed.forEach(orgId => {
-            const collectionsToRemove = collections
-              .filter(collection => collection.organizationId === orgId)
-              .map(collection => collection._id);
+            // Remove collections and folders that belong to deselected organizations
+            const removed = selectedOrganizations.filter(id => !ids.includes(id));
+            removed.forEach(orgId => {
+              const collectionsToRemove = collections
+                .filter(collection => collection.organizationId === orgId)
+                .map(collection => collection._id);
 
-            setSelectedCollections(prevCols =>
-              prevCols.filter(colId => !collectionsToRemove.includes(colId))
-            );
+              setSelectedCollections(prevCols =>
+                prevCols.filter(colId => !collectionsToRemove.includes(colId))
+              );
 
-            const foldersToRemove = folders
-              .filter(folder => folder.organizationId === orgId)
-              .map(folder => folder._id);
+              const foldersToRemove = folders
+                .filter(folder => folder.organizationId === orgId)
+                .map(folder => folder._id);
 
-            setSelectedFolders(prevFolders =>
-              prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
-            );
-          });
-        }
+              setSelectedFolders(prevFolders =>
+                prevFolders.filter(folderId => !foldersToRemove.includes(folderId))
+              );
+            });
+          }
         })}
       </div>
 
@@ -937,15 +1055,28 @@ const Users = () => {
       {selectedOrgs.length > 0 && selectedCols.length > 0 && (
         <div className="my-2 max-h-56 overflow-y-auto">
           <MultiSelectDropdown
-            options={folders.filter(f => selectedCols.includes(f.collectionId)).map(f => {
-              const collectionName = collections.find(c => c._id === f.collectionId)?.name || '';
-              return { value: f._id, label: `${f.name}${collectionName ? ` (${collectionName})` : ''}` };
-            })}
+            options={folders
+              .filter(f => {
+                // Normalize IDs for comparison
+                const folderCollectionId = f.collectionId ? (typeof f.collectionId === 'string' ? f.collectionId : String(f.collectionId)) : '';
+                return selectedCols.some(colId => {
+                  const normalizedColId = typeof colId === 'string' ? colId : String(colId);
+                  return folderCollectionId === normalizedColId;
+                });
+              })
+              .map(f => {
+                const collectionName = collections.find(c => {
+                  const cId = typeof c._id === 'string' ? c._id : String(c._id);
+                  const fColId = f.collectionId ? (typeof f.collectionId === 'string' ? f.collectionId : String(f.collectionId)) : '';
+                  return cId === fColId;
+                })?.name || '';
+                return { value: f._id, label: `${f.name}${collectionName ? ` (${collectionName})` : ''}` };
+              })}
             value={selectedFolds}
             onChange={isEdit ? setEditSelectedFolders : setSelectedFolders}
             label="Folders"
-            placeholder="Select folders..."
-            isDisabled={loadingFolders}
+            placeholder={folders.length === 0 ? "Loading folders..." : selectedCols.length === 0 ? "Select collections first" : "Select folders..."}
+            isDisabled={loadingFolders || folders.length === 0}
           />
         </div>
       )}

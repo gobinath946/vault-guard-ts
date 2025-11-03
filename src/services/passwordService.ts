@@ -27,8 +27,24 @@ export interface PasswordGeneratorOptions {
 }
 
 export const passwordService = {
-  getAll: async (page = 1, limit = 10) => {
-    const response = await api.get(`/passwords?page=${page}&limit=${limit}`);
+  getAll: async (
+    page = 1,
+    limit = 10,
+    organizationId: string = '',
+    collectionIds: string[] = [],
+    folderIds: string[] = []
+  ) => {
+    const params: any = { page, limit };
+    if (organizationId) {
+      params.organizationId = organizationId;
+    }
+    if (collectionIds.length > 0) {
+      params.collectionIds = collectionIds.join(',');
+    }
+    if (folderIds.length > 0) {
+      params.folderIds = folderIds.join(',');
+    }
+    const response = await api.get('/passwords', { params });
     return response.data;
   },
 

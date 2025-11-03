@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import Folder from '../models/Folder';
 import Trash from '../models/Trash';
 import { AuthRequest } from '../middleware/auth';
@@ -13,26 +14,77 @@ export const getAllFolders = async (req: AuthRequest, res: Response) => {
 
     const organizationId = req.query.organizationId as string;
     const collectionId = req.query.collectionId as string;
-    const filter: any = { companyId };
+    
+    // Convert companyId to ObjectId if it's a string and defined
+    if (!companyId) {
+      return res.status(400).json({ message: 'companyId is required' });
+    }
+    let companyIdObj: mongoose.Types.ObjectId | string = companyId;
+    if (typeof companyId === 'string' && mongoose.Types.ObjectId.isValid(companyId)) {
+      companyIdObj = new mongoose.Types.ObjectId(companyId);
+    }
+
+    const filter: any = { companyId: companyIdObj };
     if (q) {
       filter.folderName = { $regex: q, $options: 'i' };
     }
-    if (organizationId) {
-      filter.organizationId = organizationId;
+    if (organizationId && mongoose.Types.ObjectId.isValid(organizationId)) {
+      filter.organizationId = new mongoose.Types.ObjectId(organizationId);
     }
-    if (collectionId) {
-      filter.collectionId = collectionId;
+    if (collectionId && mongoose.Types.ObjectId.isValid(collectionId)) {
+      filter.collectionId = new mongoose.Types.ObjectId(collectionId);
     }
 
     // Permission-based filtering for company_user
+    // This MUST be applied to restrict folders to only those user has permission to
     if (role === 'company_user') {
-      filter._id = { $in: permissions?.folders || [] };
+      console.log('[DEBUG] User role:', role);
+      console.log('[DEBUG] permissions.folders:', permissions?.folders);
+      // Only allow folders that are BOTH in the user's permissions AND match the selected collectionId
+      if (permissions?.folders && Array.isArray(permissions.folders) && permissions.folders.length > 0) {
+        const folderIds = permissions.folders
+          .map((fid: any) => {
+            if (typeof fid === 'string') {
+              return mongoose.Types.ObjectId.isValid(fid) ? new mongoose.Types.ObjectId(fid) : null;
+            }
+            if (fid && typeof fid === 'object') {
+              if (fid._id) {
+                return mongoose.Types.ObjectId.isValid(fid._id) ? new mongoose.Types.ObjectId(fid._id) : null;
+              }
+              if (mongoose.Types.ObjectId.isValid(fid)) {
+                return new mongoose.Types.ObjectId(fid);
+              }
+              return null;
+            }
+            return null;
+          })
+          .filter(Boolean);
+        console.log('[DEBUG] Filtered folderIds:', folderIds);
+        // Always restrict to permitted folderIds
+        filter._id = { $in: folderIds };
+      } else {
+        // If no folder permissions, company_user should see no folders
+        filter._id = { $in: [] };
+      }
     }
 
-    const total = await Folder.countDocuments(filter);
-    const folders = await Folder.find(filter).skip(skip).limit(limit).sort({ folderName: 1 });
+  console.log('[DEBUG] Final folder query filter:', JSON.stringify(filter, null, 2));
+  const total = await Folder.countDocuments(filter);
+  const folders = await Folder.find(filter).skip(skip).limit(limit).sort({ folderName: 1 });
 
-    res.json({ folders, total, page, totalPages: Math.ceil(total / limit) });
+    // Convert ObjectId fields to string for frontend compatibility
+    const foldersSafe = folders.map(f => ({
+      ...f.toObject(),
+      companyId: f.companyId?.toString(),
+      parentFolderId: f.parentFolderId?.toString(),
+      organizationId: f.organizationId?.toString(),
+      collectionId: f.collectionId?.toString(),
+      createdBy: f.createdBy?.toString(),
+      sharedWith: f.sharedWith?.map((id: any) => id?.toString()),
+      _id: f._id?.toString(),
+    }));
+
+    res.json({ folders: foldersSafe, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -44,7 +96,18 @@ export const getFolderById = async (req: AuthRequest, res: Response) => {
     if (!folder) {
       return res.status(404).json({ message: 'Folder not found' });
     }
-    res.json(folder);
+    // Convert ObjectId fields to string for frontend compatibility
+    const folderSafe = {
+      ...folder.toObject(),
+      companyId: folder.companyId?.toString(),
+      parentFolderId: folder.parentFolderId?.toString(),
+      organizationId: folder.organizationId?.toString(),
+      collectionId: folder.collectionId?.toString(),
+      createdBy: folder.createdBy?.toString(),
+      sharedWith: folder.sharedWith?.map((id: any) => id?.toString()),
+      _id: folder._id?.toString(),
+    };
+    res.json(folderSafe);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -55,8 +118,17 @@ export const createFolder = async (req: AuthRequest, res: Response) => {
     const { folderName, parentFolderId, organizationId, collectionId } = req.body;
     const { id, companyId } = req.user!;
 
+    // Ensure companyId is always an ObjectId
+    if (!companyId) {
+      return res.status(400).json({ message: 'companyId is required' });
+    }
+    let companyIdObj: mongoose.Types.ObjectId | string = companyId;
+    if (typeof companyId === 'string' && mongoose.Types.ObjectId.isValid(companyId)) {
+      companyIdObj = new mongoose.Types.ObjectId(companyId);
+    }
+
     const folder = new Folder({
-      companyId,
+      companyId: companyIdObj,
       folderName,
       parentFolderId,
       organizationId: organizationId || undefined,
@@ -65,7 +137,18 @@ export const createFolder = async (req: AuthRequest, res: Response) => {
     });
 
     await folder.save();
-    res.status(201).json(folder);
+    // Convert ObjectId fields to string for frontend compatibility
+    const folderSafe = {
+      ...folder.toObject(),
+      companyId: folder.companyId?.toString(),
+      parentFolderId: folder.parentFolderId?.toString(),
+      organizationId: folder.organizationId?.toString(),
+      collectionId: folder.collectionId?.toString(),
+      createdBy: folder.createdBy?.toString(),
+      sharedWith: folder.sharedWith?.map((id: any) => id?.toString()),
+      _id: folder._id?.toString(),
+    };
+    res.status(201).json(folderSafe);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -77,7 +160,18 @@ export const updateFolder = async (req: AuthRequest, res: Response) => {
     if (!folder) {
       return res.status(404).json({ message: 'Folder not found' });
     }
-    res.json(folder);
+    // Convert ObjectId fields to string for frontend compatibility
+    const folderSafe = {
+      ...folder.toObject(),
+      companyId: folder.companyId?.toString(),
+      parentFolderId: folder.parentFolderId?.toString(),
+      organizationId: folder.organizationId?.toString(),
+      collectionId: folder.collectionId?.toString(),
+      createdBy: folder.createdBy?.toString(),
+      sharedWith: folder.sharedWith?.map((id: any) => id?.toString()),
+      _id: folder._id?.toString(),
+    };
+    res.json(folderSafe);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -88,6 +182,15 @@ export const softDeleteFolder = async (req: AuthRequest, res: Response) => {
     const { id: userId } = req.user!;
     const { companyId } = req.user!;
 
+    // Ensure companyId is always an ObjectId
+    if (!companyId) {
+      return res.status(400).json({ message: 'companyId is required' });
+    }
+    let companyIdObj: mongoose.Types.ObjectId | string = companyId;
+    if (typeof companyId === 'string' && mongoose.Types.ObjectId.isValid(companyId)) {
+      companyIdObj = new mongoose.Types.ObjectId(companyId);
+    }
+
     const folder = await Folder.findById(req.params.id);
     if (!folder) {
       return res.status(404).json({ message: 'Folder not found' });
@@ -95,7 +198,7 @@ export const softDeleteFolder = async (req: AuthRequest, res: Response) => {
 
     // Create trash record
     const trashRecord = new Trash({
-      companyId,
+      companyId: companyIdObj,
       itemId: folder._id,
       itemType: 'folder',
       itemName: folder.folderName,

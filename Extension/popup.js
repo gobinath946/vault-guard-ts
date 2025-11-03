@@ -5,7 +5,6 @@ function dlog(...args) { if (_debugEnabled) console.log('[SecurePro Ext][Popup]'
 const statusEl = document.getElementById('status');
 const loginForm = document.getElementById('loginForm');
 const actions = document.getElementById('actions');
-const syncBtn = document.getElementById('syncBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const credentialList = document.getElementById('credentialList');
 const credentialItems = document.getElementById('credentialItems');
@@ -37,7 +36,6 @@ function refreshStatus() {
             }
             if (loginForm) loginForm.style.display = isLoggedIn ? 'none' : 'block';
             if (actions) actions.style.display = isLoggedIn ? 'block' : 'none';
-            if (syncBtn) syncBtn.disabled = !isLoggedIn;
             resolve(Boolean(isLoggedIn));
         });
     });
@@ -78,40 +76,6 @@ if (loginForm) {
     });
 }
 
-syncBtn.addEventListener('click', async () => {
-	const host = await getActiveTabOrigin();
-	if (host) {
-		// Reload credentials list
-		await loadAndDisplayCredentials(host);
-	}
-	
-	setStatus('Syncing credentials...');
-    dlog('FETCH_CREDENTIALS manual trigger for', host);
-    chrome.runtime.sendMessage({ type: 'FETCH_CREDENTIALS', payload: { host } }, (resp) => {
-		if (resp && resp.ok) {
-			dlog('FETCH_CREDENTIALS success', resp.data);
-			setStatus('Credentials synced', 'success');
-			// Trigger autofill on the active tab
-			chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-				if (tabs && tabs[0]) {
-					chrome.tabs.sendMessage(tabs[0].id, { type: 'TRIGGER_AUTOFILL' }, () => {
-						// Ignore errors if content script isn't ready
-					});
-				}
-			});
-		} else if (resp && resp.error === 'NOT_AUTHENTICATED') {
-			dlog('FETCH_CREDENTIALS not authenticated');
-			setStatus('Please log in first', 'error');
-		} else if (resp && resp.error === 'NO_CREDENTIALS') {
-			dlog('FETCH_CREDENTIALS no credentials');
-			setStatus('No credentials for this host', 'error');
-		} else {
-			dlog('FETCH_CREDENTIALS failed', resp);
-			setStatus('Sync failed', 'error');
-		}
-	});
-});
-
 if (logoutBtn) {
 	logoutBtn.addEventListener('click', () => {
 		setStatus('Logging out...');
@@ -137,83 +101,90 @@ if (logoutBtn) {
 // Options link removed
 
 async function loadAndDisplayCredentials(host) {
-	if (!host || !credentialList || !credentialItems) return;
-	
-	// Hide credential list initially
-	credentialList.style.display = 'none';
-	credentialItems.innerHTML = '';
-	
-	// Fetch all credentials
-	chrome.runtime.sendMessage({ type: 'FETCH_ALL_CREDENTIALS', payload: { host } }, (resp) => {
-		if (!resp || !resp.ok || !resp.data || !Array.isArray(resp.data)) {
-			return;
+	return new Promise((resolve) => {
+		if (!host || !credentialList || !credentialItems) {
+			return resolve(false);
 		}
 		
-		const credentials = resp.data;
+		// Hide credential list initially
+		credentialList.style.display = 'none';
+		credentialItems.innerHTML = '';
 		
-		// Only show list if multiple credentials exist
-		if (credentials.length > 1) {
-			credentialList.style.display = 'block';
-			
-			// Calculate max-height to show exactly 5 accounts
-			// Each item: ~48px (32px avatar + 16px padding) + 4px gap between items
-			// For 5 items: (5 × 48px) + (4 × 4px) = 240px + 16px = 256px
-			// Simplified: ~52px per item including gap
-			// For 5 items: 5 × 52px = 260px
-			if (credentials.length > 5) {
-				const maxHeight = 5 * 52; // 260px for 5 items
-				credentialItems.style.maxHeight = maxHeight + 'px';
-				// Add class which will enable scrolling via CSS
-				credentialItems.classList.add('has-scroll');
-				// Force reflow to ensure scrollbar appears
-				void credentialItems.offsetHeight;
-			} else {
-				credentialItems.style.maxHeight = 'none';
-				credentialItems.style.overflowY = '';
-				credentialItems.style.paddingRight = '';
-				credentialItems.classList.remove('has-scroll');
+		// Fetch all credentials
+		chrome.runtime.sendMessage({ type: 'FETCH_ALL_CREDENTIALS', payload: { host } }, (resp) => {
+			if (!resp || !resp.ok || !resp.data || !Array.isArray(resp.data)) {
+				return resolve(false);
 			}
 			
-			// Create clickable items for each credential
-			credentials.forEach((cred) => {
-				const item = document.createElement('button');
-				item.type = 'button';
-				item.className = 'credential-item';
-				const displayText = cred.label || cred.email || cred.username || 'Untitled';
-				const accountInitial = displayText.charAt(0).toUpperCase();
-				item.innerHTML = `
-					<div class="credential-avatar">${accountInitial}</div>
-					<div class="credential-info">
-						<span class="credential-name">${displayText}</span>
-					</div>
-					<svg class="credential-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M8.59 16.59L13.17 12L8.59 7.41L10 6L16 12L10 18L8.59 16.59Z" fill="currentColor"/>
-					</svg>
-				`;
-				item.addEventListener('click', async () => {
-					// Save selection and autofill
-					await chrome.runtime.sendMessage({ 
-						type: 'SET_SELECTED_CREDENTIAL', 
-						payload: { host, credentialId: cred.id } 
+			const credentials = resp.data;
+			
+			// Only show list if multiple credentials exist
+			if (credentials.length > 1) {
+				credentialList.style.display = 'block';
+				
+				// Calculate max-height to show exactly 5 accounts
+				// Each item: ~48px (32px avatar + 16px padding) + 4px gap between items
+				// For 5 items: (5 × 48px) + (4 × 4px) = 240px + 16px = 256px
+				// Simplified: ~52px per item including gap
+				// For 5 items: 5 × 52px = 260px
+				if (credentials.length > 5) {
+					const maxHeight = 5 * 52; // 260px for 5 items
+					credentialItems.style.maxHeight = maxHeight + 'px';
+					// Add class which will enable scrolling via CSS
+					credentialItems.classList.add('has-scroll');
+					// Force reflow to ensure scrollbar appears
+					void credentialItems.offsetHeight;
+				} else {
+					credentialItems.style.maxHeight = 'none';
+					credentialItems.style.overflowY = '';
+					credentialItems.style.paddingRight = '';
+					credentialItems.classList.remove('has-scroll');
+				}
+				
+				// Create clickable items for each credential
+				credentials.forEach((cred) => {
+					const item = document.createElement('button');
+					item.type = 'button';
+					item.className = 'credential-item';
+					const displayText = cred.label || cred.email || cred.username || 'Untitled';
+					const accountInitial = displayText.charAt(0).toUpperCase();
+					item.innerHTML = `
+						<div class="credential-avatar">${accountInitial}</div>
+						<div class="credential-info">
+							<span class="credential-name">${displayText}</span>
+						</div>
+						<svg class="credential-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path d="M8.59 16.59L13.17 12L8.59 7.41L10 6L16 12L10 18L8.59 16.59Z" fill="currentColor"/>
+						</svg>
+					`;
+					item.addEventListener('click', async () => {
+						// Save selection and autofill
+						await chrome.runtime.sendMessage({ 
+							type: 'SET_SELECTED_CREDENTIAL', 
+							payload: { host, credentialId: cred.id } 
+						});
+						
+						// Sync and autofill
+						setStatus('Syncing credentials...');
+						chrome.runtime.sendMessage({ type: 'FETCH_CREDENTIALS', payload: { host, credentialId: cred.id } }, (resp) => {
+							if (resp && resp.ok) {
+								setStatus('Credentials synced', 'success');
+								// Trigger autofill
+								chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+									if (tabs && tabs[0]) {
+										chrome.tabs.sendMessage(tabs[0].id, { type: 'TRIGGER_AUTOFILL' }, () => {});
+									}
+								});
+							}
+						});
 					});
-					
-					// Sync and autofill
-					setStatus('Syncing credentials...');
-					chrome.runtime.sendMessage({ type: 'FETCH_CREDENTIALS', payload: { host, credentialId: cred.id } }, (resp) => {
-						if (resp && resp.ok) {
-							setStatus('Credentials synced', 'success');
-							// Trigger autofill
-							chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-								if (tabs && tabs[0]) {
-									chrome.tabs.sendMessage(tabs[0].id, { type: 'TRIGGER_AUTOFILL' }, () => {});
-								}
-							});
-						}
-					});
+					credentialItems.appendChild(item);
 				});
-				credentialItems.appendChild(item);
-			});
-		}
+				resolve(true); // Multiple users exist
+			} else {
+				resolve(false); // Single or no users
+			}
+		});
 	});
 }
 
@@ -225,15 +196,24 @@ async function loadAndDisplayCredentials(host) {
         const host = await getActiveTabOrigin();
         if (!host) return;
         
-        // Load and display credentials list if multiple exist
-        await loadAndDisplayCredentials(host);
+        // Load and display credentials list if multiple exist - this happens first
+        const hasMultipleUsers = await loadAndDisplayCredentials(host);
         
-        setStatus('Syncing credentials...');
+        // Auto-sync credentials
+        if (!hasMultipleUsers) {
+            setStatus('Syncing credentials...');
+        }
         dlog('AUTO FETCH_CREDENTIALS for', host);
         chrome.runtime.sendMessage({ type: 'FETCH_CREDENTIALS', payload: { host } }, (resp) => {
             if (resp && resp.ok) {
                 dlog('AUTO FETCH_CREDENTIALS success');
-                setStatus('Credentials synced', 'success');
+                // Only show status if there's no credential list visible (single user)
+                if (!hasMultipleUsers) {
+                    setStatus('Credentials synced', 'success');
+                } else {
+                    // Hide status when credential list is shown for multiple users
+                    if (statusEl) statusEl.style.display = 'none';
+                }
                 // Trigger autofill on the active tab
                 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                     if (tabs && tabs[0]) {
@@ -250,7 +230,9 @@ async function loadAndDisplayCredentials(host) {
                 setStatus('Please log in first', 'error');
             } else {
                 dlog('AUTO FETCH_CREDENTIALS failed', resp);
-                setStatus('Sync failed', 'error');
+                if (!hasMultipleUsers) {
+                    setStatus('Sync failed', 'error');
+                }
             }
         });
     } catch (e) {

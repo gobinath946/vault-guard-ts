@@ -269,14 +269,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 	return true;
 });
 
+// Check for multiple credentials and open popup if needed
+async function checkMultipleCredentials() {
+	try {
+		const host = location.origin;
+		dlog('Checking for multiple credentials for', host);
+		chrome.runtime.sendMessage({ type: 'CHECK_MULTIPLE_CREDENTIALS', payload: { host } }, (resp) => {
+			if (resp && resp.ok && resp.data && resp.data.hasMultiple) {
+				dlog('Multiple credentials detected, attempting to open popup');
+				// Request background script to open popup
+				chrome.runtime.sendMessage({ type: 'OPEN_POPUP_FOR_SELECTION' });
+			}
+		});
+	} catch (e) {
+		dlog('checkMultipleCredentials error', String(e?.message || e));
+	}
+}
+
 // Run autofill on page load
 if (document.readyState === 'loading') {
 	document.addEventListener('DOMContentLoaded', () => {
-		setTimeout(tryAutofill, 500);
+		setTimeout(() => {
+			checkMultipleCredentials();
+			tryAutofill();
+		}, 500);
 		setTimeout(tryAutofill, 2000); // Retry after 2 seconds for slow pages
 	});
 } else {
-	setTimeout(tryAutofill, 500);
+	setTimeout(() => {
+		checkMultipleCredentials();
+		tryAutofill();
+	}, 500);
 	setTimeout(tryAutofill, 2000);
 }
 
@@ -284,7 +307,26 @@ if (document.readyState === 'loading') {
 (function hookHistory() {
     const origPush = history.pushState;
     const origReplace = history.replaceState;
-    history.pushState = function() { const r = origPush.apply(this, arguments); setTimeout(tryAutofill, 100); return r; };
-    history.replaceState = function() { const r = origReplace.apply(this, arguments); setTimeout(tryAutofill, 100); return r; };
-    window.addEventListener('popstate', () => setTimeout(tryAutofill, 100));
+    history.pushState = function() { 
+		const r = origPush.apply(this, arguments); 
+		setTimeout(() => {
+			checkMultipleCredentials();
+			tryAutofill();
+		}, 100); 
+		return r; 
+	};
+    history.replaceState = function() { 
+		const r = origReplace.apply(this, arguments); 
+		setTimeout(() => {
+			checkMultipleCredentials();
+			tryAutofill();
+		}, 100); 
+		return r; 
+	};
+    window.addEventListener('popstate', () => {
+		setTimeout(() => {
+			checkMultipleCredentials();
+			tryAutofill();
+		}, 100);
+	});
 })();

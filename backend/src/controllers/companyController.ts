@@ -398,12 +398,27 @@ export const updatePermissions = async (req: AuthRequest, res: Response) => {
 // Hierarchical data methods
 export const getOrganizations = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.user!;
+    const { id, role, permissions, companyId } = req.user!;
     const page = parseInt((req.query.page as string) || '1', 10);
     const limit = parseInt((req.query.limit as string) || '50', 10);
     const q = (req.query.q as string) || '';
 
-    const query: any = { companyId: id };
+    // Use companyId from JWT if available (for company_user), otherwise use id (for company_super_admin)
+    const actualCompanyId = companyId || id;
+    const query: any = { companyId: actualCompanyId };
+    
+    // Filter by permissions for company_user role
+    if (role === 'company_user' && permissions?.organizations && permissions.organizations.length > 0) {
+      const orgIds = permissions.organizations.map((oid: any) => {
+        // Handle permissions from JWT (strings) or populated objects
+        if (typeof oid === 'string') {
+          return mongoose.Types.ObjectId.isValid(oid) ? new mongoose.Types.ObjectId(oid) : null;
+        }
+        return oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid);
+      }).filter(Boolean);
+      query._id = { $in: orgIds };
+    }
+    
     if (q) {
       query.organizationName = { $regex: q, $options: 'i' };
     }
@@ -430,25 +445,54 @@ export const getOrganizations = async (req: AuthRequest, res: Response) => {
 
 export const getCollections = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.user!;
+    const { id, role, permissions, companyId } = req.user!;
     const { organizationId } = req.params;
     const page = parseInt((req.query.page as string) || '1', 10);
     const limit = parseInt((req.query.limit as string) || '50', 10);
     const q = (req.query.q as string) || '';
 
-    // Validate organization belongs to company
+    // Use companyId from JWT if available (for company_user), otherwise use id (for company_super_admin)
+    const actualCompanyId = companyId || id;
+
+    // Validate organization belongs to company and user has permission
     const organization = await Organization.findOne({
       _id: organizationId,
-      companyId: id
+      companyId: actualCompanyId
     });
     if (!organization) {
       return res.status(404).json({ message: 'Organization not found' });
     }
 
+    // Check if company_user has permission to this organization
+    if (role === 'company_user') {
+      const permittedOrgIds = (permissions?.organizations || []).map((oid: any) => {
+        if (typeof oid === 'string') return oid;
+        return oid._id ? oid._id.toString() : oid.toString();
+      });
+      const orgIdStr = organizationId.toString();
+      const hasOrgPermission = permittedOrgIds.some(pid => pid === orgIdStr);
+      if (!hasOrgPermission) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+    }
+
     const query: any = {
-      companyId: id,
+      companyId: actualCompanyId,
       organizationId
     };
+    
+    // Filter by permissions for company_user role - only show collections user has permission to
+    if (role === 'company_user' && permissions?.collections && permissions.collections.length > 0) {
+      const colIds = permissions.collections.map((cid: any) => {
+        // Handle permissions from JWT (strings) or populated objects
+        if (typeof cid === 'string') {
+          return mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : null;
+        }
+        return cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid);
+      }).filter(Boolean);
+      query._id = { $in: colIds };
+    }
+    
     if (q) {
       query.collectionName = { $regex: q, $options: 'i' };
     }
@@ -476,7 +520,7 @@ export const getCollections = async (req: AuthRequest, res: Response) => {
 
 export const getFolders = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.user!;
+    const { id, role, permissions, companyId } = req.user!;
     // Accept organizationId from path param (as used by frontend)
     const organizationId = req.params.organizationId;
     let collectionIds = (req.query.collectionIds as string)?.split(',') || [];
@@ -485,14 +529,31 @@ export const getFolders = async (req: AuthRequest, res: Response) => {
     const limit = parseInt((req.query.limit as string) || '50', 10);
     const q = (req.query.q as string) || '';
 
+    // Use companyId from JWT if available (for company_user), otherwise use id (for company_super_admin)
+    const actualCompanyId = companyId || id;
+
     // Validate organization belongs to company
-    const organization = await Organization.findOne({ _id: organizationId, companyId: id });
+    const organization = await Organization.findOne({ _id: organizationId, companyId: actualCompanyId });
     if (!organization) {
       return res.status(400).json({ message: 'Invalid organization ID' });
     }
 
+    // Check if company_user has permission to this organization
+    if (role === 'company_user') {
+      // Permissions from JWT are strings
+      const permittedOrgIds = (permissions?.organizations || []).map((oid: any) => {
+        if (typeof oid === 'string') return oid;
+        return oid._id ? oid._id.toString() : oid.toString();
+      });
+      const orgIdStr = organizationId.toString();
+      const hasOrgPermission = permittedOrgIds.some(pid => pid === orgIdStr);
+      if (!hasOrgPermission) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+    }
+
     const query: any = {
-      companyId: id,
+      companyId: actualCompanyId,
       organizationId: new mongoose.Types.ObjectId(organizationId)
     };
 
@@ -500,12 +561,62 @@ export const getFolders = async (req: AuthRequest, res: Response) => {
       const validCollections = await Collection.find({
         _id: { $in: collectionIds },
         organizationId: organizationId,
-        companyId: id
+        companyId: actualCompanyId
       });
       if (validCollections.length !== collectionIds.length) {
         return res.status(400).json({ message: 'Invalid collection IDs' });
       }
+      
+      // Check if company_user has permission to these collections
+      if (role === 'company_user') {
+        // Permissions from JWT are strings
+        const permittedCollectionIds = (permissions?.collections || []).map((cid: any) => {
+          if (typeof cid === 'string') return cid;
+          return cid._id ? cid._id.toString() : cid.toString();
+        });
+        const hasCollectionPermission = validCollections.every((col: any) => {
+          const colIdStr = col._id.toString();
+          return permittedCollectionIds.some(pid => pid === colIdStr);
+        });
+        if (!hasCollectionPermission) {
+          return res.status(403).json({ message: 'Access denied to one or more collections' });
+        }
+      }
+      
       query.collectionId = { $in: collectionIds.map(cid => new mongoose.Types.ObjectId(cid)) };
+    }
+
+    // Filter by permissions for company_user role - only show folders user has permission to
+    if (role === 'company_user') {
+      if (permissions?.folders && Array.isArray(permissions.folders) && permissions.folders.length > 0) {
+        const folderIds = permissions.folders
+          .map((fid: any) => {
+            // JWT stores permissions as strings
+            if (typeof fid === 'string') {
+              return mongoose.Types.ObjectId.isValid(fid) ? new mongoose.Types.ObjectId(fid) : null;
+            }
+            // Handle objects
+            if (fid && typeof fid === 'object') {
+              if (fid._id) {
+                return mongoose.Types.ObjectId.isValid(fid._id) ? new mongoose.Types.ObjectId(fid._id) : null;
+              }
+              if (mongoose.Types.ObjectId.isValid(fid)) {
+                return new mongoose.Types.ObjectId(fid);
+              }
+            }
+            return null;
+          })
+          .filter(Boolean);
+        
+        if (folderIds.length > 0) {
+          query._id = { $in: folderIds };
+        } else {
+          query._id = { $in: [] };
+        }
+      } else {
+        // If no folder permissions, return empty
+        query._id = { $in: [] };
+      }
     }
 
     if (q) {

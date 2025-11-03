@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import Collection from '../models/Collection';
 import Trash from '../models/Trash';
 import { AuthRequest } from '../middleware/auth';
@@ -23,8 +24,18 @@ export const getAllCollections = async (req: AuthRequest, res: Response) => {
     }
 
     // Permission-based filtering for company_user
-    if (role === 'company_user') {
-      filter._id = { $in: permissions?.collections || [] };
+    if (role === 'company_user' && permissions?.collections && permissions.collections.length > 0) {
+      const colIds = permissions.collections.map((cid: any) => {
+        // Handle permissions from JWT (strings) or populated objects
+        if (typeof cid === 'string') {
+          return mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : null;
+        }
+        return cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid);
+      }).filter(Boolean);
+      filter._id = { $in: colIds };
+    } else if (role === 'company_user') {
+      // If no collection permissions, company_user should see no collections
+      filter._id = { $in: [] };
     }
 
     const total = await Collection.countDocuments(filter);

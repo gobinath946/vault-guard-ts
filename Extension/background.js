@@ -139,6 +139,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 					sendResponse({ ok: true, data: { isLoggedIn: Boolean(token), siteConfig } });
 					break;
 				}
+				case 'CHECK_MULTIPLE_CREDENTIALS': {
+					const token = await getToken();
+					if (!token) {
+						await debugLog('CHECK_MULTIPLE_CREDENTIALS not authenticated');
+						return sendResponse({ ok: true, data: { hasMultiple: false } });
+					}
+					const { host } = message.payload || {};
+					if (!host) {
+						return sendResponse({ ok: true, data: { hasMultiple: false } });
+					}
+					try {
+						const allCreds = await fetchAllCredentials(token, host);
+						const hasMultiple = allCreds && Array.isArray(allCreds) && allCreds.length > 1;
+						await debugLog('CHECK_MULTIPLE_CREDENTIALS', host, { count: allCreds?.length || 0, hasMultiple });
+						sendResponse({ ok: true, data: { hasMultiple } });
+					} catch (e) {
+						await debugLog('CHECK_MULTIPLE_CREDENTIALS error', String(e?.message || e));
+						sendResponse({ ok: true, data: { hasMultiple: false } });
+					}
+					break;
+				}
+				case 'OPEN_POPUP_FOR_SELECTION': {
+					// Try to open popup programmatically
+					// Note: This may not work due to browser restrictions requiring user gesture
+					try {
+						// Get the active tab
+						const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+						if (tabs && tabs[0]) {
+							// Try to open the popup using action API
+							// This will only work if called in response to a user gesture
+							await chrome.action.openPopup();
+							await debugLog('OPEN_POPUP_FOR_SELECTION attempted');
+							sendResponse({ ok: true });
+						} else {
+							sendResponse({ ok: false, error: 'No active tab' });
+						}
+					} catch (e) {
+						// This is expected to fail often due to browser restrictions
+						// The visual indicator will serve as fallback
+						await debugLog('OPEN_POPUP_FOR_SELECTION failed (expected)', String(e?.message || e));
+						sendResponse({ ok: false, error: String(e?.message || e) });
+					}
+					break;
+				}
 				default:
 					await debugLog('UNKNOWN_MESSAGE', message?.type);
 					sendResponse({ ok: false, error: 'UNKNOWN_MESSAGE' });

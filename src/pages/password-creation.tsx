@@ -9,6 +9,8 @@ import { Plus, Edit, Trash2, Key, Eye, Copy, RefreshCw, X, EyeOff, History } fro
 import { passwordService, PasswordGeneratorOptions } from '@/services/passwordService';
 import { folderService } from '@/services/folderService';
 import { collectionService } from '@/services/collectionService';
+import { companyService } from '@/services/companyService';
+import MultiSelectDropdown from '@/components/common/MultiSelectDropdown';
 import AddPasswordForm from '@/components/common/AddPasswordForm';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -69,6 +71,18 @@ const Password = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalPasswords, setTotalPasswords] = useState(0);
+  
+  // Filter states
+  const [filterOrganization, setFilterOrganization] = useState<string>('all');
+  const [filterCollections, setFilterCollections] = useState<string[]>([]);
+  const [filterFolders, setFilterFolders] = useState<string[]>([]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [filterCollectionsList, setFilterCollectionsList] = useState<any[]>([]);
+  const [filterFoldersList, setFilterFoldersList] = useState<any[]>([]);
+  const [loadingOrganizations, setLoadingOrganizations] = useState(false);
+  const [loadingFilterCollections, setLoadingFilterCollections] = useState(false);
+  const [loadingFilterFolders, setLoadingFilterFolders] = useState(false);
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [isLogsOpen, setIsLogsOpen] = useState(false);
@@ -110,7 +124,13 @@ const Password = () => {
     
     try {
       const [passwordsData, foldersDataRaw, collectionsDataRaw] = await Promise.all([
-        passwordService.getAll(currentPage, rowsPerPage),
+        passwordService.getAll(
+          currentPage, 
+          rowsPerPage, 
+          filterOrganization && filterOrganization !== 'all' ? filterOrganization : '', 
+          filterCollections, 
+          filterFolders
+        ),
         folderService.getAll(),
         collectionService.getAll(),
       ]);
@@ -134,9 +154,7 @@ const Password = () => {
       } else if (foldersDataRaw && Array.isArray(foldersDataRaw.data)) {
         foldersArr = foldersDataRaw.data;
       }
-      if (user.role === 'company_user' && user.permissions?.folders) {
-        foldersArr = foldersArr.filter((f: any) => user.permissions!.folders!.includes(f._id));
-      }
+      // No client-side permission filtering; trust backend
       setFolders(foldersArr);
 
       let collectionsArr = [];
@@ -164,10 +182,80 @@ const Password = () => {
     }
   };
 
+  // Load organizations on mount
+  useEffect(() => {
+    const loadOrganizations = async () => {
+      if (!hasPermission) return;
+      setLoadingOrganizations(true);
+      try {
+        const data = await companyService.getOrganizations();
+        setOrganizations(data.organizations || []);
+      } catch (error) {
+        console.error('Failed to load organizations:', error);
+      } finally {
+        setLoadingOrganizations(false);
+      }
+    };
+    loadOrganizations();
+  }, [hasPermission]);
+
+  // Load collections when organization filter changes
+  useEffect(() => {
+    if (!filterOrganization || filterOrganization === 'all') {
+      setFilterCollectionsList([]);
+      setFilterCollections([]);
+      setFilterFoldersList([]);
+      setFilterFolders([]);
+      return;
+    }
+
+    const loadCollections = async () => {
+      setLoadingFilterCollections(true);
+      try {
+        const data = await companyService.getCollections(filterOrganization);
+        setFilterCollectionsList(data.collections || []);
+      } catch (error) {
+        console.error('Failed to load filter collections:', error);
+      } finally {
+        setLoadingFilterCollections(false);
+      }
+    };
+    loadCollections();
+  }, [filterOrganization]);
+
+  // Load folders when collection filters change
+  useEffect(() => {
+    if (!filterOrganization || filterOrganization === 'all' || filterCollections.length === 0) {
+      setFilterFoldersList([]);
+      setFilterFolders([]);
+      return;
+    }
+
+    const loadFolders = async () => {
+      setLoadingFilterFolders(true);
+      try {
+        const data = await companyService.getFolders(filterOrganization, filterCollections);
+        setFilterFoldersList(data.folders || []);
+      } catch (error) {
+        console.error('Failed to load filter folders:', error);
+      } finally {
+        setLoadingFilterFolders(false);
+      }
+    };
+    loadFolders();
+  }, [filterOrganization, filterCollections]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [filterOrganization, filterCollections, filterFolders, searchTerm]);
+
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, rowsPerPage, hasPermission]);
+  }, [currentPage, rowsPerPage, filterOrganization, filterCollections, filterFolders, hasPermission]);
 
   const generatePassword = async () => {
     try {
@@ -516,7 +604,87 @@ const Password = () => {
           />
         </div>
 
-        <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search passwords..." />
+        {/* Filter Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Filters</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="filter-organization">Organization (Default)</Label>
+                <Select
+                  value={filterOrganization}
+                  onValueChange={(value) => {
+                    setFilterOrganization(value);
+                    setFilterCollections([]);
+                    setFilterFolders([]);
+                  }}
+                  disabled={loadingOrganizations}
+                >
+                  <SelectTrigger id="filter-organization">
+                    <SelectValue placeholder="Select organization (default)..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Organizations</SelectItem>
+                    {organizations.map((org: any) => (
+                      <SelectItem key={org._id} value={org._id}>
+                        {org.name || org.organizationName} {org.description || org.organizationEmail ? `(${org.description || org.organizationEmail})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <MultiSelectDropdown
+                  options={filterCollectionsList.map(col => ({
+                    value: col._id,
+                    label: (col.name || col.collectionName) + (col.description ? ` (${col.description})` : "")
+                  }))}
+                  value={filterCollections}
+                  onChange={setFilterCollections}
+                  label="Collections"
+                  placeholder={filterOrganization && filterOrganization !== 'all' ? "Select collections..." : "Select organization first"}
+                  isDisabled={loadingFilterCollections || !filterOrganization || filterOrganization === 'all'}
+                />
+              </div>
+              <div className="space-y-2">
+                <MultiSelectDropdown
+                  options={filterFoldersList
+                    .filter(f => filterCollections.length === 0 || filterCollections.includes(f.collectionId))
+                    .map(f => {
+                      const collectionName = filterCollectionsList.find(c => c._id === f.collectionId)?.name || 
+                                            filterCollectionsList.find(c => c._id === f.collectionId)?.collectionName || '';
+                      return { 
+                        value: f._id, 
+                        label: `${f.name || f.folderName}${collectionName ? ` (${collectionName})` : ''}` 
+                      };
+                    })}
+                  value={filterFolders}
+                  onChange={setFilterFolders}
+                  label="Folders"
+                  placeholder={filterCollections.length > 0 ? "Select folders..." : "Select collections first"}
+                  isDisabled={loadingFilterFolders || filterCollections.length === 0}
+                />
+              </div>
+            </div>
+            {((filterOrganization && filterOrganization !== 'all') || filterCollections.length > 0 || filterFolders.length > 0) && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setFilterOrganization('all');
+                  setFilterCollections([]);
+                  setFilterFolders([]);
+                }}
+                className="w-full sm:w-auto"
+              >
+                Clear Filters
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search..." />
 
         <Card>
           <CardHeader>

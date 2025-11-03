@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import Organization from '../models/Organization';
 import Trash from '../models/Trash';
 import { AuthRequest } from '../middleware/auth';
@@ -13,8 +14,15 @@ export const getAllOrganizations = async (req: AuthRequest, res: Response) => {
     const skip = (page - 1) * limit;
 
     const filter: any = { companyId };
-    if (role === 'company_user' && permissions?.organizations?.length) {
-      filter._id = { $in: permissions.organizations };
+    if (role === 'company_user' && permissions?.organizations && permissions.organizations.length > 0) {
+      const orgIds = permissions.organizations.map((oid: any) => {
+        // Handle permissions from JWT (strings) or populated objects
+        if (typeof oid === 'string') {
+          return mongoose.Types.ObjectId.isValid(oid) ? new mongoose.Types.ObjectId(oid) : null;
+        }
+        return oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid);
+      }).filter(Boolean);
+      filter._id = { $in: orgIds };
     }
     if (q) {
       filter.$or = [

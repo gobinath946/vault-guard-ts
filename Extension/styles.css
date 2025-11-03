@@ -23,13 +23,15 @@ body {
 	background: #ffffff;
 	overflow: visible;
 	height: auto;
+	border-radius: 12px;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* Header Section */
 .header-section {
 	padding: 28px 24px 20px;
 	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	border-radius: 0;
+	border-radius: 12px 12px 0 0;
 }
 
 .logo-container {
@@ -73,7 +75,7 @@ h1 {
 /* Status Messages */
 .status {
 	margin: 0;
-	padding: 14px 20px;
+	padding: 12px 20px;
 	font-size: 13px;
 	border-radius: 0;
 	font-weight: 500;
@@ -84,6 +86,7 @@ h1 {
 	color: #475569;
 	transition: all 0.3s ease;
 	border-bottom: 1px solid #e2e8f0;
+	min-height: 44px;
 }
 
 .status::before {
@@ -198,7 +201,7 @@ button[type="submit"],
 	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	color: #ffffff;
 	box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
-	margin-top: 4px;
+	margin-top: 16px;
 }
 
 button[type="submit"]:hover,
@@ -230,18 +233,13 @@ button[type="button"],
 	min-width: 0;
 }
 
-#syncBtn {
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	color: #ffffff;
-	border: none;
-	box-shadow: 0 2px 6px rgba(102, 126, 234, 0.25);
-}
-
 #logoutBtn {
 	background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
 	color: #ffffff;
 	border: none;
-	box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25);
+	box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+	font-weight: 600;
+	margin-top: 8px;
 }
 
 .btn-icon-left {
@@ -260,12 +258,6 @@ button[type="button"]:hover,
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
-#syncBtn:hover {
-	background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
-	box-shadow: 0 3px 8px rgba(102, 126, 234, 0.35);
-	transform: translateY(-1px);
-}
-
 #logoutBtn:hover {
 	background: linear-gradient(135deg, #d97706 0%, #dc2626 100%);
 	box-shadow: 0 3px 8px rgba(239, 68, 68, 0.35);
@@ -279,7 +271,6 @@ button[type="button"]:hover,
 	opacity: 1;
 }
 
-#syncBtn .btn-icon-left,
 #logoutBtn .btn-icon-left {
 	opacity: 1;
 }
@@ -296,10 +287,6 @@ button[type="button"]:active,
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-#syncBtn:active {
-	box-shadow: 0 1px 4px rgba(102, 126, 234, 0.3);
-}
-
 #logoutBtn:active {
 	box-shadow: 0 1px 4px rgba(239, 68, 68, 0.3);
 }
@@ -313,27 +300,27 @@ button:disabled {
 
 /* Actions Section */
 .actions {
-	padding: 16px 20px;
+	padding: 20px;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 16px;
 	border-top: 1px solid #e2e8f0;
 	background: #fafbfc;
 	overflow: visible;
+	border-radius: 0 0 12px 12px;
 }
 
-.actions > .credential-list {
+.actions>.credential-list {
 	width: 100%;
 	order: -1;
 	margin-bottom: 0;
 }
 
-.actions > button {
+.actions>button {
 	order: 0;
 }
 
-.actions > button#syncBtn,
-.actions > button#logoutBtn {
+.actions>button#logoutBtn {
 	display: inline-flex;
 	flex-direction: row;
 }
@@ -342,25 +329,26 @@ button:disabled {
 .actions-button-row {
 	display: flex;
 	flex-direction: row;
-	gap: 8px;
+	gap: 10px;
 	width: 100%;
 }
 
 /* Credential List */
 .credential-list {
-	margin-bottom: 16px;
-	padding-bottom: 16px;
-	border-bottom: 1px solid #e2e8f0;
+	margin-bottom: 20px;
+	padding: 0;
+	border-bottom: none;
 	width: 100%;
+	background: transparent;
 }
 
 .credential-list-header {
 	display: flex;
 	align-items: flex-start;
-	gap: 10px;
-	margin-bottom: 12px;
-	padding-bottom: 12px;
-	border-bottom: 1px solid #e2e8f0;
+	gap: 12px;
+	margin-bottom: 16px;
+	padding: 0;
+	border-bottom: none;
 }
 
 .credential-icon {
@@ -376,28 +364,29 @@ button:disabled {
 }
 
 .credential-list-title {
-	font-size: 14px;
+	font-size: 15px;
 	font-weight: 600;
 	color: #1e293b;
-	margin: 0 0 3px 0;
-	line-height: 1.3;
+	margin: 0 0 4px 0;
+	line-height: 1.4;
+	letter-spacing: -0.2px;
 }
 
 .credential-list-subtitle {
-	font-size: 11px;
+	font-size: 12px;
 	color: #64748b;
 	margin: 0;
-	line-height: 1.3;
+	line-height: 1.4;
 }
 
 .credential-items {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 10px;
 	overflow-x: hidden;
 	overflow-y: hidden;
-	padding-right: 4px;
-	margin-right: -4px;
+	padding: 0;
+	margin: 0;
 	/* Enable smooth scrolling */
 	scroll-behavior: smooth;
 	/* Max-height will be set dynamically in JS to show 5 items */
@@ -426,8 +415,8 @@ button:disabled {
 .credential-items.has-scroll {
 	overflow-y: auto !important;
 	overflow-x: hidden;
-	padding-right: 12px;
-	margin-right: -12px;
+	padding-right: 8px;
+	margin-right: 0;
 	scrollbar-width: thin;
 	scrollbar-color: #64748b #f1f5f9;
 }
@@ -455,10 +444,10 @@ button:disabled {
 
 .credential-item {
 	width: 100%;
-	padding: 8px 12px;
+	padding: 14px 16px;
 	background: #ffffff;
 	border: 1.5px solid #e2e8f0;
-	border-radius: 8px;
+	border-radius: 10px;
 	cursor: pointer;
 	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 	text-align: left;
@@ -467,9 +456,10 @@ button:disabled {
 	color: #1e293b;
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 12px;
 	position: relative;
 	outline: none;
+	margin: 0;
 }
 
 .credential-item:focus {
@@ -481,7 +471,8 @@ button:disabled {
 	border-color: #667eea;
 	background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
 	transform: translateY(-2px);
-	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+	box-shadow: 0 4px 20px rgba(102, 126, 234, 0.2);
+	border-width: 2px;
 }
 
 .credential-item:active {
@@ -490,18 +481,19 @@ button:disabled {
 }
 
 .credential-avatar {
-	width: 32px;
-	height: 32px;
-	border-radius: 8px;
+	width: 40px;
+	height: 40px;
+	border-radius: 10px;
 	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	color: #ffffff;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	font-weight: 600;
-	font-size: 13px;
+	font-size: 15px;
 	flex-shrink: 0;
-	box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+	box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+	transition: all 0.2s ease;
 }
 
 .credential-info {
@@ -515,12 +507,13 @@ button:disabled {
 .credential-name {
 	font-weight: 500;
 	color: #1e293b;
-	font-size: 13px;
-	line-height: 1.3;
+	font-size: 14px;
+	line-height: 1.4;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	width: 100%;
+	letter-spacing: -0.1px;
 }
 
 .credential-arrow {
@@ -533,7 +526,12 @@ button:disabled {
 
 .credential-item:hover .credential-arrow {
 	color: #667eea;
-	transform: translateX(2px);
+	transform: translateX(3px);
+}
+
+.credential-item:hover .credential-avatar {
+	transform: scale(1.05);
+	box-shadow: 0 3px 8px rgba(102, 126, 234, 0.35);
 }
 
 /* Checkbox Styles */
@@ -600,19 +598,19 @@ a:hover {
 	.container {
 		min-width: 280px;
 	}
-	
+
 	.header-section {
 		padding: 24px 20px 18px;
 	}
-	
+
 	.form {
 		padding: 24px 20px;
 	}
-	
+
 	.actions {
 		padding: 18px 20px 20px;
 	}
-	
+
 	h1 {
 		font-size: 20px;
 	}

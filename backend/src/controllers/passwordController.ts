@@ -6,6 +6,8 @@ import PasswordLog from '../models/PasswordLog';
 import User from '../models/User';
 import Company from '../models/Company';
 import MasterAdmin from '../models/MasterAdmin';
+import Collection from '../models/Collection';
+import Folder from '../models/Folder';
 import { AuthRequest } from '../middleware/auth';
 import { encrypt, decrypt } from '../utils/encryption';
 import { generatePassword } from '../utils/passwordGenerator';
@@ -40,30 +42,248 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    let query: any = {};
+    // Filter parameters
+    const organizationId = (req.query.organizationId as string)?.trim() || '';
+    const collectionIdsParam = (req.query.collectionIds as string) || '';
+    const folderIdsParam = (req.query.folderIds as string) || '';
+    const collectionIds = collectionIdsParam ? collectionIdsParam.split(',').filter(id => id && id.trim() !== '') : [];
+    const folderIds = folderIdsParam ? folderIdsParam.split(',').filter(id => id && id.trim() !== '') : [];
+    
+    // Debug logging
+    if (role === 'company_user') {
+      console.log('[DEBUG getAllPasswords] Filters:', {
+        organizationId,
+        collectionIds,
+        folderIds,
+        collectionIdsParam,
+        folderIdsParam
+      });
+    }
+
+    let baseQuery: any = {};
     if (role === 'company_super_admin') {
-      query.companyId = id;
+      baseQuery.companyId = id;
     } else if (role === 'company_user') {
-      // Company user - see passwords for any permitted org/collection/folder
-      const orgIds = req.user?.permissions?.organizations || [];
-      const colIds = req.user?.permissions?.collections || [];
-      const folderIds = req.user?.permissions?.folders || [];
-      const orFilters = [];
-      if (orgIds.length > 0) orFilters.push({ organizationId: { $in: orgIds } });
-      if (colIds.length > 0) orFilters.push({ collectionId: { $in: colIds } });
-      if (folderIds.length > 0) orFilters.push({ folderId: { $in: folderIds } });
-      query = {
+      // Company user - see passwords based on hierarchical permissions
+      // Hierarchy: Organization → Collection → Folder
+      // Permissions come from JWT as strings, convert to ObjectIds
+      const orgIds = (req.user?.permissions?.organizations || []).map((oid: any) => {
+        if (typeof oid === 'string') {
+          return mongoose.Types.ObjectId.isValid(oid) ? new mongoose.Types.ObjectId(oid) : null;
+        }
+        return oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid);
+      }).filter(Boolean);
+      
+      const colIds = (req.user?.permissions?.collections || []).map((cid: any) => {
+        if (typeof cid === 'string') {
+          return mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : null;
+        }
+        return cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid);
+      }).filter(Boolean);
+      
+      const folderPerms = (req.user?.permissions?.folders || []).map((fid: any) => {
+        if (typeof fid === 'string') {
+          return mongoose.Types.ObjectId.isValid(fid) ? new mongoose.Types.ObjectId(fid) : null;
+        }
+        return fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid);
+      }).filter(Boolean);
+      
+      const permissionFilters: any[] = [];
+      
+      // If user has organization permissions, they can see all passwords in those organizations
+      if (orgIds.length > 0) {
+        permissionFilters.push({ organizationId: { $in: orgIds } });
+      }
+      
+      // If user has collection permissions, they can see passwords in those collections
+      // But we need to verify the collections belong to organizations they have access to
+      if (colIds.length > 0) {
+        if (orgIds.length > 0) {
+          // Only include collections that belong to permitted organizations
+          const validCollections = await Collection.find({
+            _id: { $in: colIds },
+            organizationId: { $in: orgIds }
+          }).select('_id').lean();
+          
+          const validCollectionObjectIds = validCollections.map(c => c._id);
+          if (validCollectionObjectIds.length > 0) {
+            permissionFilters.push({ collectionId: { $in: validCollectionObjectIds } });
+          }
+        } else {
+          // If no org permissions, user can still see passwords in permitted collections
+          permissionFilters.push({ collectionId: { $in: colIds } });
+        }
+      }
+      
+      // If user has folder permissions, they can see passwords in those folders
+      // But we need to verify the folders belong to collections/organizations they have access to
+      if (folderPerms.length > 0) {
+        // Get folders that belong to permitted organizations and/or collections
+        const folderQuery: any = { _id: { $in: folderPerms } };
+        const folderOrConditions: any[] = [];
+        
+        if (orgIds.length > 0) {
+          folderOrConditions.push({ organizationId: { $in: orgIds } });
+        }
+        if (colIds.length > 0) {
+          folderOrConditions.push({ collectionId: { $in: colIds } });
+        }
+        
+        if (folderOrConditions.length > 0) {
+          folderQuery.$or = folderOrConditions;
+        }
+        
+        const validFolders = await Folder.find(folderQuery).select('_id').lean();
+        const validFolderObjectIds = validFolders.map(f => f._id);
+        
+        if (validFolderObjectIds.length > 0) {
+          permissionFilters.push({ folderId: { $in: validFolderObjectIds } });
+        }
+      }
+      
+      // Build the query: user can see passwords they created, shared with them, or in permitted hierarchy
+      baseQuery = {
         companyId,
         $or: [
           { createdBy: id },
           { sharedWith: id },
-          ...orFilters
+          ...(permissionFilters.length > 0 ? permissionFilters : [])
         ]
       };
     }
 
+    // Build filter conditions and integrate with permissions for company_user
+    const filterConditions: any[] = [];
+    
+    if (organizationId) {
+      const orgObjectId = new mongoose.Types.ObjectId(organizationId);
+      // For company_user, validate organization is in their permissions
+      if (role === 'company_user') {
+        const orgIds = (req.user?.permissions?.organizations || []).map((oid: any) => {
+          if (typeof oid === 'string') {
+            return mongoose.Types.ObjectId.isValid(oid) ? new mongoose.Types.ObjectId(oid) : null;
+          }
+          return oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid);
+        }).filter(Boolean);
+        
+        // Only apply filter if organization is in user's permissions
+        const hasOrgPermission = orgIds.some(oid => oid && oid.equals(orgObjectId));
+        if (hasOrgPermission) {
+          filterConditions.push({ organizationId: orgObjectId });
+          console.log('[DEBUG getAllPasswords] Added organizationId filter:', orgObjectId.toString());
+        } else {
+          console.log('[DEBUG getAllPasswords] Organization filter NOT applied - not in permissions:', {
+            requestedOrgId: orgObjectId.toString(),
+            permittedOrgIds: orgIds.filter(oid => oid !== null).map(oid => oid!.toString())
+          });
+        }
+      } else {
+        filterConditions.push({ organizationId: orgObjectId });
+      }
+    }
+    
+    if (collectionIds.length > 0) {
+      const validCollectionIds = collectionIds.map(colId => new mongoose.Types.ObjectId(colId));
+      // For company_user, validate collections are in their permissions
+      if (role === 'company_user') {
+        const colIds = (req.user?.permissions?.collections || []).map((cid: any) => {
+          if (typeof cid === 'string') {
+            return mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : null;
+          }
+          return cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid);
+        }).filter(Boolean);
+        
+        // Only include collections that user has permission to
+        const permittedCollectionIds = validCollectionIds.filter(colId => 
+          colIds.some(permColId => permColId && permColId.equals(colId))
+        );
+        if (permittedCollectionIds.length > 0) {
+          filterConditions.push({ collectionId: { $in: permittedCollectionIds } });
+          console.log('[DEBUG getAllPasswords] Added collectionId filter:', permittedCollectionIds.map(id => id.toString()));
+        } else {
+          console.log('[DEBUG getAllPasswords] Collection filter NOT applied - no matching permissions');
+        }
+      } else {
+        filterConditions.push({ collectionId: { $in: validCollectionIds } });
+      }
+    }
+    
+    if (folderIds.length > 0) {
+      const validFolderIds = folderIds.map(folderId => new mongoose.Types.ObjectId(folderId));
+      // For company_user, validate folders are in their permissions
+      if (role === 'company_user') {
+        const folderPerms = (req.user?.permissions?.folders || []).map((fid: any) => {
+          if (typeof fid === 'string') {
+            return mongoose.Types.ObjectId.isValid(fid) ? new mongoose.Types.ObjectId(fid) : null;
+          }
+          return fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid);
+        }).filter(Boolean);
+        
+        // Only include folders that user has permission to
+        const permittedFolderIds = validFolderIds.filter(foldId => 
+          folderPerms.some(permFoldId => permFoldId && permFoldId.equals(foldId))
+        );
+        if (permittedFolderIds.length > 0) {
+          filterConditions.push({ folderId: { $in: permittedFolderIds } });
+          console.log('[DEBUG getAllPasswords] Added folderId filter:', permittedFolderIds.map(id => id.toString()));
+        } else {
+          console.log('[DEBUG getAllPasswords] Folder filter NOT applied - no matching permissions');
+        }
+      } else {
+        filterConditions.push({ folderId: { $in: validFolderIds } });
+      }
+    }
+
+    // Combine base query with filters
+    let query: any = { ...baseQuery };
+    
+    if (filterConditions.length > 0) {
+      if (role === 'company_user' && baseQuery.$or) {
+        // For company_user, use $and to combine permission-based $or with filter conditions
+        // This is the standard MongoDB pattern: $and wraps both the $or and the filters
+        const mergedFilters = filterConditions.reduce((acc, condition) => ({ ...acc, ...condition }), {});
+        
+        // Build $and array: baseQuery (with $or) + filters
+        query = {
+          $and: [
+            baseQuery, // Contains companyId and $or with permission conditions
+            mergedFilters // Filter conditions (organizationId, collectionId, folderId)
+          ]
+        };
+        
+        // Debug logging
+        console.log('[DEBUG getAllPasswords] Final query structure:', JSON.stringify({
+          hasAnd: !!query.$and,
+          andLength: query.$and?.length,
+          baseQueryCompanyId: baseQuery.companyId?.toString(),
+          baseQueryHasOr: !!baseQuery.$or,
+          orLength: baseQuery.$or?.length,
+          mergedFilters,
+          filterConditionsCount: filterConditions.length
+        }, null, 2));
+      } else {
+        // For super admin, combine filters with AND
+        // Merge all filter conditions into baseQuery
+        const mergedFilters = filterConditions.reduce((acc, condition) => ({ ...acc, ...condition }), {});
+        query = {
+          ...baseQuery,
+          ...mergedFilters
+        };
+      }
+    }
+
     // Get total count for pagination
     const total = await Password.countDocuments(query);
+    
+    // Debug logging for results
+    if (role === 'company_user' && filterConditions.length > 0) {
+      console.log('[DEBUG getAllPasswords] Query results:', {
+        total,
+        page,
+        limit,
+        skip
+      });
+    }
     
     // Get paginated passwords
     const passwords = await Password.find(query)
