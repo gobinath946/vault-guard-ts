@@ -19,6 +19,7 @@ import folderRoutes from './routes/folderRoutes';
 import collectionRoutes from './routes/collectionRoutes';
 import trashRoutes from './routes/trashRoutes'
 import userRoutes from './routes/companyRoutes'
+import extensionRoutes from './routes/extensionRoutes'
 
 
 const app = express();
@@ -36,6 +37,7 @@ app.use('/api/folders', folderRoutes);
 app.use('/api/collections', collectionRoutes);
 app.use('/api/trash', trashRoutes);
 app.use('/api/company', userRoutes);
+app.use('/api/extension', extensionRoutes);
 
 
 

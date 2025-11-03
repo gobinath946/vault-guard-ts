@@ -52,12 +52,9 @@ interface PasswordLog {
   field?: string;
   oldValue?: string;
   newValue?: string;
-  performedBy: {
-    _id: string;
-    name?: string;
-    username?: string;
-    email: string;
-  };
+  performedBy?: string; // User ID (ObjectId as string)
+  performedByName?: string; // Name of user who performed the action
+  performedByEmail?: string; // Email of user who performed the action
   timestamp: string;
   details?: string;
 }
@@ -819,8 +816,12 @@ const Password = () => {
 
                   <div className="text-sm">
                     <strong>Performed by:</strong>{" "}
-                    {log.performedBy
-                      ? `${log.performedBy.username || log.performedBy.name || 'User'} (${log.performedBy.email})`
+                    {log.performedByName && log.performedByEmail
+                      ? `${log.performedByName} (${log.performedByEmail})`
+                      : log.performedByEmail
+                      ? `User (${log.performedByEmail})`
+                      : log.performedByName
+                      ? log.performedByName
                       : 'Unknown user'
                     }
                   </div>

@@ -7,6 +7,8 @@ export interface IPasswordLog extends Document {
   oldValue?: string; // Previous value (encrypted for sensitive fields)
   newValue?: string; // New value (encrypted for sensitive fields)
   performedBy: mongoose.Types.ObjectId; // User who performed the action
+  performedByName?: string; // Name of user who performed the action
+  performedByEmail?: string; // Email of user who performed the action
   timestamp: Date;
   details?: string; // Additional context or metadata
 }
@@ -39,6 +41,14 @@ const passwordLogSchema = new Schema<IPasswordLog>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    performedByName: {
+      type: String,
+      trim: true,
+    },
+    performedByEmail: {
+      type: String,
+      trim: true,
     },
     timestamp: {
       type: Date,

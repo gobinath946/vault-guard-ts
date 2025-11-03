@@ -1,0 +1,44 @@
+{
+	"manifest_version": 3,
+	"name": "SecurePro Autofill",
+	"version": "0.1.0",
+	"description": "Login to SecurePro, fetch synced access credentials, and autofill website login forms.",
+	"action": {
+		"default_popup": "popup.html",
+		"default_title": "SecurePro",
+		"default_icon": {
+			"16": "icon.svg",
+			"32": "icon.svg",
+			"48": "icon.svg",
+			"128": "icon.svg"
+		}
+	},
+	"icons": {
+		"16": "icon.svg",
+		"32": "icon.svg",
+		"48": "icon.svg",
+		"128": "icon.svg"
+	},
+	"options_page": "options.html",
+	"permissions": [
+		"storage",
+		"scripting",
+		"activeTab",
+		"tabs"
+	],
+	"host_permissions": [
+		"<all_urls>"
+	],
+	"background": {
+		"service_worker": "background.js",
+		"type": "module"
+	},
+	"content_scripts": [
+		{
+			"matches": ["<all_urls>"],
+			"js": ["content.js"],
+			"run_at": "document_idle",
+			"all_frames": true
+		}
+	]
+}

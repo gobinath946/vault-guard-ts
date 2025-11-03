@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>SecurePro Options</title>
+	<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+	<div class="container options-container">
+		<h1>⚙️ SecurePro Settings</h1>
+		<p class="subtitle">Configure your autofill preferences</p>
+		<form id="optionsForm" class="form">
+			<label>
+				API Base URL
+				<input type="text" id="apiBaseUrl" placeholder="https://api.your-securepro.com" />
+			</label>
+			<label>
+				Site URL Pattern (optional)
+				<input type="text" id="sitePattern" placeholder="example.com/login" />
+			</label>
+			<label>
+				Username Selector
+				<input type="text" id="usernameSelector" placeholder="input[name='username']" />
+			</label>
+			<label>
+				Password Selector
+				<input type="text" id="passwordSelector" placeholder="input[name='password']" />
+			</label>
+			<label>
+				Submit Selector
+				<input type="text" id="submitSelector" placeholder="button[type='submit']" />
+			</label>
+			<label class="checkbox">
+				<input type="checkbox" id="autoSubmit" />
+				<span>Auto submit form after filling</span>
+			</label>
+			<label class="checkbox">
+				<input type="checkbox" id="debug" />
+				<span>Enable debug logging</span>
+			</label>
+			<button type="submit" class="primary-btn">💾 Save Settings</button>
+		</form>
+		<div id="saveStatus" class="status"></div>
+	</div>
+	<script src="options.js"></script>
+</body>
+</html>
