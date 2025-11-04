@@ -134,17 +134,6 @@ const Password = () => {
         folderService.getAll(),
         collectionService.getAll(),
       ]);
-      if (Array.isArray(passwordsData)) {
-        setPasswords(passwordsData);
-        setTotalPasswords(passwordsData.length);
-      } else if (passwordsData && Array.isArray(passwordsData.passwords)) {
-        setPasswords(passwordsData.passwords);
-        setTotalPasswords(typeof passwordsData.total === 'number' ? passwordsData.total : passwordsData.passwords.length);
-      } else {
-        setPasswords([]);
-        setTotalPasswords(0);
-      }
-
       // Permission-based filtering for folders/collections
       let foldersArr = [];
       if (Array.isArray(foldersDataRaw)) {
@@ -154,8 +143,26 @@ const Password = () => {
       } else if (foldersDataRaw && Array.isArray(foldersDataRaw.data)) {
         foldersArr = foldersDataRaw.data;
       }
-      // No client-side permission filtering; trust backend
-      setFolders(foldersArr);
+      // For company users, filter folders by permissions
+      if (user.role === 'company_user' && user.permissions?.folders) {
+        setFolders(foldersArr.filter((f: any) => user.permissions.folders.includes(f._id)));
+      } else {
+        setFolders(foldersArr);
+      }
+
+      let filteredPasswords = [];
+      if (Array.isArray(passwordsData)) {
+        filteredPasswords = passwordsData;
+      } else if (passwordsData && Array.isArray(passwordsData.passwords)) {
+        filteredPasswords = passwordsData.passwords;
+      }
+      // For company users, filter passwords by permitted folders
+      if (user.role === 'company_user' && foldersArr.length > 0) {
+        const permittedFolderIds = foldersArr.map((f: any) => f._id);
+        filteredPasswords = filteredPasswords.filter((p: any) => !p.folderId || permittedFolderIds.includes(p.folderId));
+      }
+      setPasswords(filteredPasswords);
+      setTotalPasswords(filteredPasswords.length);
 
       let collectionsArr = [];
       if (Array.isArray(collectionsDataRaw)) {
