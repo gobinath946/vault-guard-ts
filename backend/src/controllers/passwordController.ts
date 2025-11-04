@@ -49,16 +49,6 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
     const collectionIds = collectionIdsParam ? collectionIdsParam.split(',').filter(id => id && id.trim() !== '') : [];
     const folderIds = folderIdsParam ? folderIdsParam.split(',').filter(id => id && id.trim() !== '') : [];
     
-    // Debug logging
-    if (role === 'company_user') {
-      console.log('[DEBUG getAllPasswords] Filters:', {
-        organizationId,
-        collectionIds,
-        folderIds,
-        collectionIdsParam,
-        folderIdsParam
-      });
-    }
 
     let baseQuery: any = {};
     if (role === 'company_super_admin') {
@@ -170,13 +160,7 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
         const hasOrgPermission = orgIds.some(oid => oid && oid.equals(orgObjectId));
         if (hasOrgPermission) {
           filterConditions.push({ organizationId: orgObjectId });
-          console.log('[DEBUG getAllPasswords] Added organizationId filter:', orgObjectId.toString());
-        } else {
-          console.log('[DEBUG getAllPasswords] Organization filter NOT applied - not in permissions:', {
-            requestedOrgId: orgObjectId.toString(),
-            permittedOrgIds: orgIds.filter(oid => oid !== null).map(oid => oid!.toString())
-          });
-        }
+        } 
       } else {
         filterConditions.push({ organizationId: orgObjectId });
       }
@@ -199,9 +183,6 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
         );
         if (permittedCollectionIds.length > 0) {
           filterConditions.push({ collectionId: { $in: permittedCollectionIds } });
-          console.log('[DEBUG getAllPasswords] Added collectionId filter:', permittedCollectionIds.map(id => id.toString()));
-        } else {
-          console.log('[DEBUG getAllPasswords] Collection filter NOT applied - no matching permissions');
         }
       } else {
         filterConditions.push({ collectionId: { $in: validCollectionIds } });
@@ -225,9 +206,6 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
         );
         if (permittedFolderIds.length > 0) {
           filterConditions.push({ folderId: { $in: permittedFolderIds } });
-          console.log('[DEBUG getAllPasswords] Added folderId filter:', permittedFolderIds.map(id => id.toString()));
-        } else {
-          console.log('[DEBUG getAllPasswords] Folder filter NOT applied - no matching permissions');
         }
       } else {
         filterConditions.push({ folderId: { $in: validFolderIds } });
@@ -251,16 +229,7 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
           ]
         };
         
-        // Debug logging
-        console.log('[DEBUG getAllPasswords] Final query structure:', JSON.stringify({
-          hasAnd: !!query.$and,
-          andLength: query.$and?.length,
-          baseQueryCompanyId: baseQuery.companyId?.toString(),
-          baseQueryHasOr: !!baseQuery.$or,
-          orLength: baseQuery.$or?.length,
-          mergedFilters,
-          filterConditionsCount: filterConditions.length
-        }, null, 2));
+
       } else {
         // For super admin, combine filters with AND
         // Merge all filter conditions into baseQuery
@@ -274,16 +243,6 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
 
     // Get total count for pagination
     const total = await Password.countDocuments(query);
-    
-    // Debug logging for results
-    if (role === 'company_user' && filterConditions.length > 0) {
-      console.log('[DEBUG getAllPasswords] Query results:', {
-        total,
-        page,
-        limit,
-        skip
-      });
-    }
     
     // Get paginated passwords
     const passwords = await Password.find(query)

@@ -76,7 +76,6 @@ const urlHostnameMatches = (url: string, targetHost: string) => {
 export const getPasswordsByDomain = async (req: AuthRequest, res: Response) => {
   try {
     const rawHost = (req.query.host as string) || '';
-    console.log('rawHost', rawHost);
     if (!rawHost) {
       return res.status(400).json({ message: 'host query parameter is required' });
     }
@@ -84,7 +83,6 @@ export const getPasswordsByDomain = async (req: AuthRequest, res: Response) => {
     const { role, id, companyId } = req.user!;
     const host = getHostname(rawHost);
     const baseHost = getBaseDomain(host);
-    console.log('host', host, 'baseHost', baseHost);
 
     let accessQuery: any = {};
     if (role === 'company_super_admin') {
@@ -113,9 +111,7 @@ export const getPasswordsByDomain = async (req: AuthRequest, res: Response) => {
       ...accessQuery,
       websiteUrls: { $elemMatch: { $regex: escaped, $options: 'i' } },
     } as any;
-    console.log('query', query);
     const results = await Password.find(query).sort({ updatedAt: -1 });
-    console.log('results count', results.length);
 
     const matched = results.filter(p =>
       Array.isArray(p.websiteUrls) && p.websiteUrls.some(u => urlHostnameMatches(u, baseHost))

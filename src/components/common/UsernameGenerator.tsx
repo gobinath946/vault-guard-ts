@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Copy, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { faker } from '@faker-js/faker';
 
 interface UsernameGeneratorProps {
   open: boolean;
@@ -25,31 +26,48 @@ const UsernameGenerator: React.FC<UsernameGeneratorProps> = ({
 }) => {
   const [generatedUsername, setGeneratedUsername] = useState('');
   const [options, setOptions] = useState({
-    type: 'random' as 'random' | 'pattern',
+    type: 'random' as 'random' | 'pattern' | 'adjective-animal',
     capitalize: true,
     includeNumber: true,
     pattern: 'first.last',
   });
   const { toast } = useToast();
 
-  const randomWords = [
-    'silent', 'quick', 'brave', 'calm', 'witty', 'clever', 'gentle',
-    'happy', 'lucky', 'proud', 'bold', 'wise', 'fair', 'true'
-  ];
-
   const generateUsername = () => {
     let username = '';
 
     if (options.type === 'random') {
-      const word1 = randomWords[Math.floor(Math.random() * randomWords.length)];
-      const word2 = randomWords[Math.floor(Math.random() * randomWords.length)];
+      // Random combination of adjective and noun
+      const adjective = faker.word.adjective();
+      const noun = faker.word.noun();
       
       username = options.capitalize 
-        ? `${word1.charAt(0).toUpperCase() + word1.slice(1)}${word2.charAt(0).toUpperCase() + word2.slice(1)}`
-        : `${word1}${word2}`;
+        ? `${adjective.charAt(0).toUpperCase() + adjective.slice(1)}${noun.charAt(0).toUpperCase() + noun.slice(1)}`
+        : `${adjective}${noun}`;
+    } else if (options.type === 'adjective-animal') {
+      // Adjective + Animal combination
+      const adjective = faker.word.adjective();
+      const animal = faker.animal.type();
+      
+      username = options.capitalize 
+        ? `${adjective.charAt(0).toUpperCase() + adjective.slice(1)}${animal.charAt(0).toUpperCase() + animal.slice(1)}`
+        : `${adjective}${animal}`;
     } else {
-      // Pattern-based generation
-      username = options.pattern.replace('first', 'john').replace('last', 'doe');
+      // Pattern-based generation using faker names
+      const firstName = faker.person.firstName().toLowerCase();
+      const lastName = faker.person.lastName().toLowerCase();
+      
+      username = options.pattern
+        .replace('first', firstName)
+        .replace('last', lastName);
+      
+      if (options.capitalize) {
+        username = username.split(/([._-])/).map((part, i) => 
+          i % 2 === 0 && part.length > 0 
+            ? part.charAt(0).toUpperCase() + part.slice(1) 
+            : part
+        ).join('');
+      }
     }
 
     if (options.includeNumber) {
@@ -87,7 +105,7 @@ const UsernameGenerator: React.FC<UsernameGeneratorProps> = ({
                 placeholder="Generated username will appear here"
               />
             </div>
-            <Button size="sm" variant="outline" onClick={copyToClipboard}>
+            <Button size="sm" variant="outline" onClick={copyToClipboard} disabled={!generatedUsername}>
               <Copy className="h-4 w-4" />
             </Button>
             <Button size="sm" variant="outline" onClick={generateUsername}>
@@ -98,14 +116,22 @@ const UsernameGenerator: React.FC<UsernameGeneratorProps> = ({
           <div className="space-y-3">
             <div>
               <Label>Type</Label>
-              <div className="flex gap-4 mt-2">
+              <div className="flex flex-col gap-2 mt-2">
                 <label className="flex items-center space-x-2">
                   <input
                     type="radio"
                     checked={options.type === 'random'}
                     onChange={() => setOptions({ ...options, type: 'random' })}
                   />
-                  <span>Random word</span>
+                  <span>Random Words</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    checked={options.type === 'adjective-animal'}
+                    onChange={() => setOptions({ ...options, type: 'adjective-animal' })}
+                  />
+                  <span>Adjective + Animal</span>
                 </label>
                 <label className="flex items-center space-x-2">
                   <input
@@ -113,10 +139,23 @@ const UsernameGenerator: React.FC<UsernameGeneratorProps> = ({
                     checked={options.type === 'pattern'}
                     onChange={() => setOptions({ ...options, type: 'pattern' })}
                   />
-                  <span>Pattern</span>
+                  <span>Name Pattern</span>
                 </label>
               </div>
             </div>
+
+            {options.type === 'pattern' && (
+              <div>
+                <Label>Pattern</Label>
+                <Input
+                  value={options.pattern}
+                  onChange={(e) => setOptions({ ...options, pattern: e.target.value })}
+                  placeholder="e.g., first.last, first_last"
+                  className="mt-2"
+                />
+                <p className="text-xs text-gray-500 mt-1">Use 'first' and 'last' as placeholders</p>
+              </div>
+            )}
 
             <div className="flex items-center space-x-2">
               <Checkbox

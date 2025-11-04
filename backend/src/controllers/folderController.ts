@@ -38,8 +38,6 @@ export const getAllFolders = async (req: AuthRequest, res: Response) => {
     // Permission-based filtering for company_user
     // This MUST be applied to restrict folders to only those user has permission to
     if (role === 'company_user') {
-      console.log('[DEBUG] User role:', role);
-      console.log('[DEBUG] permissions.folders:', permissions?.folders);
       // Only allow folders that are BOTH in the user's permissions AND match the selected collectionId
       if (permissions?.folders && Array.isArray(permissions.folders) && permissions.folders.length > 0) {
         const folderIds = permissions.folders
@@ -59,7 +57,6 @@ export const getAllFolders = async (req: AuthRequest, res: Response) => {
             return null;
           })
           .filter(Boolean);
-        console.log('[DEBUG] Filtered folderIds:', folderIds);
         // Always restrict to permitted folderIds
         filter._id = { $in: folderIds };
       } else {
@@ -68,7 +65,6 @@ export const getAllFolders = async (req: AuthRequest, res: Response) => {
       }
     }
 
-  console.log('[DEBUG] Final folder query filter:', JSON.stringify(filter, null, 2));
   const total = await Folder.countDocuments(filter);
   const folders = await Folder.find(filter).skip(skip).limit(limit).sort({ folderName: 1 });
 
