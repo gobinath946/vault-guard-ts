@@ -2,11 +2,12 @@ import { Response } from 'express';
 import mongoose from 'mongoose';
 import Organization from '../models/Organization';
 import Trash from '../models/Trash';
+import User from '../models/User';
 import { AuthRequest } from '../middleware/auth';
 
 export const getAllOrganizations = async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId, role, permissions } = req.user!;
+    const { id, companyId, role } = req.user!;
     // Pagination and filtering
     const page = parseInt((req.query.page as string) || '1');
     const limit = parseInt((req.query.limit as string) || '20');
@@ -14,15 +15,30 @@ export const getAllOrganizations = async (req: AuthRequest, res: Response) => {
     const skip = (page - 1) * limit;
 
     const filter: any = { companyId };
-    if (role === 'company_user' && permissions?.organizations && permissions.organizations.length > 0) {
-      const orgIds = permissions.organizations.map((oid: any) => {
-        // Handle permissions from JWT (strings) or populated objects
-        if (typeof oid === 'string') {
-          return mongoose.Types.ObjectId.isValid(oid) ? new mongoose.Types.ObjectId(oid) : null;
-        }
-        return oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid);
-      }).filter(Boolean);
-      filter._id = { $in: orgIds };
+    
+    // Filter by permissions for company_user role - fetch from database
+    if (role === 'company_user') {
+      const user = await User.findById(id);
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'User account is inactive or not found' });
+      }
+
+      // Verify user belongs to the company from token
+      if (!user.companyId || user.companyId.toString() !== companyId!.toString()) {
+        return res.status(403).json({ message: 'User does not belong to the specified company' });
+      }
+
+      // Get permissions from database (NOT from JWT token)
+      const userOrgIds = (user.permissions?.organizations || []).map((oid: any) => 
+        oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid)
+      ).filter(Boolean);
+
+      if (userOrgIds.length > 0) {
+        filter._id = { $in: userOrgIds };
+      } else {
+        // If no permissions, return empty result
+        filter._id = { $in: [] };
+      }
     }
     if (q) {
       filter.$or = [

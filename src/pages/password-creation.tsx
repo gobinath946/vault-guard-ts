@@ -102,6 +102,7 @@ const Password = () => {
     notes: '',
     folderId: '',
     collectionId: '',
+    organizationId: '',
   });
   const [generatorOptions, setGeneratorOptions] = useState<PasswordGeneratorOptions>({
     length: 16,
@@ -155,11 +156,6 @@ const Password = () => {
         filteredPasswords = passwordsData;
       } else if (passwordsData && Array.isArray(passwordsData.passwords)) {
         filteredPasswords = passwordsData.passwords;
-      }
-      // For company users, filter passwords by permitted folders
-      if (user.role === 'company_user' && foldersArr.length > 0) {
-        const permittedFolderIds = foldersArr.map((f: any) => f._id);
-        filteredPasswords = filteredPasswords.filter((p: any) => !p.folderId || permittedFolderIds.includes(p.folderId));
       }
       setPasswords(filteredPasswords);
       setTotalPasswords(filteredPasswords.length);
@@ -350,9 +346,11 @@ const Password = () => {
       resetForm();
       fetchData();
     } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 
+        (isEditMode ? 'Failed to update password' : 'Failed to create password');
       toast({
         title: 'Error',
-        description: isEditMode ? 'Failed to update password' : 'Failed to create password',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -389,14 +387,33 @@ const Password = () => {
 
       setEditingPassword(decryptedPassword);
       setIsEditMode(true);
+      
+      // Convert IDs to strings to ensure Select components work correctly
+      const orgId = decryptedPassword.organizationId 
+        ? (typeof decryptedPassword.organizationId === 'string' 
+          ? decryptedPassword.organizationId 
+          : String(decryptedPassword.organizationId)) 
+        : '';
+      const colId = decryptedPassword.collectionId 
+        ? (typeof decryptedPassword.collectionId === 'string' 
+          ? decryptedPassword.collectionId 
+          : String(decryptedPassword.collectionId)) 
+        : '';
+      const folderId = decryptedPassword.folderId 
+        ? (typeof decryptedPassword.folderId === 'string' 
+          ? decryptedPassword.folderId 
+          : String(decryptedPassword.folderId)) 
+        : '';
+      
       setFormData({
         itemName: decryptedPassword.itemName,
         username: decryptedPassword.username,
         password: decryptedPassword.password, // This will be the actual decrypted password
         websiteUrls: decryptedPassword.websiteUrls && decryptedPassword.websiteUrls.length > 0 ? decryptedPassword.websiteUrls : [''],
         notes: decryptedPassword.notes,
-        folderId: decryptedPassword.folderId || '',
-        collectionId: decryptedPassword.collectionId || '',
+        folderId: folderId,
+        collectionId: colId,
+        organizationId: orgId,
       });
       setIsDialogOpen(true);
     } catch (error: any) {
@@ -417,6 +434,7 @@ const Password = () => {
       notes: '',
       folderId: '',
       collectionId: '',
+      organizationId: '',
     });
     setShowPassword(false);
     setIsEditMode(false);

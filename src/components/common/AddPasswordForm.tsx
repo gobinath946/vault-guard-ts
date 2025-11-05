@@ -96,16 +96,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
       } else if (data && Array.isArray(data.data)) {
         orgs = data.data;
       }
-      // Filter for company_user - properly compare IDs (backend already filters, but this is a safety check)
-      if (user?.role === 'company_user' && user.permissions?.organizations) {
-        const permittedOrgIds = user.permissions.organizations.map((id: any) => 
-          typeof id === 'string' ? id : (id._id ? id._id.toString() : id.toString())
-        );
-        orgs = orgs.filter((org: any) => {
-          const orgId = typeof org._id === 'string' ? org._id : org._id?.toString();
-          return permittedOrgIds.includes(orgId);
-        });
-      }
+      // Backend already filters by permissions for company_user - trust backend response
       setOrgOptions(orgs);
     } catch {
       setOrgOptions([]);
@@ -128,16 +119,22 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
       } else if (response && Array.isArray(response.data)) {
         cols = response.data;
       }
-      // Filter for company_user - properly compare IDs (backend already filters, but this is a safety check)
-      if (user?.role === 'company_user' && user.permissions?.collections) {
-        const permittedColIds = user.permissions.collections.map((id: any) => 
-          typeof id === 'string' ? id : (id._id ? id._id.toString() : id.toString())
-        );
-        cols = cols.filter((col: any) => {
-          const colId = typeof col._id === 'string' ? col._id : col._id?.toString();
-          return permittedColIds.includes(colId);
-        });
-      }
+      // Normalize all collection IDs to strings for consistent comparison and mapping
+      cols = cols.map((col: any) => {
+        const normalizedId = col._id 
+          ? (typeof col._id === 'string' ? col._id : String(col._id))
+          : null;
+        
+        // Skip collections without valid IDs
+        if (!normalizedId) return null;
+        
+        return {
+          ...col,
+          _id: normalizedId, // Ensure _id is always a string
+        };
+      }).filter((col: any) => col !== null); // Remove any collections without valid IDs
+      
+      // Backend already filters by permissions for company_user - trust backend response
       setCollectionOptions(cols);
     } catch {
       setCollectionOptions([]);
@@ -162,19 +159,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
       } else if (response && Array.isArray(response.data)) {
         folds = response.data;
       }
-      // Filter for company_user - properly compare IDs
-      if (user?.role === 'company_user' && user.permissions?.folders) {
-        const permittedFolderIds = user.permissions.folders.map((id: any) => 
-          typeof id === 'string' ? id : (id._id ? id._id.toString() : id.toString())
-        );
-        folds = folds.filter((fold: any) => {
-          const folderId = typeof fold._id === 'string' ? fold._id : fold._id?.toString();
-          return permittedFolderIds.some((pid: any) => {
-            const permId = typeof pid === 'string' ? pid : pid?.toString();
-            return folderId === permId;
-          });
-        });
-      }
+      // Backend already filters by permissions for company_user - trust backend response
       setFolderOptions(folds);
     } catch {
       setFolderOptions([]);
@@ -190,28 +175,45 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
       fetchOrganizations();
       if (isEditMode && password) {
         // Set formData immediately for quick UI update
+        // Convert IDs to strings to ensure Select components work correctly
+        const orgId = password.organizationId 
+          ? (typeof password.organizationId === 'string' 
+            ? password.organizationId 
+            : String(password.organizationId)) 
+          : '';
+        const colId = password.collectionId 
+          ? (typeof password.collectionId === 'string' 
+            ? password.collectionId 
+            : String(password.collectionId)) 
+          : '';
+        const folderId = password.folderId 
+          ? (typeof password.folderId === 'string' 
+            ? password.folderId 
+            : String(password.folderId)) 
+          : '';
+        
         setFormData({
           itemName: password.itemName || '',
           username: password.username || '',
           password: password.password || '',
           websiteUrls: Array.isArray(password.websiteUrls) && password.websiteUrls.length > 0 ? password.websiteUrls : [''],
           notes: password.notes || '',
-          folderId: password.folderId || '', // Set folderId - will be validated when folders load
-          collectionId: password.collectionId || '',
-          organizationId: password.organizationId || '',
+          folderId: folderId,
+          collectionId: colId,
+          organizationId: orgId,
         });
         
         // Fetch collections and folders in background
         // Do this immediately to ensure they're available when dialog renders
         (async () => {
-          if (password.organizationId) {
+          if (orgId) {
             // Fetch collections first
-            await fetchCollections(password.organizationId);
+            await fetchCollections(orgId);
             // Small delay to ensure state updates
             await new Promise(resolve => setTimeout(resolve, 50));
             // Then fetch folders if we have a collection
-            if (password.collectionId) {
-              await fetchFolders(password.organizationId, password.collectionId);
+            if (colId) {
+              await fetchFolders(orgId, colId);
             }
           }
         })();
@@ -330,16 +332,23 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
   // This ensures the Select component has the value after options are available
   useEffect(() => {
     if (isEditMode && password && password.collectionId && collectionOptions.length > 0) {
-      const passwordCollectionId = typeof password.collectionId === 'string' ? password.collectionId : password.collectionId?.toString();
+      // Normalize password collectionId to string
+      const passwordCollectionId = password.collectionId 
+        ? (typeof password.collectionId === 'string' 
+          ? password.collectionId 
+          : String(password.collectionId)) 
+        : '';
       
-      // Find the collection in options with normalized ID comparison
+      if (!passwordCollectionId) return; // No valid ID to match
+      
+      // Find the collection in options - all IDs are already normalized to strings
       const collectionExists = collectionOptions.find((col: any) => {
-        const collectionId = typeof col._id === 'string' ? col._id : col._id?.toString();
+        const collectionId = col._id ? String(col._id) : ''; // _id is already a string, but ensure it
         return collectionId === passwordCollectionId;
       });
       
       // Normalize current collectionId for comparison
-      const currentCollectionId = formData.collectionId || '';
+      const currentCollectionId = formData.collectionId ? String(formData.collectionId) : '';
       
       // Set collectionId if the collection exists in options and it's not already set correctly
       if (collectionExists && currentCollectionId !== passwordCollectionId) {
@@ -437,9 +446,11 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
       });
       onSuccess?.();
     } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 
+        (isEditMode ? 'Failed to update password' : 'Failed to create password');
       toast({
         title: 'Error',
-        description: isEditMode ? 'Failed to update password' : 'Failed to create password',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -608,9 +619,20 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
                     <SelectValue placeholder={formData.organizationId ? 'Select collection' : 'Select organization first'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {collectionOptions.map(col => (
-                      <SelectItem key={col._id} value={col._id}>{col.collectionName}</SelectItem>
-                    ))}
+                    {collectionOptions.map(col => {
+                      // _id is already normalized to string in fetchCollections
+                      const collectionId = col._id ? String(col._id) : '';
+                      // Handle both collectionName and name fields (different API response formats)
+                      const collectionName = col.collectionName || col.name || '';
+                      
+                      if (!collectionId) return null; // Skip invalid entries
+                      
+                      return (
+                        <SelectItem key={collectionId} value={collectionId}>
+                          {collectionName}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>

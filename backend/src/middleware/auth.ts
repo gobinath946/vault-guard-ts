@@ -7,11 +7,7 @@ export interface AuthRequest extends Request {
     email: string;
     role: string;
     companyId?: string;
-    permissions?: {
-      organizations?: string[];
-      collections?: string[];
-      folders?: string[];
-    };
+    // Permissions are NOT stored in JWT - always fetch from database using user.id
   };
 }
 

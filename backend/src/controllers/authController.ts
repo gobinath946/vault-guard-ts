@@ -85,26 +85,14 @@ export const login = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Account is inactive' });
     }
 
+    // JWT payload - ONLY include id, email, role, and companyId (NO permissions)
+    // Permissions are always fetched from database to ensure they're up-to-date
     const jwtPayload: any = {
       id: user._id,
       email: user.email,
       role,
       companyId: role === 'company_user' ? user.companyId._id : user._id,
     };
-    if (role === 'company_user') {
-      // Convert permissions ObjectIds to strings for JWT storage
-      jwtPayload.permissions = {
-        organizations: (user.permissions?.organizations || []).map((oid: any) => 
-          oid._id ? oid._id.toString() : oid.toString()
-        ),
-        collections: (user.permissions?.collections || []).map((cid: any) => 
-          cid._id ? cid._id.toString() : cid.toString()
-        ),
-        folders: (user.permissions?.folders || []).map((fid: any) => 
-          fid._id ? fid._id.toString() : fid.toString()
-        )
-      };
-    }
     const token = jwt.sign(
       jwtPayload,
       process.env.JWT_SECRET || 'secret',

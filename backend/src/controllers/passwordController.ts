@@ -8,6 +8,7 @@ import Company from '../models/Company';
 import MasterAdmin from '../models/MasterAdmin';
 import Collection from '../models/Collection';
 import Folder from '../models/Folder';
+import Organization from '../models/Organization';
 import { AuthRequest } from '../middleware/auth';
 import { encrypt, decrypt } from '../utils/encryption';
 import { generatePassword } from '../utils/passwordGenerator';
@@ -37,7 +38,17 @@ const getUserInfo = async (role: string, id: string, email: string) => {
 
 export const getAllPasswords = async (req: AuthRequest, res: Response) => {
   try {
-    const { role, id, companyId } = req.user!;
+    // Validate user data from JWT token
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { role, id, companyId } = req.user;
+    
+    if (!role || !id || !companyId) {
+      return res.status(401).json({ message: 'Invalid user data in token' });
+    }
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
@@ -51,95 +62,185 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
     
 
     let baseQuery: any = {};
-    if (role === 'company_super_admin') {
-      baseQuery.companyId = id;
+    // Store user permissions for reuse in filter conditions
+    let userOrgIds: mongoose.Types.ObjectId[] = [];
+    let userColIds: mongoose.Types.ObjectId[] = [];
+    let userFolderIds: mongoose.Types.ObjectId[] = [];
+    
+    if (role === 'master_admin') {
+      // Master admin can access all passwords across all companies
+      // No restrictions needed
+      baseQuery = {};
+    } else if (role === 'company_super_admin') {
+      // Company super admin can access all passwords in their company
+      baseQuery.companyId = new mongoose.Types.ObjectId(id);
     } else if (role === 'company_user') {
-      // Company user - see passwords based on hierarchical permissions
-      // Hierarchy: Organization → Collection → Folder
-      // Permissions come from JWT as strings, convert to ObjectIds
-      const orgIds = (req.user?.permissions?.organizations || []).map((oid: any) => {
-        if (typeof oid === 'string') {
-          return mongoose.Types.ObjectId.isValid(oid) ? new mongoose.Types.ObjectId(oid) : null;
-        }
-        return oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid);
-      }).filter(Boolean);
+      // Company user - strict permission checking required
+      // Verify user exists and is active
+      const user = await User.findById(id);
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'User account is inactive or not found' });
+      }
+
+      // Verify user belongs to the company from token
+      if (!user.companyId || user.companyId.toString() !== companyId.toString()) {
+        return res.status(403).json({ message: 'User does not belong to the specified company' });
+      }
+
+      // Get permissions from database (NOT from JWT token)
+      userOrgIds = (user.permissions?.organizations || []).map((oid: any) => 
+        oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid)
+      ).filter(Boolean);
       
-      const colIds = (req.user?.permissions?.collections || []).map((cid: any) => {
-        if (typeof cid === 'string') {
-          return mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : null;
-        }
-        return cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid);
-      }).filter(Boolean);
+      userColIds = (user.permissions?.collections || []).map((cid: any) => 
+        cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid)
+      ).filter(Boolean);
       
-      const folderPerms = (req.user?.permissions?.folders || []).map((fid: any) => {
-        if (typeof fid === 'string') {
-          return mongoose.Types.ObjectId.isValid(fid) ? new mongoose.Types.ObjectId(fid) : null;
-        }
-        return fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid);
-      }).filter(Boolean);
+      userFolderIds = (user.permissions?.folders || []).map((fid: any) => 
+        fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid)
+      ).filter(Boolean);
+      
+      const orgIds = userOrgIds;
+      const colIds = userColIds;
+      const folderPerms = userFolderIds;
       
       const permissionFilters: any[] = [];
       
-      // If user has organization permissions, they can see all passwords in those organizations
-      if (orgIds.length > 0) {
-        permissionFilters.push({ organizationId: { $in: orgIds } });
-      }
+      // Hierarchical permission logic: ALL levels must match
+      // User can ONLY see passwords where:
+      // - Folder → must have folder permission AND folder's collection must be permitted AND collection's org must be permitted
+      // - Collection (no folder) → must have collection permission AND collection's org must be permitted
+      // - Organization permission alone is NOT enough
       
-      // If user has collection permissions, they can see passwords in those collections
-      // But we need to verify the collections belong to organizations they have access to
-      if (colIds.length > 0) {
-        if (orgIds.length > 0) {
-          // Only include collections that belong to permitted organizations
-          const validCollections = await Collection.find({
-            _id: { $in: colIds },
-            organizationId: { $in: orgIds }
-          }).select('_id').lean();
-          
-          const validCollectionObjectIds = validCollections.map(c => c._id);
-          if (validCollectionObjectIds.length > 0) {
-            permissionFilters.push({ collectionId: { $in: validCollectionObjectIds } });
-          }
-        } else {
-          // If no org permissions, user can still see passwords in permitted collections
-          permissionFilters.push({ collectionId: { $in: colIds } });
-        }
-      }
-      
-      // If user has folder permissions, they can see passwords in those folders
-      // But we need to verify the folders belong to collections/organizations they have access to
+      // 1. Check folder permissions (highest priority - most specific)
       if (folderPerms.length > 0) {
-        // Get folders that belong to permitted organizations and/or collections
-        const folderQuery: any = { _id: { $in: folderPerms } };
-        const folderOrConditions: any[] = [];
+        // Get folders with their collection and organization info
+        const folders = await Folder.find({ _id: { $in: folderPerms } })
+          .select('_id collectionId organizationId')
+          .lean();
         
-        if (orgIds.length > 0) {
-          folderOrConditions.push({ organizationId: { $in: orgIds } });
+        // Get all collections at once to avoid N+1 queries
+        const folderCollectionIds = folders
+          .map(f => f.collectionId)
+          .filter(Boolean) as mongoose.Types.ObjectId[];
+        
+        const collections = folderCollectionIds.length > 0
+          ? await Collection.find({ _id: { $in: folderCollectionIds } })
+              .select('_id organizationId')
+              .lean()
+          : [];
+        
+        // Create a map for quick lookup
+        const collectionMap = new Map(
+          collections.map(c => [c._id.toString(), c])
+        );
+        
+        // Validate each folder: must have permission to folder, its collection, AND its organization
+        const validFolderIds: mongoose.Types.ObjectId[] = [];
+        
+        for (const folder of folders) {
+          let isValid = true;
+          const folderId = folder._id as mongoose.Types.ObjectId;
+          
+          // Check collection permission
+          if (folder.collectionId) {
+            const folderCollectionId = folder.collectionId as mongoose.Types.ObjectId;
+            const hasCollectionPerm = colIds.some(cid => 
+              cid && cid.equals(folderCollectionId)
+            );
+            
+            if (!hasCollectionPerm) {
+              isValid = false;
+            } else {
+              // Verify collection belongs to a permitted organization
+              const collection = collectionMap.get(folderCollectionId.toString());
+              
+              if (collection && collection.organizationId) {
+                const collectionOrgId = collection.organizationId as mongoose.Types.ObjectId;
+                const hasOrgPerm = orgIds.some(oid => 
+                  oid && oid.equals(collectionOrgId)
+                );
+                
+                if (!hasOrgPerm) {
+                  isValid = false;
+                }
+              } else {
+                // Collection has no organization - invalid
+                isValid = false;
+              }
+            }
+          } else {
+            // Folder has no collection - check if folder has organizationId directly
+            if (folder.organizationId) {
+              const folderOrgId = folder.organizationId as mongoose.Types.ObjectId;
+              const hasOrgPerm = orgIds.some(oid => 
+                oid && oid.equals(folderOrgId)
+              );
+              if (!hasOrgPerm) {
+                isValid = false;
+              }
+            } else {
+              // Folder has no collection or organization - invalid
+              isValid = false;
+            }
+          }
+          
+          if (isValid) {
+            validFolderIds.push(folderId);
+          }
         }
-        if (colIds.length > 0) {
-          folderOrConditions.push({ collectionId: { $in: colIds } });
-        }
         
-        if (folderOrConditions.length > 0) {
-          folderQuery.$or = folderOrConditions;
-        }
-        
-        const validFolders = await Folder.find(folderQuery).select('_id').lean();
-        const validFolderObjectIds = validFolders.map(f => f._id);
-        
-        if (validFolderObjectIds.length > 0) {
-          permissionFilters.push({ folderId: { $in: validFolderObjectIds } });
+        if (validFolderIds.length > 0) {
+          permissionFilters.push({ folderId: { $in: validFolderIds } });
         }
       }
       
-      // Build the query: user can see passwords they created, shared with them, or in permitted hierarchy
-      baseQuery = {
-        companyId,
-        $or: [
-          { createdBy: id },
-          { sharedWith: id },
-          ...(permissionFilters.length > 0 ? permissionFilters : [])
-        ]
-      };
+      // 2. Check collection permissions (for passwords NOT in folders)
+      if (colIds.length > 0) {
+        // Get collections that belong to permitted organizations
+        const validCollections = await Collection.find({
+          _id: { $in: colIds },
+          organizationId: { $in: orgIds } // Collection must belong to permitted org
+        }).select('_id').lean();
+        
+        const validCollectionIds = validCollections.map(c => c._id);
+        
+        if (validCollectionIds.length > 0) {
+          // Only passwords in permitted collections that are NOT in folders
+          // (folders already handled above)
+          permissionFilters.push({
+            $and: [
+              { collectionId: { $in: validCollectionIds } },
+              {
+                $or: [
+                  { folderId: { $exists: false } },
+                  { folderId: null }
+                ]
+              }
+            ]
+          });
+        }
+      }
+      
+      // 3. Organization permission alone is NOT enough - removed
+      // User cannot see all passwords in an organization without collection/folder permissions
+      
+      // Build the query: company user can ONLY see passwords based on permissions
+      // No createdBy or sharedWith checks - permissions only
+      if (permissionFilters.length > 0) {
+        baseQuery = {
+          companyId: new mongoose.Types.ObjectId(companyId as any),
+          $or: permissionFilters
+        };
+      } else {
+        // If user has no permissions, return empty result
+        baseQuery = {
+          companyId: new mongoose.Types.ObjectId(companyId as any),
+          _id: { $in: [] } // Empty result - no permissions
+        };
+      }
+    } else {
+      return res.status(403).json({ message: 'Invalid user role' });
     }
 
     // Build filter conditions and integrate with permissions for company_user
@@ -149,15 +250,8 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
       const orgObjectId = new mongoose.Types.ObjectId(organizationId);
       // For company_user, validate organization is in their permissions
       if (role === 'company_user') {
-        const orgIds = (req.user?.permissions?.organizations || []).map((oid: any) => {
-          if (typeof oid === 'string') {
-            return mongoose.Types.ObjectId.isValid(oid) ? new mongoose.Types.ObjectId(oid) : null;
-          }
-          return oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid);
-        }).filter(Boolean);
-        
-        // Only apply filter if organization is in user's permissions
-        const hasOrgPermission = orgIds.some(oid => oid && oid.equals(orgObjectId));
+        // Use permissions fetched from database
+        const hasOrgPermission = userOrgIds.some(oid => oid && oid.equals(orgObjectId));
         if (hasOrgPermission) {
           filterConditions.push({ organizationId: orgObjectId });
         } 
@@ -170,16 +264,9 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
       const validCollectionIds = collectionIds.map(colId => new mongoose.Types.ObjectId(colId));
       // For company_user, validate collections are in their permissions
       if (role === 'company_user') {
-        const colIds = (req.user?.permissions?.collections || []).map((cid: any) => {
-          if (typeof cid === 'string') {
-            return mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : null;
-          }
-          return cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid);
-        }).filter(Boolean);
-        
-        // Only include collections that user has permission to
+        // Use permissions fetched from database
         const permittedCollectionIds = validCollectionIds.filter(colId => 
-          colIds.some(permColId => permColId && permColId.equals(colId))
+          userColIds.some(permColId => permColId && permColId.equals(colId))
         );
         if (permittedCollectionIds.length > 0) {
           filterConditions.push({ collectionId: { $in: permittedCollectionIds } });
@@ -193,16 +280,9 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
       const validFolderIds = folderIds.map(folderId => new mongoose.Types.ObjectId(folderId));
       // For company_user, validate folders are in their permissions
       if (role === 'company_user') {
-        const folderPerms = (req.user?.permissions?.folders || []).map((fid: any) => {
-          if (typeof fid === 'string') {
-            return mongoose.Types.ObjectId.isValid(fid) ? new mongoose.Types.ObjectId(fid) : null;
-          }
-          return fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid);
-        }).filter(Boolean);
-        
-        // Only include folders that user has permission to
+        // Use permissions fetched from database
         const permittedFolderIds = validFolderIds.filter(foldId => 
-          folderPerms.some(permFoldId => permFoldId && permFoldId.equals(foldId))
+          userFolderIds.some(permFoldId => permFoldId && permFoldId.equals(foldId))
         );
         if (permittedFolderIds.length > 0) {
           filterConditions.push({ folderId: { $in: permittedFolderIds } });
@@ -240,7 +320,7 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
         };
       }
     }
-
+console.log("query",query)
     // Get total count for pagination
     const total = await Password.countDocuments(query);
     
@@ -248,10 +328,85 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
     const passwords = await Password.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
+
+    // Collect all unique IDs from passwords for batch fetching
+    const passwordOrgIds = [...new Set(
+      passwords
+        .map(p => p.organizationId)
+        .filter((id): id is mongoose.Types.ObjectId => id != null)
+        .map(id => id.toString())
+    )];
+    const passwordColIds = [...new Set(
+      passwords
+        .map(p => p.collectionId)
+        .filter((id): id is mongoose.Types.ObjectId => id != null)
+        .map(id => id.toString())
+    )];
+    const passwordFolderIds = [...new Set(
+      passwords
+        .map(p => p.folderId)
+        .filter((id): id is mongoose.Types.ObjectId => id != null)
+        .map(id => id.toString())
+    )];
+
+    // Fetch all related entities in parallel for better performance
+    const [organizations, collections, folders] = await Promise.all([
+      passwordOrgIds.length > 0 ? Organization.find({ _id: { $in: passwordOrgIds.map(id => new mongoose.Types.ObjectId(id)) } })
+        .select('_id organizationName organizationEmail')
+        .lean() : [],
+      passwordColIds.length > 0 ? Collection.find({ _id: { $in: passwordColIds.map(id => new mongoose.Types.ObjectId(id)) } })
+        .select('_id collectionName description organizationId')
+        .lean() : [],
+      passwordFolderIds.length > 0 ? Folder.find({ _id: { $in: passwordFolderIds.map(id => new mongoose.Types.ObjectId(id)) } })
+        .select('_id folderName collectionId organizationId')
+        .lean() : []
+    ]);
+
+    // Create lookup maps for efficient access
+    const orgMap = new Map<string, any>(organizations.map((org: any) => [org._id.toString(), org]));
+    const colMap = new Map<string, any>(collections.map((col: any) => [col._id.toString(), col]));
+    const folderMap = new Map<string, any>(folders.map((folder: any) => [folder._id.toString(), folder]));
+
+    // Map passwords with hierarchy details
+    const passwordsWithDetails = passwords.map(password => {
+      const orgId = password.organizationId?.toString();
+      const colId = password.collectionId?.toString();
+      const folderId = password.folderId?.toString();
+
+      const org = orgId ? orgMap.get(orgId) : null;
+      const col = colId ? colMap.get(colId) : null;
+      const folder = folderId ? folderMap.get(folderId) : null;
+
+      return {
+        ...password,
+        organization: org ? {
+          _id: org._id,
+          name: org.organizationName,
+          email: org.organizationEmail
+        } : null,
+        collection: col ? {
+          _id: col._id,
+          name: col.collectionName,
+          description: col.description || '',
+          organizationId: col.organizationId || null
+        } : null,
+        folder: folder ? {
+          _id: folder._id,
+          name: folder.folderName,
+          collectionId: folder.collectionId || null,
+          organizationId: folder.organizationId || null
+        } : null,
+        // Keep original IDs for backward compatibility
+        organizationId: password.organizationId || null,
+        collectionId: password.collectionId || null,
+        folderId: password.folderId || null
+      };
+    });
 
     res.json({
-      passwords,
+      passwords: passwordsWithDetails,
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -265,24 +420,229 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
 
 export const getPasswordById = async (req: AuthRequest, res: Response) => {
   try {
-    const password = await Password.findById(req.params.id);
+    // Validate user data from JWT token
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { role, id, companyId } = req.user;
+    
+    if (!role || !id || !companyId) {
+      return res.status(401).json({ message: 'Invalid user data in token' });
+    }
+
+    const passwordId = req.params.id;
+    if (!passwordId) {
+      return res.status(400).json({ message: 'Password ID is required' });
+    }
+
+    // Build access query based on role and permissions
+    let accessQuery: any = { _id: new mongoose.Types.ObjectId(passwordId) };
+    
+    if (role === 'master_admin') {
+      // Master admin can access any password
+      // No additional restrictions needed
+    } else if (role === 'company_super_admin') {
+      // Company super admin can access passwords in their company
+      accessQuery.companyId = new mongoose.Types.ObjectId(id);
+    } else if (role === 'company_user') {
+      // Company user - strict permission checking required
+      // Verify user exists and is active
+      const user = await User.findById(id);
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'User account is inactive or not found' });
+      }
+
+      // Verify user belongs to the company from token
+      if (!user.companyId || user.companyId.toString() !== companyId.toString()) {
+        return res.status(403).json({ message: 'User does not belong to the specified company' });
+      }
+
+      // Get permissions from database (NOT from JWT token)
+      const orgIds = (user.permissions?.organizations || []).map((oid: any) => 
+        oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid)
+      ).filter(Boolean);
+      
+      const colIds = (user.permissions?.collections || []).map((cid: any) => 
+        cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid)
+      ).filter(Boolean);
+      
+      const folderPerms = (user.permissions?.folders || []).map((fid: any) => 
+        fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid)
+      ).filter(Boolean);
+
+      // Build hierarchical permission filters (same logic as getAllPasswords)
+      const permissionFilters: any[] = [];
+      
+      // 1. Check folder permissions (highest priority - most specific)
+      if (folderPerms.length > 0) {
+        const folders = await Folder.find({ _id: { $in: folderPerms } })
+          .select('_id collectionId organizationId')
+          .lean();
+        
+        const folderCollectionIds = folders
+          .map(f => f.collectionId)
+          .filter(Boolean) as mongoose.Types.ObjectId[];
+        
+        const collections = folderCollectionIds.length > 0
+          ? await Collection.find({ _id: { $in: folderCollectionIds } })
+              .select('_id organizationId')
+              .lean()
+          : [];
+        
+        const collectionMap = new Map(
+          collections.map((c: any) => [c._id.toString(), c])
+        );
+        
+        const validFolderIds: mongoose.Types.ObjectId[] = [];
+        
+        for (const folder of folders) {
+          let isValid = true;
+          const folderId = folder._id as mongoose.Types.ObjectId;
+          
+          if (folder.collectionId) {
+            const folderCollectionId = folder.collectionId as mongoose.Types.ObjectId;
+            const hasCollectionPerm = colIds.some(cid => 
+              cid && cid.equals(folderCollectionId)
+            );
+            
+            if (!hasCollectionPerm) {
+              isValid = false;
+            } else {
+              const collection = collectionMap.get(folderCollectionId.toString());
+              
+              if (collection && collection.organizationId) {
+                const collectionOrgId = collection.organizationId as mongoose.Types.ObjectId;
+                const hasOrgPerm = orgIds.some(oid => 
+                  oid && oid.equals(collectionOrgId)
+                );
+                
+                if (!hasOrgPerm) {
+                  isValid = false;
+                }
+              } else {
+                isValid = false;
+              }
+            }
+          } else {
+            if (folder.organizationId) {
+              const folderOrgId = folder.organizationId as mongoose.Types.ObjectId;
+              const hasOrgPerm = orgIds.some(oid => 
+                oid && oid.equals(folderOrgId)
+              );
+              if (!hasOrgPerm) {
+                isValid = false;
+              }
+            } else {
+              isValid = false;
+            }
+          }
+          
+          if (isValid) {
+            validFolderIds.push(folderId);
+          }
+        }
+        
+        if (validFolderIds.length > 0) {
+          permissionFilters.push({ folderId: { $in: validFolderIds } });
+        }
+      }
+      
+      // 2. Check collection permissions (for passwords NOT in folders)
+      if (colIds.length > 0) {
+        const validCollections = await Collection.find({
+          _id: { $in: colIds },
+          organizationId: { $in: orgIds }
+        }).select('_id').lean();
+        
+        const validCollectionIds = validCollections.map((c: any) => c._id);
+        
+        if (validCollectionIds.length > 0) {
+          permissionFilters.push({
+            $and: [
+              { collectionId: { $in: validCollectionIds } },
+              {
+                $or: [
+                  { folderId: { $exists: false } },
+                  { folderId: null }
+                ]
+              }
+            ]
+          });
+        }
+      }
+      
+      // Company user can ONLY see passwords based on permissions
+      // No createdBy or sharedWith checks - permissions only
+      if (permissionFilters.length > 0) {
+        accessQuery = {
+          _id: new mongoose.Types.ObjectId(passwordId),
+          companyId: new mongoose.Types.ObjectId(companyId as any),
+          $or: permissionFilters
+        };
+      } else {
+        // If user has no permissions, deny access by using impossible condition
+        accessQuery = {
+          _id: new mongoose.Types.ObjectId('000000000000000000000001'), // Invalid ID - will never match
+          companyId: new mongoose.Types.ObjectId(companyId as any)
+        };
+      }
+    } else {
+      return res.status(403).json({ message: 'Invalid user role' });
+    }
+
+    const password = await Password.findOne(accessQuery);
 
     if (!password) {
-      return res.status(404).json({ message: 'Password not found' });
+      return res.status(404).json({ message: 'Password not found or access denied' });
     }
+
+    // Fetch organization, collection, and folder details for the response
+    const [organization, collection, folder] = await Promise.all([
+      password.organizationId ? Organization.findById(password.organizationId)
+        .select('_id organizationName organizationEmail')
+        .lean() : null,
+      password.collectionId ? Collection.findById(password.collectionId)
+        .select('_id collectionName description organizationId')
+        .lean() : null,
+      password.folderId ? Folder.findById(password.folderId)
+        .select('_id folderName collectionId organizationId')
+        .lean() : null
+    ]);
 
     // Get logs with user information (name and email are now stored directly)
     const logsWithDetails = await PasswordLog.find({ passwordId: password._id })
       .sort({ timestamp: -1 })
       .lean();
 
-    // Decrypt sensitive fields
+    // Decrypt sensitive fields and include hierarchy details
     const decryptedPassword = {
       ...password.toObject(),
       username: decrypt(password.username),
       password: decrypt(password.password),
       notes: password.notes ? decrypt(password.notes) : '',
       logs: logsWithDetails,
+      organization: organization ? {
+        _id: organization._id,
+        name: (organization as any).organizationName,
+        email: (organization as any).organizationEmail
+      } : null,
+      collection: collection ? {
+        _id: collection._id,
+        name: (collection as any).collectionName,
+        description: (collection as any).description || '',
+        organizationId: (collection as any).organizationId || null
+      } : null,
+      folder: folder ? {
+        _id: folder._id,
+        name: (folder as any).folderName,
+        collectionId: (folder as any).collectionId || null,
+        organizationId: (folder as any).organizationId || null
+      } : null,
+      // Keep original IDs for backward compatibility
+      organizationId: password.organizationId || null,
+      collectionId: password.collectionId || null,
+      folderId: password.folderId || null
     };
 
     res.json(decryptedPassword);
@@ -304,6 +664,58 @@ export const createPassword = async (req: AuthRequest, res: Response) => {
       organizationId
      } = req.body;
     const { id, companyId } = req.user!;
+
+    // Check if itemName already exists within the same company and hierarchy
+    // Use case-insensitive matching for itemName
+    const normalizedItemName = itemName.trim();
+    const duplicateQuery: any = {
+      companyId: new mongoose.Types.ObjectId(companyId as any),
+      itemName: { $regex: new RegExp(`^${normalizedItemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }, // Case-insensitive exact match
+    };
+
+    // Add hierarchy filters to ensure uniqueness within the same location
+    if (folderId) {
+      // If folderId is provided, check ONLY within that specific folder
+      // Must match exact folderId - exclude passwords with null/undefined folderId
+      duplicateQuery.folderId = new mongoose.Types.ObjectId(folderId);
+      // Ensure collectionId and organizationId also match if they exist (for additional safety)
+      if (collectionId) {
+        duplicateQuery.collectionId = new mongoose.Types.ObjectId(collectionId);
+      }
+      if (organizationId) {
+        duplicateQuery.organizationId = new mongoose.Types.ObjectId(organizationId);
+      }
+    } else if (collectionId) {
+      // If collectionId but no folderId, check within that collection (no folder passwords)
+      duplicateQuery.collectionId = new mongoose.Types.ObjectId(collectionId);
+      duplicateQuery.$or = [
+        { folderId: { $exists: false } },
+        { folderId: null }
+      ];
+      if (organizationId) {
+        duplicateQuery.organizationId = new mongoose.Types.ObjectId(organizationId);
+      }
+    } else if (organizationId) {
+      // If organizationId but no collectionId, check within that organization (no collection passwords)
+      duplicateQuery.organizationId = new mongoose.Types.ObjectId(organizationId);
+      duplicateQuery.$or = [
+        { collectionId: { $exists: false } },
+        { collectionId: null }
+      ];
+    } else {
+      // If no hierarchy specified, check within company only (no organization passwords)
+      duplicateQuery.$or = [
+        { organizationId: { $exists: false } },
+        { organizationId: null }
+      ];
+    }
+
+    const existingPassword = await Password.findOne(duplicateQuery);
+    if (existingPassword) {
+      return res.status(400).json({ 
+        message: `Item name "${itemName}" already exists in this location. Please choose a different name.` 
+      });
+    }
 
     // Encrypt sensitive data
     const encryptedUsername = encrypt(username);
@@ -355,13 +767,145 @@ export const createPassword = async (req: AuthRequest, res: Response) => {
 
 export const updatePassword = async (req: AuthRequest, res: Response) => {
   try {
-    const { itemName, username, password, websiteUrls, notes, folderId, collectionId, organizationId } = req.body;
-    const { id: userId } = req.user!;
+    // Validate user data from JWT token
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
 
-    // Get the old password to track changes
-    const oldPassword = await Password.findById(req.params.id);
+    const { role, id: userId, companyId } = req.user;
+    
+    if (!role || !userId || !companyId) {
+      return res.status(401).json({ message: 'Invalid user data in token' });
+    }
+
+    const passwordId = req.params.id;
+    if (!passwordId) {
+      return res.status(400).json({ message: 'Password ID is required' });
+    }
+
+    const { itemName, username, password, websiteUrls, notes, folderId, collectionId, organizationId } = req.body;
+
+    // Build access query to verify user has permission to update this password
+    let accessQuery: any = { _id: new mongoose.Types.ObjectId(passwordId) };
+    
+    if (role === 'master_admin') {
+      // Master admin can update any password
+    } else if (role === 'company_super_admin') {
+      // Company super admin can update passwords in their company
+      accessQuery.companyId = new mongoose.Types.ObjectId(userId);
+    } else if (role === 'company_user') {
+      // Company user - verify user exists and is active
+      const user = await User.findById(userId);
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'User account is inactive or not found' });
+      }
+
+      // Verify user belongs to the company from token
+      if (!user.companyId || user.companyId.toString() !== companyId.toString()) {
+        return res.status(403).json({ message: 'User does not belong to the specified company' });
+      }
+
+      // Get permissions from database (NOT from JWT token)
+      const orgIds = (user.permissions?.organizations || []).map((oid: any) => 
+        oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid)
+      ).filter(Boolean);
+      
+      const colIds = (user.permissions?.collections || []).map((cid: any) => 
+        cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid)
+      ).filter(Boolean);
+      
+      const folderIds = (user.permissions?.folders || []).map((fid: any) => 
+        fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid)
+      ).filter(Boolean);
+
+      // Build permission filters
+      const orFilters: any[] = [];
+      if (orgIds.length > 0) {
+        orFilters.push({ organizationId: { $in: orgIds } });
+      }
+      if (colIds.length > 0) {
+        orFilters.push({ collectionId: { $in: colIds } });
+      }
+      if (folderIds.length > 0) {
+        orFilters.push({ folderId: { $in: folderIds } });
+      }
+      
+      accessQuery = {
+        _id: new mongoose.Types.ObjectId(passwordId),
+        companyId: new mongoose.Types.ObjectId(companyId as any),
+        $or: [
+          { createdBy: new mongoose.Types.ObjectId(userId) },
+          { sharedWith: new mongoose.Types.ObjectId(userId) },
+          ...(orFilters.length > 0 ? orFilters : []),
+        ],
+      };
+    } else {
+      return res.status(403).json({ message: 'Invalid user role' });
+    }
+
+    // Get the old password to track changes - verify access
+    const oldPassword = await Password.findOne(accessQuery);
     if (!oldPassword) {
-      return res.status(404).json({ message: 'Password not found' });
+      return res.status(404).json({ message: 'Password not found or access denied' });
+    }
+
+    // Always check if itemName already exists in the target location (even if name hasn't changed)
+    // This ensures uniqueness is maintained even when moving passwords or updating names
+    if (itemName) {
+      const normalizedItemName = itemName.trim();
+      const duplicateQuery: any = {
+        companyId: new mongoose.Types.ObjectId(companyId as any),
+        itemName: { $regex: new RegExp(`^${normalizedItemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }, // Case-insensitive exact match
+        _id: { $ne: new mongoose.Types.ObjectId(passwordId) }, // Exclude current password
+      };
+
+      // Add hierarchy filters based on new or existing location (use new values if provided, otherwise keep existing)
+      const targetFolderId = folderId !== undefined ? folderId : oldPassword.folderId;
+      const targetCollectionId = collectionId !== undefined ? collectionId : oldPassword.collectionId;
+      const targetOrganizationId = organizationId !== undefined ? organizationId : oldPassword.organizationId;
+
+      if (targetFolderId) {
+        // If folderId exists, check ONLY within that specific folder
+        // Must match exact folderId - exclude passwords with null/undefined folderId
+        duplicateQuery.folderId = new mongoose.Types.ObjectId(targetFolderId);
+        // Ensure collectionId and organizationId also match if they exist (for additional safety)
+        if (targetCollectionId) {
+          duplicateQuery.collectionId = new mongoose.Types.ObjectId(targetCollectionId);
+        }
+        if (targetOrganizationId) {
+          duplicateQuery.organizationId = new mongoose.Types.ObjectId(targetOrganizationId);
+        }
+      } else if (targetCollectionId) {
+        // If collectionId but no folderId, check within that collection (no folder passwords)
+        duplicateQuery.collectionId = new mongoose.Types.ObjectId(targetCollectionId);
+        duplicateQuery.$or = [
+          { folderId: { $exists: false } },
+          { folderId: null }
+        ];
+        if (targetOrganizationId) {
+          duplicateQuery.organizationId = new mongoose.Types.ObjectId(targetOrganizationId);
+        }
+      } else if (targetOrganizationId) {
+        // If organizationId but no collectionId, check within that organization (no collection passwords)
+        duplicateQuery.organizationId = new mongoose.Types.ObjectId(targetOrganizationId);
+        duplicateQuery.$or = [
+          { collectionId: { $exists: false } },
+          { collectionId: null }
+        ];
+      } else {
+        // If no hierarchy specified, check within company only (no organization passwords)
+        duplicateQuery.$or = [
+          { organizationId: { $exists: false } },
+          { organizationId: null }
+        ];
+      }
+
+      const existingPassword = await Password.findOne(duplicateQuery);
+      if (existingPassword) {
+        return res.status(400).json({ 
+          message: `Item name "${itemName}" already exists in this location. Please choose a different name.` 
+        });
+      }
     }
 
     // Encrypt sensitive data if provided
@@ -465,12 +1009,83 @@ export const updatePassword = async (req: AuthRequest, res: Response) => {
 
 export const softDeletePassword = async (req: AuthRequest, res: Response) => {
   try {
-    const { id: userId } = req.user!;
-    const { companyId } = req.user!;
+    // Validate user data from JWT token
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
 
-    const password = await Password.findById(req.params.id);
+    const { role, id: userId, companyId } = req.user;
+    
+    if (!role || !userId || !companyId) {
+      return res.status(401).json({ message: 'Invalid user data in token' });
+    }
+
+    const passwordId = req.params.id;
+    if (!passwordId) {
+      return res.status(400).json({ message: 'Password ID is required' });
+    }
+
+    // Build access query to verify user has permission to delete this password
+    let accessQuery: any = { _id: new mongoose.Types.ObjectId(passwordId) };
+    
+    if (role === 'master_admin') {
+      // Master admin can delete any password
+    } else if (role === 'company_super_admin') {
+      // Company super admin can delete passwords in their company
+      accessQuery.companyId = new mongoose.Types.ObjectId(userId);
+    } else if (role === 'company_user') {
+      // Company user - verify user exists and is active
+      const user = await User.findById(userId);
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'User account is inactive or not found' });
+      }
+
+      // Verify user belongs to the company from token
+      if (!user.companyId || user.companyId.toString() !== companyId.toString()) {
+        return res.status(403).json({ message: 'User does not belong to the specified company' });
+      }
+
+      // Get permissions from database (NOT from JWT token)
+      const orgIds = (user.permissions?.organizations || []).map((oid: any) => 
+        oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid)
+      ).filter(Boolean);
+      
+      const colIds = (user.permissions?.collections || []).map((cid: any) => 
+        cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid)
+      ).filter(Boolean);
+      
+      const folderIds = (user.permissions?.folders || []).map((fid: any) => 
+        fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid)
+      ).filter(Boolean);
+
+      // Build permission filters
+      const orFilters: any[] = [];
+      if (orgIds.length > 0) {
+        orFilters.push({ organizationId: { $in: orgIds } });
+      }
+      if (colIds.length > 0) {
+        orFilters.push({ collectionId: { $in: colIds } });
+      }
+      if (folderIds.length > 0) {
+        orFilters.push({ folderId: { $in: folderIds } });
+      }
+      
+      accessQuery = {
+        _id: new mongoose.Types.ObjectId(passwordId),
+        companyId: new mongoose.Types.ObjectId(companyId as any),
+        $or: [
+          { createdBy: new mongoose.Types.ObjectId(userId) },
+          { sharedWith: new mongoose.Types.ObjectId(userId) },
+          ...(orFilters.length > 0 ? orFilters : []),
+        ],
+      };
+    } else {
+      return res.status(403).json({ message: 'Invalid user role' });
+    }
+
+    const password = await Password.findOne(accessQuery);
     if (!password) {
-      return res.status(404).json({ message: 'Password not found' });
+      return res.status(404).json({ message: 'Password not found or access denied' });
     }
 
     // Get user info and create delete log before deleting

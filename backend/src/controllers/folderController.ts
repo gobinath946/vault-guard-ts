@@ -2,11 +2,12 @@ import { Response } from 'express';
 import mongoose from 'mongoose';
 import Folder from '../models/Folder';
 import Trash from '../models/Trash';
+import User from '../models/User';
 import { AuthRequest } from '../middleware/auth';
 
 export const getAllFolders = async (req: AuthRequest, res: Response) => {
   try {
-    const { companyId, role, permissions } = req.user!;
+    const { id, companyId, role } = req.user!;
     const page = parseInt((req.query.page as string) || '1');
     const limit = parseInt((req.query.limit as string) || '20');
     const q = (req.query.q as string) || '';
@@ -35,30 +36,59 @@ export const getAllFolders = async (req: AuthRequest, res: Response) => {
       filter.collectionId = new mongoose.Types.ObjectId(collectionId);
     }
 
-    // Permission-based filtering for company_user
+    // Permission-based filtering for company_user - fetch from database
     // This MUST be applied to restrict folders to only those user has permission to
     if (role === 'company_user') {
-      // Only allow folders that are BOTH in the user's permissions AND match the selected collectionId
-      if (permissions?.folders && Array.isArray(permissions.folders) && permissions.folders.length > 0) {
-        const folderIds = permissions.folders
-          .map((fid: any) => {
-            if (typeof fid === 'string') {
-              return mongoose.Types.ObjectId.isValid(fid) ? new mongoose.Types.ObjectId(fid) : null;
-            }
-            if (fid && typeof fid === 'object') {
-              if (fid._id) {
-                return mongoose.Types.ObjectId.isValid(fid._id) ? new mongoose.Types.ObjectId(fid._id) : null;
-              }
-              if (mongoose.Types.ObjectId.isValid(fid)) {
-                return new mongoose.Types.ObjectId(fid);
-              }
-              return null;
-            }
-            return null;
-          })
-          .filter(Boolean);
-        // Always restrict to permitted folderIds
-        filter._id = { $in: folderIds };
+      const user = await User.findById(id);
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'User account is inactive or not found' });
+      }
+
+      // Verify user belongs to the company from token
+      if (!user.companyId || user.companyId.toString() !== companyId!.toString()) {
+        return res.status(403).json({ message: 'User does not belong to the specified company' });
+      }
+
+      // Get permissions from database (NOT from JWT token)
+      const userOrgIds = (user.permissions?.organizations || []).map((oid: any) => 
+        oid._id ? oid._id.toString() : oid.toString()
+      );
+      const userColIds = (user.permissions?.collections || []).map((cid: any) => 
+        cid._id ? cid._id.toString() : cid.toString()
+      );
+      const userFolderIds = (user.permissions?.folders || []).map((fid: any) => 
+        fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid)
+      ).filter(Boolean);
+
+      // If organizationId is provided, validate user has permission to that organization
+      if (organizationId) {
+        const orgIdStr = organizationId.toString();
+        const hasOrgPermission = userOrgIds.some((pid: string) => pid === orgIdStr);
+        if (!hasOrgPermission) {
+          // User doesn't have permission to this organization - return empty result
+          filter._id = { $in: [] };
+        }
+      }
+
+      // If collectionId is provided, validate user has permission to that collection
+      if (collectionId) {
+        const colIdStr = collectionId.toString();
+        const hasColPermission = userColIds.some((pid: string) => pid === colIdStr);
+        if (!hasColPermission) {
+          // User doesn't have permission to this collection - return empty result
+          filter._id = { $in: [] };
+        }
+      }
+
+      // Filter folders by user's folder permissions
+      if (userFolderIds.length > 0) {
+        // If we already set _id to empty (no org/col permission), keep it empty
+        if (filter._id && filter._id.$in && filter._id.$in.length === 0) {
+          // Already set to empty - keep it
+        } else {
+          // Restrict to permitted folderIds
+          filter._id = { $in: userFolderIds };
+        }
       } else {
         // If no folder permissions, company_user should see no folders
         filter._id = { $in: [] };
