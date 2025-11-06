@@ -5,10 +5,10 @@ function getStoredBaseUrl() {
 	return new Promise((resolve) => {
 		try {
 			chrome.storage.sync.get(['apiBaseUrl'], ({ apiBaseUrl }) => {
-				resolve(apiBaseUrl || 'http://localhost:5000');
+				resolve(apiBaseUrl || 'https://dev.secure-backend.qrsolutions.in');
 			});
 		} catch (_) {
-			resolve('http://localhost:5000');
+			resolve('https://dev.secure-backend.qrsolutions.in');
 		}
 	});
 }
