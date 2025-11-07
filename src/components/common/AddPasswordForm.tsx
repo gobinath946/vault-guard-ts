@@ -36,6 +36,7 @@ interface AddPasswordFormProps {
   isEditMode?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  initialPassword?: string; // Initial password to pre-fill (optional)
 }
 
 interface FormData {
@@ -58,6 +59,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
   isEditMode = false,
   open,
   onOpenChange,
+  initialPassword,
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] = useState(false);
@@ -228,7 +230,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
         setFormData({
           itemName: '',
           username: '',
-          password: '',
+          password: initialPassword || '',
           websiteUrls: [''],
           notes: '',
           folderId: '',
@@ -244,7 +246,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
       setFolderOptions([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isDialogOpen, sourceType, sourceId, isEditMode, password]);
+  }, [open, isDialogOpen, sourceType, sourceId, isEditMode, password, initialPassword]);
 
   // When org changes, reset collection/folder and fetch collections
   useEffect(() => {

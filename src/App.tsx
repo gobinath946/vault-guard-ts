@@ -16,6 +16,7 @@ import Collections from "./pages/Collections";
 import Organization from "./pages/Organization";
 import PasswordCreation from "./pages/password-creation";
 import Trash from "./pages/Trash"
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
 
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/organization" element={<Organization />} />
             <Route path="/password-creation" element={<PasswordCreation />} />
             <Route path="/trash" element={<Trash />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

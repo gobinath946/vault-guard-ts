@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
-import { Plus, Edit, Trash2, Users as UsersIcon, ChevronDown, ChevronUp, Eye, EyeOff, X, Building2, BookOpen, FolderTree } from 'lucide-react';
+import { Plus, Edit, Trash2, Users as UsersIcon, ChevronDown, ChevronUp, Eye, EyeOff, X, Building2, BookOpen, FolderTree, RefreshCw } from 'lucide-react';
 import { companyService } from '@/services/companyService';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,7 @@ import { OrganizationsContent } from '@/pages/Organization';
 import { CollectionsContent } from '@/pages/Collections';
 import { FoldersContent } from '@/pages/Folders';
 import { Textarea } from '@/components/ui/textarea';
+import PasswordGenerator from '@/components/common/PasswordGenerator';
 import {
   Table,
   TableBody,
@@ -118,6 +119,10 @@ const Users = () => {
   // Password visibility states
   const [showPassword, setShowPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
+  
+  // Password generator states
+  const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] = useState(false);
+  const [isEditPasswordGeneratorOpen, setIsEditPasswordGeneratorOpen] = useState(false);
 
   // Manage dialog states
   const [isManageOrgDialogOpen, setIsManageOrgDialogOpen] = useState(false);
@@ -850,6 +855,16 @@ const Users = () => {
     setShowEditPassword(!showEditPassword);
   };
 
+  const handleGeneratedPassword = (password: string) => {
+    setFormData({ ...formData, password });
+    setIsPasswordGeneratorOpen(false);
+  };
+
+  const handleEditGeneratedPassword = (password: string) => {
+    setEditFormData({ ...editFormData, password });
+    setIsEditPasswordGeneratorOpen(false);
+  };
+
   useEffect(() => {
     if (folders.length > 0 && selectedCollections.length > 0) {
       const collectionsWithFolders = new Set(folders.map(folder => folder.collectionId));
@@ -1181,28 +1196,37 @@ const Users = () => {
                       </div>
                       <div>
                         <Label htmlFor="password">Password *</Label>
-                        <div className="relative">
-                          <Input
-                            id="password"
-                            type={showPassword ? "text" : "password"}
-                            required
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            placeholder="Enter password"
-                            className="pr-10"
-                          />
+                        <div className="flex gap-2 items-center">
+                          <div className="relative w-full">
+                            <Input
+                              id="password"
+                              type={showPassword ? "text" : "password"}
+                              required
+                              value={formData.password}
+                              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                              placeholder="Enter password"
+                              className="pr-10"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                              onClick={togglePasswordVisibility}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </Button>
+                          </div>
                           <Button
                             type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                            onClick={togglePasswordVisibility}
+                            variant="outline"
+                            onClick={() => setIsPasswordGeneratorOpen(true)}
                           >
-                            {showPassword ? (
-                              <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            )}
+                            <RefreshCw className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
@@ -1268,27 +1292,36 @@ const Users = () => {
                   </div>
                   <div>
                     <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>
-                    <div className="relative">
-                      <Input
-                        id="edit-password"
-                        type={showEditPassword ? "text" : "password"}
-                        value={editFormData.password}
-                        onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
-                        placeholder="Enter new password (optional)"
-                        className="pr-10"
-                      />
+                    <div className="flex gap-2 items-center">
+                      <div className="relative w-full">
+                        <Input
+                          id="edit-password"
+                          type={showEditPassword ? "text" : "password"}
+                          value={editFormData.password}
+                          onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                          placeholder="Enter new password (optional)"
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={toggleEditPasswordVisibility}
+                        >
+                          {showEditPassword ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </div>
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={toggleEditPasswordVisibility}
+                        variant="outline"
+                        onClick={() => setIsEditPasswordGeneratorOpen(true)}
                       >
-                        {showEditPassword ? (
-                          <EyeOff className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-muted-foreground" />
-                        )}
+                        <RefreshCw className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -1461,6 +1494,20 @@ const Users = () => {
           onRowsPerPageChange={setRowsPerPage}
         />
       </div>
+
+      {/* Password Generator for Create Form */}
+      <PasswordGenerator
+        open={isPasswordGeneratorOpen}
+        onOpenChange={setIsPasswordGeneratorOpen}
+        onPasswordGenerated={handleGeneratedPassword}
+      />
+
+      {/* Password Generator for Edit Form */}
+      <PasswordGenerator
+        open={isEditPasswordGeneratorOpen}
+        onOpenChange={setIsEditPasswordGeneratorOpen}
+        onPasswordGenerated={handleEditGeneratedPassword}
+      />
     </DashboardLayout>
   );
 };

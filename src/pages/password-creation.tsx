@@ -12,6 +12,7 @@ import { collectionService } from '@/services/collectionService';
 import { companyService } from '@/services/companyService';
 import MultiSelectDropdown from '@/components/common/MultiSelectDropdown';
 import AddPasswordForm from '@/components/common/AddPasswordForm';
+import PasswordGenerator from '@/components/common/PasswordGenerator';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -85,6 +86,9 @@ const Password = () => {
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] = useState(false);
+  const [passwordFromGenerator, setPasswordFromGenerator] = useState<string>('');
+  const [isAddPasswordOpen, setIsAddPasswordOpen] = useState(false);
   const [isLogsOpen, setIsLogsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [passwordToDelete, setPasswordToDelete] = useState<string | null>(null);
@@ -599,17 +603,26 @@ const Password = () => {
             <h2 className="text-3xl font-bold tracking-tight">Password</h2>
             <p className="text-muted-foreground">Manage all your passwords and login entries</p>
           </div>
-          {/* Add Password Dialog - Always render but conditionally enable */}
-          <AddPasswordForm
-            trigger={
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Password
-              </Button>
-            }
-            sourceType="organization"
-            onSuccess={fetchData}
-          />
+          <div className="flex items-center gap-2">
+            {/* Password Generator Button */}
+            <Button
+              onClick={() => setIsPasswordGeneratorOpen(true)}
+            >
+              <Key className="mr-2 h-4 w-4" />
+              Password Generator
+            </Button>
+            {/* Add Password Dialog - Always render but conditionally enable */}
+            <AddPasswordForm
+              trigger={
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Password
+                </Button>
+              }
+              sourceType="organization"
+              onSuccess={fetchData}
+            />
+          </div>
           {/* Edit Password Dialog - Always render but conditionally open */}
           <AddPasswordForm
             isEditMode
@@ -1081,6 +1094,36 @@ const Password = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Password Generator Dialog */}
+      <PasswordGenerator
+        open={isPasswordGeneratorOpen}
+        onOpenChange={setIsPasswordGeneratorOpen}
+        onPasswordGenerated={(password) => {
+          setPasswordFromGenerator(password);
+          setIsPasswordGeneratorOpen(false);
+          setIsAddPasswordOpen(true);
+        }}
+      />
+
+      {/* Add Password Dialog with Generated Password */}
+      <AddPasswordForm
+        open={isAddPasswordOpen}
+        onOpenChange={(open) => {
+          setIsAddPasswordOpen(open);
+          if (!open) {
+            setPasswordFromGenerator('');
+          }
+        }}
+        sourceType="organization"
+        onSuccess={() => {
+          fetchData();
+          setIsAddPasswordOpen(false);
+          setPasswordFromGenerator('');
+        }}
+        initialPassword={passwordFromGenerator}
+        trigger={null}
+      />
     </DashboardLayout>
   );
 };
