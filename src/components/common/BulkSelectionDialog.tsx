@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { passwordService } from '@/services/passwordService';
 import { Loader2, Copy } from 'lucide-react';
+import { Pagination } from '@/components/common/Pagination';
 
 interface Password {
   _id: string;
@@ -22,7 +23,7 @@ interface Password {
 interface BulkSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  passwords: Password[];
+  passwords?: Password[]; // Made optional since we'll fetch our own
   collections: any[];
   folders: any[];
   organizations: any[];
@@ -32,29 +33,101 @@ interface BulkSelectionDialogProps {
 export const BulkSelectionDialog = ({
   open,
   onOpenChange,
-  passwords,
+  passwords: externalPasswords,
   collections,
   folders,
   organizations,
   onSuccess,
 }: BulkSelectionDialogProps) => {
+  const [passwords, setPasswords] = useState<Password[]>([]);
   const [selectedPasswords, setSelectedPasswords] = useState<Set<string>>(new Set());
+  const [selectAllPages, setSelectAllPages] = useState(false);
+  const [allPasswordIds, setAllPasswordIds] = useState<string[]>([]);
   const [targetOrganizationId, setTargetOrganizationId] = useState('');
   const [targetCollectionId, setTargetCollectionId] = useState('');
   const [targetFolderId, setTargetFolderId] = useState('');
   const [operationType, setOperationType] = useState<'move' | 'save'>('move');
   const [loading, setLoading] = useState(false);
+  const [fetchingPasswords, setFetchingPasswords] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalPasswords, setTotalPasswords] = useState(0);
   const { toast } = useToast();
 
+  // Fetch passwords with pagination
+  const fetchPasswords = async (page: number, limit: number) => {
+    setFetchingPasswords(true);
+    try {
+      const response = await passwordService.getAll(page, limit, '', [], []);
+      
+      let fetchedPasswords = [];
+      let total = 0;
+      if (Array.isArray(response)) {
+        fetchedPasswords = response;
+        total = response.length;
+      } else if (response && Array.isArray(response.passwords)) {
+        fetchedPasswords = response.passwords;
+        total = response.total || response.passwords.length;
+      }
+      
+      setPasswords(fetchedPasswords);
+      setTotalPasswords(total);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch passwords',
+        variant: 'destructive',
+      });
+      setPasswords([]);
+      setTotalPasswords(0);
+    } finally {
+      setFetchingPasswords(false);
+    }
+  };
+
+  // Fetch all password IDs for "Select All Pages"
+  const fetchAllPasswordIds = async () => {
+    try {
+      // Fetch all passwords without pagination to get all IDs
+      const response = await passwordService.getAll(1, 10000, '', [], []);
+      
+      let allPasswords = [];
+      if (Array.isArray(response)) {
+        allPasswords = response;
+      } else if (response && Array.isArray(response.passwords)) {
+        allPasswords = response.passwords;
+      }
+      
+      const ids = allPasswords.map((p: Password) => p._id);
+      setAllPasswordIds(ids);
+      return ids;
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch all passwords',
+        variant: 'destructive',
+      });
+      return [];
+    }
+  };
+
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      fetchPasswords(currentPage, rowsPerPage);
+    } else {
+      // Reset state when dialog closes
       setSelectedPasswords(new Set());
+      setSelectAllPages(false);
+      setAllPasswordIds([]);
       setTargetOrganizationId('');
       setTargetCollectionId('');
       setTargetFolderId('');
       setOperationType('move');
+      setCurrentPage(1);
+      setPasswords([]);
+      setTotalPasswords(0);
     }
-  }, [open]);
+  }, [open, currentPage, rowsPerPage]);
 
   // Filter collections based on selected organization
   const filteredCollections = targetOrganizationId
@@ -76,12 +149,34 @@ export const BulkSelectionDialog = ({
     setSelectedPasswords(newSelection);
   };
 
-  const toggleSelectAll = () => {
-    if (selectedPasswords.size === passwords.length) {
+  const toggleSelectAll = async () => {
+    if (selectAllPages) {
+      // Deselect all across all pages
       setSelectedPasswords(new Set());
+      setSelectAllPages(false);
+      setAllPasswordIds([]);
     } else {
-      setSelectedPasswords(new Set(passwords.map(p => p._id)));
+      // Select all across all pages
+      setSelectAllPages(true);
+      const ids = await fetchAllPasswordIds();
+      setSelectedPasswords(new Set(ids));
     }
+  };
+
+  const toggleCurrentPageSelection = () => {
+    const currentPageIds = passwords.map(p => p._id);
+    const allSelected = currentPageIds.every(id => selectedPasswords.has(id));
+    
+    const newSelection = new Set(selectedPasswords);
+    if (allSelected) {
+      // Deselect all on current page
+      currentPageIds.forEach(id => newSelection.delete(id));
+    } else {
+      // Select all on current page
+      currentPageIds.forEach(id => newSelection.add(id));
+    }
+    setSelectedPasswords(newSelection);
+    setSelectAllPages(false);
   };
 
   const handleBulkMove = async () => {
@@ -245,22 +340,39 @@ export const BulkSelectionDialog = ({
                 <div>
                   <Label className="text-base font-semibold">Select Passwords</Label>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    {selectedPasswords.size} of {passwords.length} selected
+                    {selectedPasswords.size} of {totalPasswords} selected
+                    {selectAllPages && <span className="ml-1 text-primary">(All pages)</span>}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={toggleSelectAll}
-                  className="shrink-0 w-full sm:w-auto"
-                >
-                  {selectedPasswords.size === passwords.length ? 'Deselect All' : 'Select All'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleCurrentPageSelection}
+                    className="shrink-0 w-full sm:w-auto"
+                  >
+                    {passwords.every(p => selectedPasswords.has(p._id)) ? 'Deselect Page' : 'Select Page'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleSelectAll}
+                    className="shrink-0 w-full sm:w-auto"
+                    disabled={fetchingPasswords}
+                  >
+                    {selectAllPages ? 'Deselect All Pages' : 'Select All Pages'}
+                  </Button>
+                </div>
               </div>
 
               <div className="border rounded-lg overflow-hidden">
                 <div className="max-h-[40vh] overflow-y-auto">
-                  {passwords.length === 0 ? (
+                  {fetchingPasswords ? (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                      <p className="text-sm">Loading passwords...</p>
+                    </div>
+                  ) : passwords.length === 0 ? (
                     <div className="p-8 text-center text-muted-foreground">
                       <p className="text-lg font-medium">No passwords available</p>
                       <p className="text-sm mt-1">Create some passwords first to use bulk selection</p>
@@ -295,6 +407,18 @@ export const BulkSelectionDialog = ({
                   )}
                 </div>
               </div>
+
+              {/* Pagination */}
+              {totalPasswords > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(totalPasswords / rowsPerPage)}
+                  totalItems={totalPasswords}
+                  rowsPerPage={rowsPerPage}
+                  onPageChange={setCurrentPage}
+                  onRowsPerPageChange={setRowsPerPage}
+                />
+              )}
             </div>
           </div>
         </div>
