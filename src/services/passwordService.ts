@@ -72,4 +72,18 @@ export const passwordService = {
     const response = await api.post('/passwords/generate', options);
     return response.data;
   },
+
+  bulkCreate: async (passwords: Partial<Password>[]) => {
+    const response = await api.post('/passwords/bulk-create', { passwords });
+    return response.data;
+  },
+
+  bulkMove: async (passwordIds: string[], collectionId?: string, folderId?: string) => {
+    const response = await api.post('/passwords/bulk-move', {
+      passwordIds,
+      collectionId,
+      folderId,
+    });
+    return response.data;
+  },
 };

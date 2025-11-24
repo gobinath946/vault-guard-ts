@@ -13,6 +13,8 @@ import { companyService } from '@/services/companyService';
 import MultiSelectDropdown from '@/components/common/MultiSelectDropdown';
 import AddPasswordForm from '@/components/common/AddPasswordForm';
 import PasswordGenerator from '@/components/common/PasswordGenerator';
+import { BulkSelectionDialog } from '@/components/common/BulkSelectionDialog';
+import { BulkOperationForm } from '@/components/common/BulkOperationForm';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -89,6 +91,8 @@ const Password = () => {
   const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] = useState(false);
   const [passwordFromGenerator, setPasswordFromGenerator] = useState<string>('');
   const [isAddPasswordOpen, setIsAddPasswordOpen] = useState(false);
+  const [isBulkSelectionOpen, setIsBulkSelectionOpen] = useState(false);
+  const [isBulkOperationOpen, setIsBulkOperationOpen] = useState(false);
   const [isLogsOpen, setIsLogsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [passwordToDelete, setPasswordToDelete] = useState<string | null>(null);
@@ -604,6 +608,20 @@ const Password = () => {
             <p className="text-muted-foreground">Manage all your passwords and login entries</p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Bulk Selection Button */}
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkSelectionOpen(true)}
+            >
+              Bulk Selection
+            </Button>
+            {/* Bulk Operation Button */}
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkOperationOpen(true)}
+            >
+              Bulk Operation
+            </Button>
             {/* Password Generator Button */}
             <Button
               onClick={() => setIsPasswordGeneratorOpen(true)}
@@ -1123,6 +1141,27 @@ const Password = () => {
         }}
         initialPassword={passwordFromGenerator}
         trigger={null}
+      />
+
+      {/* Bulk Selection Dialog */}
+      <BulkSelectionDialog
+        open={isBulkSelectionOpen}
+        onOpenChange={setIsBulkSelectionOpen}
+        passwords={filteredPasswords}
+        collections={collections}
+        folders={folders}
+        organizations={organizations}
+        onSuccess={fetchData}
+      />
+
+      {/* Bulk Operation Form */}
+      <BulkOperationForm
+        open={isBulkOperationOpen}
+        onOpenChange={setIsBulkOperationOpen}
+        collections={collections}
+        folders={folders}
+        organizations={organizations}
+        onSuccess={fetchData}
       />
     </DashboardLayout>
   );

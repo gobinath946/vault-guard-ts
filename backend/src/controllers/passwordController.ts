@@ -1133,3 +1133,319 @@ export const generatePasswordHandler = async (req: AuthRequest, res: Response) =
     res.status(500).json({ message: error.message });
   }
 };
+
+export const bulkCreatePasswords = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { id, companyId } = req.user;
+    const { passwords } = req.body;
+
+    if (!Array.isArray(passwords) || passwords.length === 0) {
+      return res.status(400).json({ message: 'Passwords array is required and must not be empty' });
+    }
+
+    const createdPasswords = [];
+    const errors = [];
+
+    for (let i = 0; i < passwords.length; i++) {
+      const passwordData = passwords[i];
+      const { itemName, username, password, websiteUrls, notes, folderId, collectionId, organizationId } = passwordData;
+
+      try {
+        // Check for duplicate itemName in the same location
+        const normalizedItemName = itemName.trim();
+        const duplicateQuery: any = {
+          companyId: new mongoose.Types.ObjectId(companyId as any),
+          itemName: { $regex: new RegExp(`^${normalizedItemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        };
+
+        if (folderId) {
+          duplicateQuery.folderId = new mongoose.Types.ObjectId(folderId);
+          if (collectionId) {
+            duplicateQuery.collectionId = new mongoose.Types.ObjectId(collectionId);
+          }
+          if (organizationId) {
+            duplicateQuery.organizationId = new mongoose.Types.ObjectId(organizationId);
+          }
+        } else if (collectionId) {
+          duplicateQuery.collectionId = new mongoose.Types.ObjectId(collectionId);
+          duplicateQuery.$or = [
+            { folderId: { $exists: false } },
+            { folderId: null }
+          ];
+          if (organizationId) {
+            duplicateQuery.organizationId = new mongoose.Types.ObjectId(organizationId);
+          }
+        } else if (organizationId) {
+          duplicateQuery.organizationId = new mongoose.Types.ObjectId(organizationId);
+          duplicateQuery.$or = [
+            { collectionId: { $exists: false } },
+            { collectionId: null }
+          ];
+        } else {
+          duplicateQuery.$or = [
+            { organizationId: { $exists: false } },
+            { organizationId: null }
+          ];
+        }
+
+        const existingPassword = await Password.findOne(duplicateQuery);
+        if (existingPassword) {
+          errors.push({
+            index: i,
+            itemName,
+            error: `Item name "${itemName}" already exists in this location`
+          });
+          continue;
+        }
+
+        // Encrypt sensitive data
+        const encryptedUsername = encrypt(username);
+        const encryptedPassword = encrypt(password);
+        const encryptedNotes = notes ? encrypt(notes) : '';
+
+        const newPassword = new Password({
+          companyId,
+          itemName,
+          username: encryptedUsername,
+          password: encryptedPassword,
+          websiteUrls: Array.isArray(websiteUrls) ? websiteUrls : [],
+          notes: encryptedNotes,
+          folderId: folderId || undefined,
+          collectionId: collectionId || undefined,
+          organizationId: organizationId || undefined,
+          createdBy: id,
+        });
+
+        await newPassword.save();
+        createdPasswords.push(newPassword);
+
+        // Create log entry
+        try {
+          const userInfo = await getUserInfo(req.user!.role, id, req.user!.email);
+          const createLog = new PasswordLog({
+            passwordId: newPassword._id,
+            action: 'create',
+            field: 'password',
+            performedBy: id,
+            performedByName: userInfo.name,
+            performedByEmail: userInfo.email,
+            details: `Password "${itemName}" created via bulk operation`,
+          });
+          await createLog.save();
+          
+          await Password.findByIdAndUpdate(newPassword._id, {
+            $push: { logs: createLog._id }
+          });
+        } catch (logError) {
+          console.error('Failed to create password log:', logError);
+        }
+      } catch (error: any) {
+        errors.push({
+          index: i,
+          itemName,
+          error: error.message
+        });
+      }
+    }
+
+    res.status(201).json({
+      message: `Bulk create completed: ${createdPasswords.length} created, ${errors.length} failed`,
+      created: createdPasswords.length,
+      failed: errors.length,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const bulkMovePasswords = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { role, id: userId, companyId } = req.user;
+    const { passwordIds, collectionId, folderId } = req.body;
+
+    if (!Array.isArray(passwordIds) || passwordIds.length === 0) {
+      return res.status(400).json({ message: 'Password IDs array is required and must not be empty' });
+    }
+
+    if (!collectionId && !folderId) {
+      return res.status(400).json({ message: 'Either collectionId or folderId must be provided' });
+    }
+
+    // Verify target collection/folder exists and user has access
+    if (folderId) {
+      const folder = await Folder.findById(folderId);
+      if (!folder) {
+        return res.status(404).json({ message: 'Target folder not found' });
+      }
+      
+      // For company users, verify they have permission to the target folder
+      if (role === 'company_user') {
+        const user = await User.findById(userId);
+        if (!user || !user.isActive) {
+          return res.status(403).json({ message: 'User account is inactive or not found' });
+        }
+        
+        const folderPerms = (user.permissions?.folders || []).map((fid: any) => 
+          fid._id ? fid._id.toString() : fid.toString()
+        );
+        
+        if (!folderPerms.includes(folderId)) {
+          return res.status(403).json({ message: 'You do not have permission to move passwords to this folder' });
+        }
+      }
+    } else if (collectionId) {
+      const collection = await Collection.findById(collectionId);
+      if (!collection) {
+        return res.status(404).json({ message: 'Target collection not found' });
+      }
+      
+      // For company users, verify they have permission to the target collection
+      if (role === 'company_user') {
+        const user = await User.findById(userId);
+        if (!user || !user.isActive) {
+          return res.status(403).json({ message: 'User account is inactive or not found' });
+        }
+        
+        const colPerms = (user.permissions?.collections || []).map((cid: any) => 
+          cid._id ? cid._id.toString() : cid.toString()
+        );
+        
+        if (!colPerms.includes(collectionId)) {
+          return res.status(403).json({ message: 'You do not have permission to move passwords to this collection' });
+        }
+      }
+    }
+
+    const movedPasswords = [];
+    const errors = [];
+
+    for (const passwordId of passwordIds) {
+      try {
+        // Build access query based on role
+        let accessQuery: any = { _id: new mongoose.Types.ObjectId(passwordId) };
+        
+        if (role === 'master_admin') {
+          // Master admin can move any password
+        } else if (role === 'company_super_admin') {
+          accessQuery.companyId = new mongoose.Types.ObjectId(userId);
+        } else if (role === 'company_user') {
+          const user = await User.findById(userId);
+          if (!user || !user.isActive) {
+            errors.push({ passwordId, error: 'User account is inactive' });
+            continue;
+          }
+
+          const orgIds = (user.permissions?.organizations || []).map((oid: any) => 
+            oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid)
+          ).filter(Boolean);
+          
+          const colIds = (user.permissions?.collections || []).map((cid: any) => 
+            cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid)
+          ).filter(Boolean);
+          
+          const folderIds = (user.permissions?.folders || []).map((fid: any) => 
+            fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid)
+          ).filter(Boolean);
+
+          const orFilters: any[] = [];
+          if (orgIds.length > 0) {
+            orFilters.push({ organizationId: { $in: orgIds } });
+          }
+          if (colIds.length > 0) {
+            orFilters.push({ collectionId: { $in: colIds } });
+          }
+          if (folderIds.length > 0) {
+            orFilters.push({ folderId: { $in: folderIds } });
+          }
+          
+          accessQuery = {
+            _id: new mongoose.Types.ObjectId(passwordId),
+            companyId: new mongoose.Types.ObjectId(companyId as any),
+            $or: [
+              { createdBy: new mongoose.Types.ObjectId(userId) },
+              { sharedWith: new mongoose.Types.ObjectId(userId) },
+              ...(orFilters.length > 0 ? orFilters : []),
+            ],
+          };
+        }
+
+        const password = await Password.findOne(accessQuery);
+        if (!password) {
+          errors.push({ passwordId, error: 'Password not found or access denied' });
+          continue;
+        }
+
+        // Update password location
+        const updateData: any = {
+          lastModified: new Date()
+        };
+
+        if (folderId) {
+          updateData.folderId = new mongoose.Types.ObjectId(folderId);
+          // Get folder's collection and organization
+          const folder = await Folder.findById(folderId);
+          if (folder) {
+            if (folder.collectionId) {
+              updateData.collectionId = folder.collectionId;
+            }
+            if (folder.organizationId) {
+              updateData.organizationId = folder.organizationId;
+            }
+          }
+        } else if (collectionId) {
+          updateData.collectionId = new mongoose.Types.ObjectId(collectionId);
+          updateData.folderId = undefined;
+          // Get collection's organization
+          const collection = await Collection.findById(collectionId);
+          if (collection && collection.organizationId) {
+            updateData.organizationId = collection.organizationId;
+          }
+        }
+
+        await Password.findByIdAndUpdate(passwordId, updateData);
+        movedPasswords.push(passwordId);
+
+        // Create log entry
+        try {
+          const userInfo = await getUserInfo(req.user!.role, userId, req.user!.email);
+          const moveLog = new PasswordLog({
+            passwordId: password._id,
+            action: 'update',
+            field: 'location',
+            performedBy: userId,
+            performedByName: userInfo.name,
+            performedByEmail: userInfo.email,
+            details: `Password moved via bulk operation`,
+          });
+          await moveLog.save();
+          
+          await Password.findByIdAndUpdate(password._id, {
+            $push: { logs: moveLog._id }
+          });
+        } catch (logError) {
+          console.error('Failed to create move log:', logError);
+        }
+      } catch (error: any) {
+        errors.push({ passwordId, error: error.message });
+      }
+    }
+
+    res.json({
+      message: `Bulk move completed: ${movedPasswords.length} moved, ${errors.length} failed`,
+      moved: movedPasswords.length,
+      failed: errors.length,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
