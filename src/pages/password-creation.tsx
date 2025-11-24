@@ -131,6 +131,7 @@ const Password = () => {
   const fetchData = async () => {
     if (!hasPermission) return;
     
+    setLoading(true);
     try {
       const [passwordsData, foldersDataRaw, collectionsDataRaw] = await Promise.all([
         passwordService.getAll(
@@ -160,13 +161,18 @@ const Password = () => {
       }
 
       let filteredPasswords = [];
+      let total = 0;
       if (Array.isArray(passwordsData)) {
         filteredPasswords = passwordsData;
+        total = passwordsData.length;
       } else if (passwordsData && Array.isArray(passwordsData.passwords)) {
         filteredPasswords = passwordsData.passwords;
+        total = passwordsData.total || passwordsData.passwords.length;
       }
+      
+      // Update both states together to prevent UI flicker
+      setTotalPasswords(total);
       setPasswords(filteredPasswords);
-      setTotalPasswords(filteredPasswords.length);
 
       let collectionsArr = [];
       if (Array.isArray(collectionsDataRaw)) {

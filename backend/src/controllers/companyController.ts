@@ -159,7 +159,14 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
       .limit(limit)
       .sort({ createdAt: -1 });
 
-    res.json({ users, total });
+    res.json({
+      users,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      hasNextPage: page < Math.ceil(total / limit),
+      hasPrevPage: page > 1
+    });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
