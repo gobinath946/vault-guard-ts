@@ -359,13 +359,6 @@ const Trash = () => {
                     </p>
                   </div>
                 </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Original Data</label>
-                  <pre className="mt-2 p-4 bg-muted rounded-md text-xs overflow-auto max-h-60">
-                    {JSON.stringify(selectedItem.originalData, null, 2)}
-                  </pre>
-                </div>
               </div>
             )}
           </DialogContent>
