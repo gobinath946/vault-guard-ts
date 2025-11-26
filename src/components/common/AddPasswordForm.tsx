@@ -26,6 +26,8 @@ import { organizationService } from '@/services/organizationService';
 import { useToast } from '@/hooks/use-toast';
 import PasswordGenerator from './PasswordGenerator';
 import UsernameGenerator from './UsernameGenerator';
+import { FileUpload } from './FileUpload';
+import { UploadedFile } from '@/services/uploadService';
 
 interface AddPasswordFormProps {
   trigger?: React.ReactNode;
@@ -45,6 +47,7 @@ interface FormData {
   password: string;
   websiteUrls: string[];
   notes: string;
+  attachments: UploadedFile[];
   folderId: string;
   collectionId: string;
   organizationId: string;
@@ -80,6 +83,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
     password: '',
     websiteUrls: [''],
     notes: '',
+    attachments: [],
     folderId: '',
     collectionId: '',
     organizationId: '',
@@ -194,12 +198,14 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
             : String(password.folderId)) 
           : '';
         
+        // Pre-populate ALL form fields with password data
         setFormData({
           itemName: password.itemName || '',
           username: password.username || '',
           password: password.password || '',
-          websiteUrls: Array.isArray(password.websiteUrls) && password.websiteUrls.length > 0 ? password.websiteUrls : [''],
+          websiteUrls: password.websiteUrls && password.websiteUrls.length > 0 ? password.websiteUrls : [''],
           notes: password.notes || '',
+          attachments: password.attachments || [],
           folderId: folderId,
           collectionId: colId,
           organizationId: orgId,
@@ -226,13 +232,14 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
             sourceType === 'folder' ? 'folderId' : 'collectionId']: sourceId
         }));
       } else {
-        // Reset everything when dialog opens for new entry
+        // Reset form when opening in create mode
         setFormData({
           itemName: '',
           username: '',
           password: initialPassword || '',
           websiteUrls: [''],
           notes: '',
+          attachments: [],
           folderId: '',
           collectionId: '',
           organizationId: '',
@@ -440,8 +447,9 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
         itemName: '',
         username: '',
         password: '',
-  websiteUrls: [''],
+        websiteUrls: [''],
         notes: '',
+        attachments: [],
         folderId: '',
         collectionId: '',
         organizationId: '',
@@ -661,6 +669,14 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div>
+              <Label>Attachments (Optional)</Label>
+              <FileUpload
+                attachments={formData.attachments}
+                onAttachmentsChange={(attachments) => setFormData({ ...formData, attachments })}
+              />
             </div>
 
             <div>

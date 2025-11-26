@@ -890,17 +890,40 @@ const Users = () => {
     }
   }, [folders, editSelectedCollections, isEditDialogOpen, editFoldersAutoExpanded]);
 
+  const generateRandomPassword = (length = 12) => {
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return password;
+  };
+
+  const generateUsernameFromEmail = (email: string) => {
+    // Extract username from email (part before @)
+    const baseUsername = email.split('@')[0];
+    // Add random 4-digit number to make it unique
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    return `${baseUsername}${randomNum}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Auto-generate username and password
+      const autoUsername = generateUsernameFromEmail(formData.email);
+      const autoPassword = generateRandomPassword(12);
+      
       const userData = {
         ...formData,
-        password: formData.password ? hashPassword(formData.password) : '',
+        username: autoUsername,
+        password: hashPassword(autoPassword),
       };
+      
       await companyService.createUser(userData);
       toast({
         title: 'Success',
-        description: 'User created successfully',
+        description: `User created successfully. Username: ${autoUsername}`,
       });
       setIsDialogOpen(false);
       setFormData({
@@ -1174,16 +1197,6 @@ const Users = () => {
                     <div className="space-y-4">
                       <h3 className="text-lg font-medium">Basic Information</h3>
                       <div>
-                        <Label htmlFor="username">Username *</Label>
-                        <Input
-                          id="username"
-                          required
-                          value={formData.username}
-                          onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                          placeholder="Enter username"
-                        />
-                      </div>
-                      <div>
                         <Label htmlFor="email">Email *</Label>
                         <Input
                           id="email"
@@ -1194,41 +1207,10 @@ const Users = () => {
                           placeholder="Enter email address"
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="password">Password *</Label>
-                        <div className="flex gap-2 items-center">
-                          <div className="relative w-full">
-                            <Input
-                              id="password"
-                              type={showPassword ? "text" : "password"}
-                              required
-                              value={formData.password}
-                              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                              placeholder="Enter password"
-                              className="pr-10"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                              onClick={togglePasswordVisibility}
-                            >
-                              {showPassword ? (
-                                <EyeOff className="h-4 w-4 text-muted-foreground" />
-                              ) : (
-                                <Eye className="h-4 w-4 text-muted-foreground" />
-                              )}
-                            </Button>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setIsPasswordGeneratorOpen(true)}
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        </div>
+                      <div className="p-3 bg-muted/50 rounded-lg">
+                        <p className="text-sm text-muted-foreground">
+                          Username and password will be auto-generated and sent to the user's email.
+                        </p>
                       </div>
                     </div>
 
@@ -1248,7 +1230,7 @@ const Users = () => {
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={!selectedOrganizations.length || !formData.username || !formData.email || !formData.password}
+                      disabled={!selectedOrganizations.length || !formData.email}
                     >
                       Create User
                     </Button>

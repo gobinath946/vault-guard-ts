@@ -1,5 +1,13 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+export interface IAttachment {
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedAt: Date;
+}
+
 export interface IPassword extends Document {
   companyId: mongoose.Types.ObjectId;
   itemName: string;
@@ -7,6 +15,7 @@ export interface IPassword extends Document {
   password: string;
   websiteUrls: string[];
   notes: string;
+  attachments: IAttachment[];
   folderId?: mongoose.Types.ObjectId;
   collectionId?: mongoose.Types.ObjectId;
   organizationId?: mongoose.Types.ObjectId;
@@ -47,6 +56,30 @@ const passwordSchema = new Schema<IPassword>(
       type: String,
       trim: true,
     },
+    attachments: [
+      {
+        fileUrl: {
+          type: String,
+          required: true,
+        },
+        fileName: {
+          type: String,
+          required: true,
+        },
+        fileSize: {
+          type: Number,
+          required: true,
+        },
+        mimeType: {
+          type: String,
+          required: true,
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     folderId: {
       type: Schema.Types.ObjectId,
       ref: 'Folder',
