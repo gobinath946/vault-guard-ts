@@ -61,7 +61,12 @@ const menuItems: MenuItem[] = [
     icon: Trash,
     roles: ['company_super_admin'],
   },
-  
+  {
+    title: 'Company Settings',
+    path: '/company-settings',
+    icon: Settings,
+    roles: ['company_super_admin'],
+  },
 ];
 
 export const Sidebar = ({

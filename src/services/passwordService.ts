@@ -86,4 +86,26 @@ export const passwordService = {
     });
     return response.data;
   },
+
+  // Attachment methods
+  getAttachments: async (passwordId: string) => {
+    const response = await api.get(`/passwords/${passwordId}/attachments`);
+    return response.data;
+  },
+
+  addAttachment: async (passwordId: string, attachment: {
+    fileUrl: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+    s3Key: string;
+  }) => {
+    const response = await api.post(`/passwords/${passwordId}/attachments`, attachment);
+    return response.data;
+  },
+
+  deleteAttachment: async (passwordId: string, attachmentId: string) => {
+    const response = await api.delete(`/passwords/${passwordId}/attachments/${attachmentId}`);
+    return response.data;
+  },
 };

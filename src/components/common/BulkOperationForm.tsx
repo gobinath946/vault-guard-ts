@@ -1,15 +1,22 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { passwordService } from '@/services/passwordService';
-import { Plus, Trash2, Edit, Save, X, Eye, EyeOff, Key } from 'lucide-react';
+import { companyService } from '@/services/companyService';
+import { S3Uploader, S3Config, UploadResult } from '@/lib/s3-client';
+import { useAuth } from '@/contexts/AuthContext';
+import { Plus, Trash2, Edit, Save, X, Eye, EyeOff, Key, Paperclip, Upload, File, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+
+interface PendingAttachment {
+  file: File;
+  id: string;
+}
 
 interface BulkPasswordEntry {
   id: string;
@@ -19,6 +26,7 @@ interface BulkPasswordEntry {
   websiteUrls: string[];
   notes: string;
   isEditing: boolean;
+  attachments: PendingAttachment[];
 }
 
 interface BulkOperationFormProps {
@@ -29,6 +37,14 @@ interface BulkOperationFormProps {
   organizations: any[];
   onSuccess: () => void;
 }
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
 export const BulkOperationForm = ({
   open,
@@ -47,6 +63,7 @@ export const BulkOperationForm = ({
       websiteUrls: [''],
       notes: '',
       isEditing: true,
+      attachments: [],
     },
   ]);
   const [targetOrganizationId, setTargetOrganizationId] = useState('');
@@ -54,7 +71,36 @@ export const BulkOperationForm = ({
   const [targetFolderId, setTargetFolderId] = useState('');
   const [loading, setLoading] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
+  const [s3Uploader, setS3Uploader] = useState<S3Uploader | null>(null);
+  const [s3ConfigLoaded, setS3ConfigLoaded] = useState(false);
+  const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Load S3 config on mount
+  useEffect(() => {
+    const loadS3Config = async () => {
+      try {
+        const config = await companyService.getS3ConfigForUpload();
+        setS3Uploader(
+          new S3Uploader({
+            region: config.region,
+            bucket: config.bucket,
+            accessKey: config.accessKey,
+            secretKey: config.secretKey,
+            s3Url: config.s3Url,
+          })
+        );
+      } catch (error) {
+        console.log('S3 config not available for bulk upload');
+      } finally {
+        setS3ConfigLoaded(true);
+      }
+    };
+    if (open) {
+      loadS3Config();
+    }
+  }, [open]);
 
   const addNewEntry = () => {
     setEntries([
@@ -67,8 +113,36 @@ export const BulkOperationForm = ({
         websiteUrls: [''],
         notes: '',
         isEditing: true,
+        attachments: [],
       },
     ]);
+  };
+
+  const handleFileSelect = (entryId: string, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    const newAttachments: PendingAttachment[] = Array.from(files).map((file) => ({
+      file,
+      id: crypto.randomUUID(),
+    }));
+
+    setEntries(
+      entries.map((entry) =>
+        entry.id === entryId
+          ? { ...entry, attachments: [...entry.attachments, ...newAttachments] }
+          : entry
+      )
+    );
+  };
+
+  const removeAttachment = (entryId: string, attachmentId: string) => {
+    setEntries(
+      entries.map((entry) =>
+        entry.id === entryId
+          ? { ...entry, attachments: entry.attachments.filter((a) => a.id !== attachmentId) }
+          : entry
+      )
+    );
   };
 
   const removeEntry = (id: string) => {
@@ -240,7 +314,48 @@ export const BulkOperationForm = ({
         folderId: targetFolderId || undefined,
       }));
 
-      await passwordService.bulkCreate(passwordsData);
+      const result = await passwordService.bulkCreate(passwordsData);
+
+      // If we have attachments and S3 is configured, upload them
+      if (s3Uploader && result.created > 0) {
+        const companyName = (user as any)?.companyName || 'company';
+        
+        // Get the created password IDs from the response if available
+        // For now, we'll fetch the passwords and match by itemName
+        const response = await passwordService.getAll(1, 100, targetOrganizationId, [targetCollectionId], targetFolderId ? [targetFolderId] : []);
+        
+        for (const entry of entries) {
+          if (entry.attachments.length === 0) continue;
+          
+          // Find the created password by itemName
+          const createdPassword = response.passwords?.find(
+            (p: any) => p.itemName === entry.itemName
+          );
+          
+          if (!createdPassword) continue;
+
+          // Upload attachments for this password
+          for (const attachment of entry.attachments) {
+            try {
+              const uploadResult = await s3Uploader.uploadFile(
+                attachment.file,
+                companyName,
+                'attachments'
+              );
+
+              await passwordService.addAttachment(createdPassword._id, {
+                fileUrl: uploadResult.url,
+                fileName: uploadResult.fileName,
+                fileSize: uploadResult.size,
+                mimeType: uploadResult.mimeType,
+                s3Key: uploadResult.key,
+              });
+            } catch (uploadError) {
+              console.error('Failed to upload attachment:', uploadError);
+            }
+          }
+        }
+      }
 
       toast({
         title: 'Success',
@@ -271,6 +386,7 @@ export const BulkOperationForm = ({
         websiteUrls: [''],
         notes: '',
         isEditing: true,
+        attachments: [],
       },
     ]);
     setTargetOrganizationId('');
@@ -562,6 +678,55 @@ export const BulkOperationForm = ({
                               rows={2}
                             />
                           </div>
+
+                          {/* Attachments Section */}
+                          {s3Uploader && (
+                            <div className="space-y-2 md:col-span-2">
+                              <Label>Attachments</Label>
+                              <div className="space-y-2">
+                                <input
+                                  type="file"
+                                  multiple
+                                  ref={(el) => (fileInputRefs.current[entry.id] = el)}
+                                  onChange={(e) => handleFileSelect(entry.id, e.target.files)}
+                                  className="hidden"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => fileInputRefs.current[entry.id]?.click()}
+                                >
+                                  <Paperclip className="h-4 w-4 mr-2" />
+                                  Add Files
+                                </Button>
+                                {entry.attachments.length > 0 && (
+                                  <div className="space-y-1 mt-2">
+                                    {entry.attachments.map((att) => (
+                                      <div
+                                        key={att.id}
+                                        className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm"
+                                      >
+                                        <File className="h-4 w-4 flex-shrink-0" />
+                                        <span className="flex-1 truncate">{att.file.name}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {formatFileSize(att.file.size)}
+                                        </span>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => removeAttachment(entry.id, att.id)}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="space-y-2 text-sm">

@@ -6,6 +6,7 @@ interface User {
   email: string;
   role: 'master_admin' | 'company_super_admin' | 'company_user';
   companyId?: string;
+  companyName?: string;
   permissions?: {
     organizations?: string[];
     collections?: string[];

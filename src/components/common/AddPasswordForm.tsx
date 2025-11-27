@@ -18,14 +18,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw, Eye, EyeOff, Copy, Sparkles, X as LucideX } from 'lucide-react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { RefreshCw, Eye, EyeOff, Sparkles, X as LucideX, Paperclip, Upload, File, Loader2 } from 'lucide-react';
 import { passwordService } from '@/services/passwordService';
+import { companyService } from '@/services/companyService';
 import { folderService } from '@/services/folderService';
 import { collectionService } from '@/services/collectionService';
 import { organizationService } from '@/services/organizationService';
+import { S3Uploader, S3Config } from '@/lib/s3-client';
 import { useToast } from '@/hooks/use-toast';
 import PasswordGenerator from './PasswordGenerator';
 import UsernameGenerator from './UsernameGenerator';
+import AttachmentUpload from './AttachmentUpload';
+
+interface PendingFile {
+  file: File;
+  id: string;
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
 
 
@@ -76,6 +98,11 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
   const [loading, setLoading] = useState(false);
   // Track if we're initializing edit mode to prevent unnecessary refetches
   const isInitializingEdit = useRef(false);
+  // Attachment state for create mode
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [s3Uploader, setS3Uploader] = useState<S3Uploader | null>(null);
+  const [s3ConfigLoaded, setS3ConfigLoaded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<FormData>({
     itemName: '',
     username: '',
@@ -87,6 +114,52 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
     organizationId: '',
   });
   const { toast } = useToast();
+
+  // Load S3 config on dialog open
+  useEffect(() => {
+    const dialogOpen = open !== undefined ? open : isDialogOpen;
+    if (dialogOpen && !s3ConfigLoaded) {
+      const loadS3Config = async () => {
+        try {
+          const config = await companyService.getS3ConfigForUpload();
+          setS3Uploader(
+            new S3Uploader({
+              region: config.region,
+              bucket: config.bucket,
+              accessKey: config.accessKey,
+              secretKey: config.secretKey,
+              s3Url: config.s3Url,
+            })
+          );
+        } catch (error) {
+          console.log('S3 config not available');
+        } finally {
+          setS3ConfigLoaded(true);
+        }
+      };
+      loadS3Config();
+    }
+  }, [open, isDialogOpen, s3ConfigLoaded]);
+
+  // Handle file selection for create mode
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const newFiles: PendingFile[] = files.map((file) => ({
+      file,
+      id: crypto.randomUUID(),
+    }));
+
+    setPendingFiles((prev) => [...prev, ...newFiles]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removePendingFile = (id: string) => {
+    setPendingFiles((prev) => prev.filter((f) => f.id !== id));
+  };
 
   // Fetch all organizations (no pagination/search, robust to API shape)
   const fetchOrganizations = async () => {
@@ -247,6 +320,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
       // Reset options when dialog closes
       setCollectionOptions([]);
       setFolderOptions([]);
+      setPendingFiles([]); // Clear pending files when dialog closes
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isDialogOpen, sourceType, sourceId, isEditMode, password, initialPassword]);
@@ -431,7 +505,33 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
         });
       } else {
         // Create new password
-        await passwordService.create(submitData);
+        const createdPassword = await passwordService.create(submitData);
+        
+        // Upload pending attachments if any
+        if (pendingFiles.length > 0 && s3Uploader && createdPassword._id) {
+          const companyName = (user as any)?.companyName || 'company';
+          
+          for (const pendingFile of pendingFiles) {
+            try {
+              const uploadResult = await s3Uploader.uploadFile(
+                pendingFile.file,
+                companyName,
+                'attachments'
+              );
+
+              await passwordService.addAttachment(createdPassword._id, {
+                fileUrl: uploadResult.url,
+                fileName: uploadResult.fileName,
+                fileSize: uploadResult.size,
+                mimeType: uploadResult.mimeType,
+                s3Key: uploadResult.key,
+              });
+            } catch (uploadError) {
+              console.error('Failed to upload attachment:', uploadError);
+            }
+          }
+        }
+        
         toast({
           title: 'Success',
           description: 'Password created successfully',
@@ -449,6 +549,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
         collectionId: '',
         organizationId: '',
       });
+      setPendingFiles([]); // Clear pending files
       onSuccess?.();
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.message || 
@@ -676,6 +777,103 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
                 rows={3}
               />
             </div>
+
+            {/* Attachments Section */}
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="attachments">
+                <AccordionTrigger className="text-sm">
+                  <div className="flex items-center gap-2">
+                    <Paperclip className="h-4 w-4" />
+                    Attachments
+                    {!isEditMode && pendingFiles.length > 0 && (
+                      <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                        {pendingFiles.length}
+                      </span>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  {isEditMode && password?._id ? (
+                    // Edit mode - use full AttachmentUpload component
+                    <AttachmentUpload
+                      passwordId={password._id}
+                      existingAttachments={password.attachments || []}
+                      disabled={loading}
+                    />
+                  ) : (
+                    // Create mode - simple file picker
+                    <div className="space-y-3">
+                      {s3ConfigLoaded && s3Uploader ? (
+                        <>
+                          <div
+                            className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                              loading ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary cursor-pointer'
+                            }`}
+                            onClick={() => !loading && fileInputRef.current?.click()}
+                          >
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              multiple
+                              onChange={handleFileSelect}
+                              className="hidden"
+                              disabled={loading}
+                            />
+                            <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">
+                              Click to add files
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Files will be uploaded after saving
+                            </p>
+                          </div>
+
+                          {pendingFiles.length > 0 && (
+                            <div className="space-y-2">
+                              <span className="text-sm font-medium">
+                                Files to upload ({pendingFiles.length})
+                              </span>
+                              {pendingFiles.map((pf) => (
+                                <div
+                                  key={pf.id}
+                                  className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg"
+                                >
+                                  <File className="h-4 w-4 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm truncate">{pf.file.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatFileSize(pf.file.size)}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removePendingFile(pf.id)}
+                                    disabled={loading}
+                                  >
+                                    <LucideX className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : s3ConfigLoaded ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          S3 storage not configured. Contact your administrator.
+                        </p>
+                      ) : (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <span className="text-sm text-muted-foreground">Loading...</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (isEditMode ? 'Updating...' : 'Creating...') : isEditMode ? 'Update Login' : 'Save Login'}

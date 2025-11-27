@@ -1449,3 +1449,143 @@ export const bulkMovePasswords = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+
+// Attachment management
+export const addAttachment = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { id: userId, companyId } = req.user;
+    const passwordId = req.params.id;
+    const { fileUrl, fileName, fileSize, mimeType, s3Key } = req.body;
+
+    if (!fileUrl || !fileName || !s3Key) {
+      return res.status(400).json({ message: 'File URL, file name, and S3 key are required' });
+    }
+
+    const password = await Password.findOne({
+      _id: new mongoose.Types.ObjectId(passwordId),
+      companyId: new mongoose.Types.ObjectId(companyId as any),
+    });
+
+    if (!password) {
+      return res.status(404).json({ message: 'Password not found' });
+    }
+
+    const attachment = {
+      fileUrl,
+      fileName,
+      fileSize: fileSize || 0,
+      mimeType: mimeType || 'application/octet-stream',
+      s3Key,
+      uploadedAt: new Date(),
+    };
+
+    password.attachments.push(attachment);
+    await password.save();
+
+    // Create log entry
+    try {
+      const userInfo = await getUserInfo(req.user!.role, userId, req.user!.email);
+      const log = new PasswordLog({
+        passwordId: password._id,
+        action: 'update',
+        field: 'attachments',
+        performedBy: userId,
+        performedByName: userInfo.name,
+        performedByEmail: userInfo.email,
+        details: `Attachment "${fileName}" added`,
+      });
+      await log.save();
+    } catch (logError) {
+      console.error('Failed to create attachment log:', logError);
+    }
+
+    res.json({ message: 'Attachment added successfully', attachment });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const deleteAttachment = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { id: userId, companyId } = req.user;
+    const { id: passwordId, attachmentId } = req.params;
+
+    const password = await Password.findOne({
+      _id: new mongoose.Types.ObjectId(passwordId),
+      companyId: new mongoose.Types.ObjectId(companyId as any),
+    });
+
+    if (!password) {
+      return res.status(404).json({ message: 'Password not found' });
+    }
+
+    const attachmentIndex = password.attachments.findIndex(
+      (att: any) => att._id.toString() === attachmentId
+    );
+
+    if (attachmentIndex === -1) {
+      return res.status(404).json({ message: 'Attachment not found' });
+    }
+
+    const deletedAttachment = password.attachments[attachmentIndex];
+    password.attachments.splice(attachmentIndex, 1);
+    await password.save();
+
+    // Create log entry
+    try {
+      const userInfo = await getUserInfo(req.user!.role, userId, req.user!.email);
+      const log = new PasswordLog({
+        passwordId: password._id,
+        action: 'update',
+        field: 'attachments',
+        performedBy: userId,
+        performedByName: userInfo.name,
+        performedByEmail: userInfo.email,
+        details: `Attachment "${deletedAttachment.fileName}" deleted`,
+      });
+      await log.save();
+    } catch (logError) {
+      console.error('Failed to create attachment delete log:', logError);
+    }
+
+    res.json({ 
+      message: 'Attachment deleted successfully', 
+      s3Key: deletedAttachment.s3Key 
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getAttachments = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { companyId } = req.user;
+    const passwordId = req.params.id;
+
+    const password = await Password.findOne({
+      _id: new mongoose.Types.ObjectId(passwordId),
+      companyId: new mongoose.Types.ObjectId(companyId as any),
+    }).select('attachments');
+
+    if (!password) {
+      return res.status(404).json({ message: 'Password not found' });
+    }
+
+    res.json({ attachments: password.attachments });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};

@@ -8,6 +8,9 @@ import {
   generatePasswordHandler,
   bulkCreatePasswords,
   bulkMovePasswords,
+  addAttachment,
+  deleteAttachment,
+  getAttachments,
 } from '../controllers/passwordController';
 import { authenticate } from '../middleware/auth';
 
@@ -23,5 +26,10 @@ router.post('/bulk-move', bulkMovePasswords);
 router.put('/:id', updatePassword);
 router.delete('/:id', softDeletePassword);
 router.post('/generate', generatePasswordHandler);
+
+// Attachment routes
+router.get('/:id/attachments', getAttachments);
+router.post('/:id/attachments', addAttachment);
+router.delete('/:id/attachments/:attachmentId', deleteAttachment);
 
 export default router;

@@ -255,7 +255,42 @@ export const companyService = {
   }> => {
     const response = await api.get('/company/analytics/password-stats');
     return response.data;
-  }
+  },
+
+  // S3 Configuration
+  getS3Config: async (): Promise<{
+    accessKey: string;
+    secretKey: string;
+    region: string;
+    bucket: string;
+    s3Url: string;
+    hasSecretKey: boolean;
+  }> => {
+    const response = await api.get('/company/s3-config');
+    return response.data;
+  },
+
+  updateS3Config: async (config: {
+    accessKey: string;
+    secretKey: string;
+    region: string;
+    bucket: string;
+    s3Url?: string;
+  }): Promise<{ message: string }> => {
+    const response = await api.put('/company/s3-config', config);
+    return response.data;
+  },
+
+  getS3ConfigForUpload: async (): Promise<{
+    accessKey: string;
+    secretKey: string;
+    region: string;
+    bucket: string;
+    s3Url: string;
+  }> => {
+    const response = await api.get('/company/s3-config/upload');
+    return response.data;
+  },
 };
 
 

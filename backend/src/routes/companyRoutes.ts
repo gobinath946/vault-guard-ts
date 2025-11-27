@@ -12,7 +12,10 @@ import {
   getOrganizations,
   getCollections,
   getFolders,
-  getDashboardStats
+  getDashboardStats,
+  getS3Config,
+  updateS3Config,
+  getS3ConfigForUpload
 } from '../controllers/companyController';
 import { authenticate } from '../middleware/auth';
 
@@ -37,5 +40,10 @@ router.patch('/users/:id/permissions',updatePermissions);
 router.get('/organizations', getOrganizations);
 router.get('/organizations/:organizationId/collections',  getCollections);
 router.get('/organizations/:organizationId/folders',  getFolders);
+
+// S3 Configuration routes
+router.get('/s3-config', getS3Config);
+router.put('/s3-config', updateS3Config);
+router.get('/s3-config/upload', getS3ConfigForUpload);
 
 export default router;

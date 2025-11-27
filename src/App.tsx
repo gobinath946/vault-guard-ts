@@ -10,6 +10,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Companies from "./pages/Companies";
 import Settings from "./pages/Settings";
+import CompanySettings from "./pages/CompanySettings";
 import Users from "./pages/Users";
 import Folders from "./pages/Folders";
 import Collections from "./pages/Collections";
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/organization" element={<Organization />} />
             <Route path="/password-creation" element={<PasswordCreation />} />
             <Route path="/trash" element={<Trash />} />
+            <Route path="/company-settings" element={<CompanySettings />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

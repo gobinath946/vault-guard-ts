@@ -1,5 +1,13 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+export interface IS3Config {
+  accessKey: string;
+  secretKey: string;
+  region: string;
+  bucket: string;
+  s3Url?: string;
+}
+
 export interface ICompany extends Document {
   companyName: string;
   email: string;
@@ -12,6 +20,7 @@ export interface ICompany extends Document {
   password: string;
   role: 'company_super_admin';
   isActive: boolean;
+  s3Config?: IS3Config;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +76,13 @@ const companySchema = new Schema<ICompany>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    s3Config: {
+      accessKey: { type: String, default: '' },
+      secretKey: { type: String, default: '' },
+      region: { type: String, default: '' },
+      bucket: { type: String, default: '' },
+      s3Url: { type: String, default: '' },
     },
   },
   {

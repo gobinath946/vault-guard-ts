@@ -6,6 +6,7 @@ import Password from '../models/Password';
 import Organization from '../models/Organization';
 import Collection from '../models/Collection';
 import Folder from '../models/Folder';
+import Company from '../models/Company';
 import { AuthRequest } from '../middleware/auth';
 
 export const getDashboard = async (req: AuthRequest, res: Response) => {
@@ -729,6 +730,110 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       recentUsers,
       passwordPerUser: totalUsers > 0 ? (totalPasswords / totalUsers).toFixed(1) : 0,
       activeUserRate: totalUsers > 0 ? ((activeUsers / totalUsers) * 100).toFixed(1) : 0
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// S3 Configuration methods
+export const getS3Config = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+    
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Only company super admin can access S3 configuration' });
+    }
+
+    const company = await Company.findById(id).select('s3Config');
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    // Return config without secret key for security (mask it)
+    const config = company.s3Config || { accessKey: '', secretKey: '', region: '', bucket: '', s3Url: '' };
+    res.json({
+      accessKey: config.accessKey || '',
+      secretKey: config.secretKey ? '********' : '',
+      region: config.region || '',
+      bucket: config.bucket || '',
+      s3Url: config.s3Url || '',
+      hasSecretKey: !!config.secretKey,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateS3Config = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+    
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Only company super admin can update S3 configuration' });
+    }
+
+    const { accessKey, secretKey, region, bucket, s3Url } = req.body;
+
+    // Validate required fields
+    if (!accessKey || !region || !bucket) {
+      return res.status(400).json({ message: 'Access key, region, and bucket are required' });
+    }
+
+    const company = await Company.findById(id);
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    // Update S3 config - only update secretKey if provided (not masked value)
+    const updateData: any = {
+      's3Config.accessKey': accessKey,
+      's3Config.region': region,
+      's3Config.bucket': bucket,
+      's3Config.s3Url': s3Url || '',
+    };
+
+    // Only update secret key if a new one is provided (not the masked value)
+    if (secretKey && secretKey !== '********') {
+      updateData['s3Config.secretKey'] = secretKey;
+    }
+
+    await Company.findByIdAndUpdate(id, { $set: updateData });
+
+    res.json({ message: 'S3 configuration updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getS3ConfigForUpload = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role, companyId } = req.user!;
+    
+    // Get the actual company ID based on role
+    const actualCompanyId = role === 'company_super_admin' ? id : companyId;
+    
+    if (!actualCompanyId) {
+      return res.status(400).json({ message: 'Company ID not found' });
+    }
+
+    const company = await Company.findById(actualCompanyId).select('s3Config');
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    const config = company.s3Config;
+    if (!config || !config.accessKey || !config.secretKey || !config.bucket) {
+      return res.status(404).json({ message: 'S3 configuration not found or incomplete' });
+    }
+
+    // Return full config for upload (including secret key)
+    res.json({
+      accessKey: config.accessKey,
+      secretKey: config.secretKey,
+      region: config.region,
+      bucket: config.bucket,
+      s3Url: config.s3Url || `https://${config.bucket}.s3.${config.region}.amazonaws.com`,
     });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
