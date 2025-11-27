@@ -32,9 +32,16 @@ const Login = () => {
       email: '',
       password: '',
     },
+    shouldUnregister: false, // Prevent form from resetting on unmount/error
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
   });
 
   const onSubmit = async (data: LoginFormData) => {
+    // Preserve the form values before attempting login
+    const preservedEmail = data.email;
+    const preservedPassword = data.password;
+    
     try {
       setIsLoading(true);
       console.debug('Login form submitted:', data);
@@ -66,9 +73,14 @@ const Login = () => {
       }
     } catch (error: any) {
       console.error('Login error:', error);
+      
+      // Explicitly restore form values to prevent reset
+      form.setValue('email', preservedEmail, { shouldValidate: false });
+      form.setValue('password', preservedPassword, { shouldValidate: false });
+      
       toast({
         title: 'Error',
-        description: error.response?.data?.message || 'Login failed',
+        description: error.message || error.response?.data?.message || 'Login failed',
         variant: 'destructive',
       });
     } finally {
@@ -94,7 +106,9 @@ const Login = () => {
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+                console.log('Form validation errors:', errors);
+              })} className="space-y-4">
                 <FormField
                   control={form.control}
                   name="email"

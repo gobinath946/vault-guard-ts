@@ -26,8 +26,8 @@ import { organizationService } from '@/services/organizationService';
 import { useToast } from '@/hooks/use-toast';
 import PasswordGenerator from './PasswordGenerator';
 import UsernameGenerator from './UsernameGenerator';
-import { FileUpload } from './FileUpload';
-import { UploadedFile } from '@/services/uploadService';
+
+
 
 interface AddPasswordFormProps {
   trigger?: React.ReactNode;
@@ -47,7 +47,6 @@ interface FormData {
   password: string;
   websiteUrls: string[];
   notes: string;
-  attachments: UploadedFile[];
   folderId: string;
   collectionId: string;
   organizationId: string;
@@ -83,7 +82,6 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
     password: '',
     websiteUrls: [''],
     notes: '',
-    attachments: [],
     folderId: '',
     collectionId: '',
     organizationId: '',
@@ -205,7 +203,6 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
           password: password.password || '',
           websiteUrls: password.websiteUrls && password.websiteUrls.length > 0 ? password.websiteUrls : [''],
           notes: password.notes || '',
-          attachments: password.attachments || [],
           folderId: folderId,
           collectionId: colId,
           organizationId: orgId,
@@ -239,7 +236,6 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
           password: initialPassword || '',
           websiteUrls: [''],
           notes: '',
-          attachments: [],
           folderId: '',
           collectionId: '',
           organizationId: '',
@@ -449,7 +445,6 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
         password: '',
         websiteUrls: [''],
         notes: '',
-        attachments: [],
         folderId: '',
         collectionId: '',
         organizationId: '',
@@ -671,13 +666,6 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
               </div>
             </div>
 
-            <div>
-              <Label>Attachments (Optional)</Label>
-              <FileUpload
-                attachments={formData.attachments}
-                onAttachmentsChange={(attachments) => setFormData({ ...formData, attachments })}
-              />
-            </div>
 
             <div>
               <Label>Notes</Label>
