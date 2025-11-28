@@ -5,6 +5,7 @@ import Company from '../models/Company';
 import User from '../models/User';
 import MasterAdmin from '../models/MasterAdmin';
 import { AuthRequest } from '../middleware/auth';
+import { logLoginActivity, getClientIP } from '../utils/auditLogger';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -98,6 +99,27 @@ export const login = async (req: Request, res: Response) => {
       process.env.JWT_SECRET || 'secret',
       { expiresIn: '7d' }
     );
+
+    // Log login activity with IP and location
+    const ipAddress = getClientIP(req);
+    const userAgent = req.headers['user-agent'];
+    const userName = role === 'master_admin' 
+      ? user.email 
+      : role === 'company_super_admin' 
+        ? user.contactName || user.companyName 
+        : user.username || user.email;
+    const companyId = role === 'company_user' ? user.companyId._id : user._id;
+
+    // Log asynchronously without blocking the response
+    logLoginActivity(
+      user._id.toString(),
+      user.email,
+      userName,
+      role,
+      companyId.toString(),
+      ipAddress,
+      userAgent
+    ).catch(err => console.error('Failed to log login activity:', err));
 
     res.json({
       token,

@@ -24,6 +24,7 @@ import {
 import { folderService } from "@/services/folderService";
 import { collectionService } from "@/services/collectionService";
 import { companyService } from "@/services/companyService";
+import { auditService } from "@/services/auditService";
 import MultiSelectDropdown from "@/components/common/MultiSelectDropdown";
 import AddPasswordForm from "@/components/common/AddPasswordForm";
 import PasswordGenerator from "@/components/common/PasswordGenerator";
@@ -533,6 +534,12 @@ const Password = () => {
         const decrypted = await passwordService.getById(id);
         setPasswords((prev) => prev.map((p) => (p._id === id ? decrypted : p)));
         setVisiblePasswords((prev) => new Set(prev).add(id));
+        
+        // Log view password action
+        const password = passwords.find(p => p._id === id);
+        if (password) {
+          auditService.logViewPassword(id, password.itemName);
+        }
       } catch (error: any) {
         toast({
           title: "Error",
@@ -561,6 +568,12 @@ const Password = () => {
         const decrypted = await passwordService.getById(id);
         setPasswords((prev) => prev.map((p) => (p._id === id ? decrypted : p)));
         setVisibleUsernames((prev) => new Set(prev).add(id));
+        
+        // Log view username action
+        const password = passwords.find(p => p._id === id);
+        if (password) {
+          auditService.logViewUsername(id, password.itemName);
+        }
       } catch (error) {
         toast({
           title: "Error",
@@ -577,19 +590,34 @@ const Password = () => {
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
+  const copyToClipboard = (text: string, label: string, passwordId?: string, passwordName?: string) => {
     navigator.clipboard.writeText(text);
     toast({
       title: "Copied",
       description: `${label} copied to clipboard`,
     });
+    
+    // Log copy action if password context is provided
+    if (passwordId && passwordName) {
+      if (label === "Username") {
+        auditService.logCopyUsername(passwordId, passwordName);
+      } else if (label === "Password") {
+        auditService.logCopyPassword(passwordId, passwordName);
+      }
+    }
   };
+
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   const viewLogs = async (password: Password) => {
     try {
-      const passwordWithLogs = await passwordService.getById(password._id);
+      const [passwordWithLogs, auditLogsData] = await Promise.all([
+        passwordService.getById(password._id),
+        auditService.getPasswordAuditLogs(password._id),
+      ]);
       setSelectedPassword(password);
       setSelectedLogs(passwordWithLogs.logs || []);
+      setAuditLogs(auditLogsData || []);
       setIsLogsOpen(true);
     } catch (error: any) {
       toast({
@@ -917,7 +945,7 @@ const Password = () => {
                             size="sm"
                             variant="ghost"
                             onClick={() =>
-                              copyToClipboard(password.username, "Username")
+                              copyToClipboard(password.username, "Username", password._id, password.itemName)
                             }
                           >
                             <Copy className="h-3 w-3" />
@@ -942,7 +970,7 @@ const Password = () => {
                             size="sm"
                             variant="ghost"
                             onClick={() =>
-                              copyToClipboard(password.password, "Password")
+                              copyToClipboard(password.password, "Password", password._id, password.itemName)
                             }
                           >
                             <Copy className="h-3 w-3" />
@@ -1236,17 +1264,98 @@ const Password = () => {
 
       {/* Logs Dialog */}
       <Dialog open={isLogsOpen} onOpenChange={setIsLogsOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Password Activity Logs</DialogTitle>
             <p className="text-sm text-muted-foreground">
-              {selectedPassword?.itemName} - Complete history of changes
+              {selectedPassword?.itemName} - Complete history of changes and access
             </p>
           </DialogHeader>
+          
+          {/* Audit Logs Section */}
           <div className="space-y-4">
+            <div className="border-b pb-2">
+              <h3 className="text-lg font-semibold">Audit Trail</h3>
+              <p className="text-xs text-muted-foreground">
+                Detailed access logs including IP addresses and locations
+              </p>
+            </div>
+            {auditLogs.length === 0 ? (
+              <p className="text-center text-muted-foreground py-4">
+                No audit logs found
+              </p>
+            ) : (
+              auditLogs.map((log) => (
+                <div key={log._id} className="border rounded-lg p-4 space-y-2 bg-slate-50">
+                  <div className="flex items-center justify-between">
+                    <Badge
+                      variant={
+                        log.action === "login"
+                          ? "default"
+                          : log.action.includes("view")
+                          ? "secondary"
+                          : log.action.includes("copy")
+                          ? "outline"
+                          : "destructive"
+                      }
+                    >
+                      {log.action.replace(/_/g, " ").toUpperCase()}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      {new Date(log.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <strong>User:</strong> {log.userName} ({log.userEmail})
+                    </div>
+                    <div>
+                      <strong>IP Address:</strong> {log.ipAddress}
+                    </div>
+                    {log.location && (log.location.city || log.location.country) && (
+                      <div className="col-span-2">
+                        <strong>Location:</strong>{" "}
+                        {[log.location.city, log.location.region, log.location.country]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </div>
+                    )}
+                    {log.changes && log.changes.length > 0 && (
+                      <div className="col-span-2">
+                        <strong>Changes:</strong>
+                        <ul className="list-disc list-inside ml-2">
+                          {log.changes.map((change: any, idx: number) => (
+                            <li key={idx}>
+                              {change.field}
+                              {change.oldValue && change.newValue && (
+                                <span className="text-xs text-muted-foreground">
+                                  {" "}
+                                  (from "{change.oldValue}" to "{change.newValue}")
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Password Change Logs Section */}
+          <div className="space-y-4 mt-6">
+            <div className="border-b pb-2">
+              <h3 className="text-lg font-semibold">Change History</h3>
+              <p className="text-xs text-muted-foreground">
+                Record of password modifications
+              </p>
+            </div>
             {selectedLogs.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No activity logs found
+              <p className="text-center text-muted-foreground py-4">
+                No change logs found
               </p>
             ) : (
               selectedLogs.map((log, index) => (

@@ -113,7 +113,41 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
     collectionId: '',
     organizationId: '',
   });
+  
+  // Track original values for change detection in edit mode
+  const [originalFormData, setOriginalFormData] = useState<FormData | null>(null);
+  
   const { toast } = useToast();
+  
+  // Check if form has changes (for edit mode)
+  const hasChanges = () => {
+    if (!isEditMode || !originalFormData) return true; // Always allow save in create mode
+    
+    // Compare each field
+    const itemNameChanged = formData.itemName !== originalFormData.itemName;
+    const usernameChanged = formData.username !== originalFormData.username;
+    const passwordChanged = formData.password !== originalFormData.password;
+    const notesChanged = formData.notes !== originalFormData.notes;
+    const folderChanged = formData.folderId !== originalFormData.folderId;
+    const collectionChanged = formData.collectionId !== originalFormData.collectionId;
+    const organizationChanged = formData.organizationId !== originalFormData.organizationId;
+    
+    // Compare website URLs
+    const websiteUrlsChanged = 
+      formData.websiteUrls.length !== originalFormData.websiteUrls.length ||
+      formData.websiteUrls.some((url, index) => url !== originalFormData.websiteUrls[index]);
+    
+    return (
+      itemNameChanged ||
+      usernameChanged ||
+      passwordChanged ||
+      notesChanged ||
+      folderChanged ||
+      collectionChanged ||
+      organizationChanged ||
+      websiteUrlsChanged
+    );
+  };
 
   // Load S3 config on dialog open
   useEffect(() => {
@@ -270,7 +304,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
           : '';
         
         // Pre-populate ALL form fields with password data
-        setFormData({
+        const initialData = {
           itemName: password.itemName || '',
           username: password.username || '',
           password: password.password || '',
@@ -279,7 +313,11 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
           folderId: folderId,
           collectionId: colId,
           organizationId: orgId,
-        });
+        };
+        
+        setFormData(initialData);
+        // Store original data for change detection
+        setOriginalFormData(JSON.parse(JSON.stringify(initialData)));
         
         // Fetch collections and folders in background
         // Do this immediately to ensure they're available when dialog renders
@@ -313,6 +351,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
           collectionId: '',
           organizationId: '',
         });
+        setOriginalFormData(null); // Clear original data in create mode
         setCollectionOptions([]);
         setFolderOptions([]);
       }
@@ -321,6 +360,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
       setCollectionOptions([]);
       setFolderOptions([]);
       setPendingFiles([]); // Clear pending files when dialog closes
+      setOriginalFormData(null); // Clear original data when dialog closes
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isDialogOpen, sourceType, sourceId, isEditMode, password, initialPassword]);
@@ -488,6 +528,17 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
   }, [folderOptions, isEditMode, password]);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // In edit mode, check if there are any changes
+    if (isEditMode && !hasChanges()) {
+      toast({
+        title: 'No Changes',
+        description: 'No changes were made to the password. Please modify at least one field or click Cancel.',
+        variant: 'default',
+      });
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -497,7 +548,7 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
         sourceType, // Add source type flag
       };
       if (isEditMode && password && password._id) {
-        // Update existing password
+        // Update existing password - only if there are changes
         await passwordService.update(password._id, submitData);
         toast({
           title: 'Success',
@@ -875,9 +926,18 @@ const AddPasswordForm: React.FC<AddPasswordFormProps> = ({
               </AccordionItem>
             </Accordion>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={loading || (isEditMode && !hasChanges())}
+            >
               {loading ? (isEditMode ? 'Updating...' : 'Creating...') : isEditMode ? 'Update Login' : 'Save Login'}
             </Button>
+            {isEditMode && !hasChanges() && (
+              <p className="text-sm text-muted-foreground text-center -mt-2">
+                No changes detected. Modify at least one field to enable update.
+              </p>
+            )}
           </form>
         </DialogContent>
       </Dialog>

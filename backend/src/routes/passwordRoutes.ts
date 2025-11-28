@@ -11,6 +11,11 @@ import {
   addAttachment,
   deleteAttachment,
   getAttachments,
+  logViewUsername,
+  logCopyUsername,
+  logViewPassword,
+  logCopyPassword,
+  getPasswordAuditLogs,
 } from '../controllers/passwordController';
 import { authenticate } from '../middleware/auth';
 
@@ -31,5 +36,12 @@ router.post('/generate', generatePasswordHandler);
 router.get('/:id/attachments', getAttachments);
 router.post('/:id/attachments', addAttachment);
 router.delete('/:id/attachments/:attachmentId', deleteAttachment);
+
+// Audit logging routes
+router.post('/audit/view-username', logViewUsername);
+router.post('/audit/copy-username', logCopyUsername);
+router.post('/audit/view-password', logViewPassword);
+router.post('/audit/copy-password', logCopyPassword);
+router.get('/:id/audit-logs', getPasswordAuditLogs);
 
 export default router;

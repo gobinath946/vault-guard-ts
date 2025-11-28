@@ -12,6 +12,12 @@ import Organization from '../models/Organization';
 import { AuthRequest } from '../middleware/auth';
 import { encrypt, decrypt } from '../utils/encryption';
 import { generatePassword } from '../utils/passwordGenerator';
+import { 
+  logPasswordActivity, 
+  logPasswordEdit, 
+  getClientIP,
+  getAuditLogsForResource 
+} from '../utils/auditLogger';
 
 // Helper function to get user info by role and ID
 const getUserInfo = async (role: string, id: string, email: string) => {
@@ -1001,6 +1007,31 @@ export const updatePassword = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Log to audit system if there are actual changes
+    if (logEntries.length > 0) {
+      const ipAddress = getClientIP(req);
+      const userAgent = req.headers['user-agent'];
+      
+      const auditChanges = logEntries.map(entry => ({
+        field: entry.field,
+        oldValue: entry.oldValue,
+        newValue: entry.newValue,
+      }));
+
+      logPasswordEdit(
+        userId,
+        req.user!.email,
+        userInfo.name,
+        role,
+        companyId,
+        (updatedPassword._id as any).toString(),
+        updatedPassword.itemName,
+        auditChanges,
+        ipAddress,
+        userAgent
+      ).catch(err => console.error('Failed to log password edit:', err));
+    }
+
     res.json(updatedPassword);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -1589,3 +1620,264 @@ export const getAttachments = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Audit logging endpoints
+
+/**
+ * Log when a user views a username
+ */
+export const logViewUsername = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { id: userId, email, role, companyId } = req.user;
+    const { passwordId, passwordName } = req.body;
+
+    if (!passwordId || !passwordName) {
+      return res.status(400).json({ message: 'Password ID and name are required' });
+    }
+
+    const ipAddress = getClientIP(req);
+    const userAgent = req.headers['user-agent'];
+    
+    // Get user name
+    const userName = await getUserName(role, userId);
+
+    // Log asynchronously
+    logPasswordActivity(
+      userId,
+      email,
+      userName,
+      role,
+      companyId!,
+      'view_username',
+      passwordId,
+      passwordName,
+      ipAddress,
+      userAgent
+    ).catch(err => console.error('Failed to log view username:', err));
+
+    res.json({ message: 'Activity logged' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Log when a user copies a username
+ */
+export const logCopyUsername = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { id: userId, email, role, companyId } = req.user;
+    const { passwordId, passwordName } = req.body;
+
+    if (!passwordId || !passwordName) {
+      return res.status(400).json({ message: 'Password ID and name are required' });
+    }
+
+    const ipAddress = getClientIP(req);
+    const userAgent = req.headers['user-agent'];
+    
+    const userName = await getUserName(role, userId);
+
+    logPasswordActivity(
+      userId,
+      email,
+      userName,
+      role,
+      companyId!,
+      'copy_username',
+      passwordId,
+      passwordName,
+      ipAddress,
+      userAgent
+    ).catch(err => console.error('Failed to log copy username:', err));
+
+    res.json({ message: 'Activity logged' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Log when a user views a password
+ */
+export const logViewPassword = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { id: userId, email, role, companyId } = req.user;
+    const { passwordId, passwordName } = req.body;
+
+    if (!passwordId || !passwordName) {
+      return res.status(400).json({ message: 'Password ID and name are required' });
+    }
+
+    const ipAddress = getClientIP(req);
+    const userAgent = req.headers['user-agent'];
+    
+    const userName = await getUserName(role, userId);
+
+    logPasswordActivity(
+      userId,
+      email,
+      userName,
+      role,
+      companyId!,
+      'view_password',
+      passwordId,
+      passwordName,
+      ipAddress,
+      userAgent
+    ).catch(err => console.error('Failed to log view password:', err));
+
+    res.json({ message: 'Activity logged' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Log when a user copies a password
+ */
+export const logCopyPassword = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const { id: userId, email, role, companyId } = req.user;
+    const { passwordId, passwordName } = req.body;
+
+    if (!passwordId || !passwordName) {
+      return res.status(400).json({ message: 'Password ID and name are required' });
+    }
+
+    const ipAddress = getClientIP(req);
+    const userAgent = req.headers['user-agent'];
+    
+    const userName = await getUserName(role, userId);
+
+    logPasswordActivity(
+      userId,
+      email,
+      userName,
+      role,
+      companyId!,
+      'copy_password',
+      passwordId,
+      passwordName,
+      ipAddress,
+      userAgent
+    ).catch(err => console.error('Failed to log copy password:', err));
+
+    res.json({ message: 'Activity logged' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Get audit logs for a specific password
+ */
+export const getPasswordAuditLogs = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User authentication required' });
+    }
+
+    const passwordId = req.params.id;
+    const limit = parseInt(req.query.limit as string) || 100;
+
+    if (!passwordId) {
+      return res.status(400).json({ message: 'Password ID is required' });
+    }
+
+    // Verify user has access to this password
+    const { role, id: userId, companyId } = req.user;
+    let accessQuery: any = { _id: new mongoose.Types.ObjectId(passwordId) };
+    
+    if (role === 'master_admin') {
+      // Master admin can access any password
+    } else if (role === 'company_super_admin') {
+      accessQuery.companyId = new mongoose.Types.ObjectId(userId);
+    } else if (role === 'company_user') {
+      const user = await User.findById(userId);
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'User account is inactive or not found' });
+      }
+
+      const orgIds = (user.permissions?.organizations || []).map((oid: any) => 
+        oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid)
+      ).filter(Boolean);
+      
+      const colIds = (user.permissions?.collections || []).map((cid: any) => 
+        cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid)
+      ).filter(Boolean);
+      
+      const folderIds = (user.permissions?.folders || []).map((fid: any) => 
+        fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid)
+      ).filter(Boolean);
+
+      const orFilters: any[] = [];
+      if (orgIds.length > 0) {
+        orFilters.push({ organizationId: { $in: orgIds } });
+      }
+      if (colIds.length > 0) {
+        orFilters.push({ collectionId: { $in: colIds } });
+      }
+      if (folderIds.length > 0) {
+        orFilters.push({ folderId: { $in: folderIds } });
+      }
+      
+      accessQuery = {
+        _id: new mongoose.Types.ObjectId(passwordId),
+        companyId: new mongoose.Types.ObjectId(companyId as any),
+        $or: [
+          { createdBy: new mongoose.Types.ObjectId(userId) },
+          { sharedWith: new mongoose.Types.ObjectId(userId) },
+          ...(orFilters.length > 0 ? orFilters : []),
+        ],
+      };
+    }
+
+    const password = await Password.findOne(accessQuery);
+    if (!password) {
+      return res.status(404).json({ message: 'Password not found or access denied' });
+    }
+
+    // Get audit logs
+    const auditLogs = await getAuditLogsForResource(passwordId, limit);
+
+    res.json({ auditLogs });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Helper function to get user name
+async function getUserName(role: string, userId: string): Promise<string> {
+  try {
+    if (role === 'master_admin') {
+      const admin = await MasterAdmin.findById(userId);
+      return admin ? admin.email : 'Master Admin';
+    } else if (role === 'company_super_admin') {
+      const company = await Company.findById(userId);
+      return company ? (company.contactName || company.companyName) : 'Company Admin';
+    } else if (role === 'company_user') {
+      const user = await User.findById(userId);
+      return user ? (user.username || user.email) : 'User';
+    }
+  } catch (error) {
+    console.error('Error fetching user name:', error);
+  }
+  return 'Unknown User';
+}
