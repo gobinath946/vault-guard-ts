@@ -415,7 +415,39 @@ const Password = () => {
 
       setIsDialogOpen(false);
       resetForm();
-      fetchData();
+      
+      // Store currently visible passwords before refetching
+      const currentlyVisiblePasswords = new Set(visiblePasswords);
+      const currentlyVisibleUsernames = new Set(visibleUsernames);
+      
+      await fetchData();
+      
+      // Re-decrypt visible passwords after fetch
+      if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
+        const decryptPromises = Array.from(new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames])).map(async (id) => {
+          try {
+            const decrypted = await passwordService.getById(id);
+            return { id, decrypted };
+          } catch (error) {
+            return { id, decrypted: null };
+          }
+        });
+        
+        const results = await Promise.all(decryptPromises);
+        
+        setPasswords((prev) => {
+          const updated = [...prev];
+          results.forEach(({ id, decrypted }) => {
+            if (decrypted) {
+              const index = updated.findIndex((p) => p._id === id);
+              if (index !== -1) {
+                updated[index] = decrypted;
+              }
+            }
+          });
+          return updated;
+        });
+      }
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message ||
@@ -440,7 +472,54 @@ const Password = () => {
       });
       setIsDeleteDialogOpen(false);
       setPasswordToDelete(null);
-      fetchData();
+      
+      // Remove deleted password from visible sets
+      setVisiblePasswords((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+      setVisibleUsernames((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+      
+      // Store currently visible passwords before refetching
+      const currentlyVisiblePasswords = new Set(visiblePasswords);
+      const currentlyVisibleUsernames = new Set(visibleUsernames);
+      
+      await fetchData();
+      
+      // Re-decrypt visible passwords after fetch (excluding the deleted one)
+      const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
+      allVisible.delete(id); // Remove the deleted password
+      
+      if (allVisible.size > 0) {
+        const decryptPromises = Array.from(allVisible).map(async (passwordId) => {
+          try {
+            const decrypted = await passwordService.getById(passwordId);
+            return { id: passwordId, decrypted };
+          } catch (error) {
+            return { id: passwordId, decrypted: null };
+          }
+        });
+        
+        const results = await Promise.all(decryptPromises);
+        
+        setPasswords((prev) => {
+          const updated = [...prev];
+          results.forEach(({ id: passwordId, decrypted }) => {
+            if (decrypted) {
+              const index = updated.findIndex((p) => p._id === passwordId);
+              if (index !== -1) {
+                updated[index] = decrypted;
+              }
+            }
+          });
+          return updated;
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -740,7 +819,41 @@ const Password = () => {
                 </Button>
               }
               sourceType="organization"
-              onSuccess={fetchData}
+              onSuccess={async () => {
+                // Store currently visible passwords before refetching
+                const currentlyVisiblePasswords = new Set(visiblePasswords);
+                const currentlyVisibleUsernames = new Set(visibleUsernames);
+                
+                await fetchData();
+                
+                // Re-decrypt visible passwords after fetch
+                if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
+                  const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
+                  const decryptPromises = Array.from(allVisible).map(async (id) => {
+                    try {
+                      const decrypted = await passwordService.getById(id);
+                      return { id, decrypted };
+                    } catch (error) {
+                      return { id, decrypted: null };
+                    }
+                  });
+                  
+                  const results = await Promise.all(decryptPromises);
+                  
+                  setPasswords((prev) => {
+                    const updated = [...prev];
+                    results.forEach(({ id, decrypted }) => {
+                      if (decrypted) {
+                        const index = updated.findIndex((p) => p._id === id);
+                        if (index !== -1) {
+                          updated[index] = decrypted;
+                        }
+                      }
+                    });
+                    return updated;
+                  });
+                }
+              }}
             />
           </div>
           {/* Edit Password Dialog - Always render but conditionally open */}
@@ -753,8 +866,41 @@ const Password = () => {
               setIsEditMode(open);
               if (!open) setEditingPassword(null);
             }}
-            onSuccess={() => {
-              fetchData();
+            onSuccess={async () => {
+              // Store currently visible passwords before refetching
+              const currentlyVisiblePasswords = new Set(visiblePasswords);
+              const currentlyVisibleUsernames = new Set(visibleUsernames);
+              
+              await fetchData();
+              
+              // Re-decrypt visible passwords after fetch
+              if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
+                const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
+                const decryptPromises = Array.from(allVisible).map(async (id) => {
+                  try {
+                    const decrypted = await passwordService.getById(id);
+                    return { id, decrypted };
+                  } catch (error) {
+                    return { id, decrypted: null };
+                  }
+                });
+                
+                const results = await Promise.all(decryptPromises);
+                
+                setPasswords((prev) => {
+                  const updated = [...prev];
+                  results.forEach(({ id, decrypted }) => {
+                    if (decrypted) {
+                      const index = updated.findIndex((p) => p._id === id);
+                      if (index !== -1) {
+                        updated[index] = decrypted;
+                      }
+                    }
+                  });
+                  return updated;
+                });
+              }
+              
               setIsEditMode(false);
               setEditingPassword(null);
             }}
@@ -1482,8 +1628,41 @@ const Password = () => {
           }
         }}
         sourceType="organization"
-        onSuccess={() => {
-          fetchData();
+        onSuccess={async () => {
+          // Store currently visible passwords before refetching
+          const currentlyVisiblePasswords = new Set(visiblePasswords);
+          const currentlyVisibleUsernames = new Set(visibleUsernames);
+          
+          await fetchData();
+          
+          // Re-decrypt visible passwords after fetch
+          if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
+            const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
+            const decryptPromises = Array.from(allVisible).map(async (id) => {
+              try {
+                const decrypted = await passwordService.getById(id);
+                return { id, decrypted };
+              } catch (error) {
+                return { id, decrypted: null };
+              }
+            });
+            
+            const results = await Promise.all(decryptPromises);
+            
+            setPasswords((prev) => {
+              const updated = [...prev];
+              results.forEach(({ id, decrypted }) => {
+                if (decrypted) {
+                  const index = updated.findIndex((p) => p._id === id);
+                  if (index !== -1) {
+                    updated[index] = decrypted;
+                  }
+                }
+              });
+              return updated;
+            });
+          }
+          
           setIsAddPasswordOpen(false);
           setPasswordFromGenerator("");
         }}
@@ -1499,7 +1678,41 @@ const Password = () => {
         collections={collections}
         folders={folders}
         organizations={organizations}
-        onSuccess={fetchData}
+        onSuccess={async () => {
+          // Store currently visible passwords before refetching
+          const currentlyVisiblePasswords = new Set(visiblePasswords);
+          const currentlyVisibleUsernames = new Set(visibleUsernames);
+          
+          await fetchData();
+          
+          // Re-decrypt visible passwords after fetch
+          if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
+            const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
+            const decryptPromises = Array.from(allVisible).map(async (id) => {
+              try {
+                const decrypted = await passwordService.getById(id);
+                return { id, decrypted };
+              } catch (error) {
+                return { id, decrypted: null };
+              }
+            });
+            
+            const results = await Promise.all(decryptPromises);
+            
+            setPasswords((prev) => {
+              const updated = [...prev];
+              results.forEach(({ id, decrypted }) => {
+                if (decrypted) {
+                  const index = updated.findIndex((p) => p._id === id);
+                  if (index !== -1) {
+                    updated[index] = decrypted;
+                  }
+                }
+              });
+              return updated;
+            });
+          }
+        }}
       />
 
       {/* Bulk Operation Form */}
@@ -1509,7 +1722,41 @@ const Password = () => {
         collections={collections}
         folders={folders}
         organizations={organizations}
-        onSuccess={fetchData}
+        onSuccess={async () => {
+          // Store currently visible passwords before refetching
+          const currentlyVisiblePasswords = new Set(visiblePasswords);
+          const currentlyVisibleUsernames = new Set(visibleUsernames);
+          
+          await fetchData();
+          
+          // Re-decrypt visible passwords after fetch
+          if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
+            const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
+            const decryptPromises = Array.from(allVisible).map(async (id) => {
+              try {
+                const decrypted = await passwordService.getById(id);
+                return { id, decrypted };
+              } catch (error) {
+                return { id, decrypted: null };
+              }
+            });
+            
+            const results = await Promise.all(decryptPromises);
+            
+            setPasswords((prev) => {
+              const updated = [...prev];
+              results.forEach(({ id, decrypted }) => {
+                if (decrypted) {
+                  const index = updated.findIndex((p) => p._id === id);
+                  if (index !== -1) {
+                    updated[index] = decrypted;
+                  }
+                }
+              });
+              return updated;
+            });
+          }
+        }}
       />
     </DashboardLayout>
   );
