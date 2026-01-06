@@ -326,7 +326,7 @@ export const getAllPasswords = async (req: AuthRequest, res: Response) => {
         };
       }
     }
-console.log("query",query)
+
     // Get total count for pagination
     const total = await Password.countDocuments(query);
     

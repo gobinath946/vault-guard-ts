@@ -21,6 +21,7 @@ import collectionRoutes from './routes/collectionRoutes';
 import trashRoutes from './routes/trashRoutes'
 import userRoutes from './routes/companyRoutes'
 import extensionRoutes from './routes/extensionRoutes'
+import assetRoutes from './routes/assetRoutes'
 
 
 const app = express();
@@ -40,6 +41,7 @@ app.use('/api/collections', collectionRoutes);
 app.use('/api/trash', trashRoutes);
 app.use('/api/company', userRoutes);
 app.use('/api/extension', extensionRoutes);
+app.use('/api/assets', assetRoutes);
 
 
 
@@ -47,6 +49,12 @@ app.use('/api/extension', extensionRoutes);
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running!' });
 });
+
+import HardwareAsset from './models/HardwareAsset';
+
+// ... (previous imports)
+
+// ...
 
 // MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/password-manager';

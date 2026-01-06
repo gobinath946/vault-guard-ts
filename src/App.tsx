@@ -19,6 +19,10 @@ import PasswordCreation from "./pages/password-creation";
 import Trash from "./pages/Trash"
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
+import AssetManagement from "./pages/AssetManagement";
+import AssetsDashboard from "./pages/assets/AssetsDashboard";
+import HardwareAssetsPage from "./pages/assets/HardwareAssetsPage";
+import SoftwareAssetsPage from "./pages/assets/SoftwareAssetsPage";
 
 
 const queryClient = new QueryClient();
@@ -44,6 +48,10 @@ const App = () => (
             <Route path="/password-creation" element={<PasswordCreation />} />
             <Route path="/trash" element={<Trash />} />
             <Route path="/company-settings" element={<CompanySettings />} />
+            <Route path="/asset-management" element={<AssetManagement />} />
+            <Route path="/assets/dashboard" element={<AssetsDashboard />} />
+            <Route path="/assets/hardware" element={<HardwareAssetsPage />} />
+            <Route path="/assets/software" element={<SoftwareAssetsPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

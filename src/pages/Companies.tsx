@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
 import { Plus, Edit, Trash2, Building2 } from 'lucide-react';
@@ -38,6 +39,15 @@ const Companies = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    id: string;
+    companyName: string;
+  }>({
+    isOpen: false,
+    id: '',
+    companyName: '',
+  });
   const [formData, setFormData] = useState({
     companyName: '',
     email: '',
@@ -69,10 +79,17 @@ const Companies = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this company?')) return;
+    const company = companies.find(c => c._id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      id,
+      companyName: company?.companyName || 'Unknown Company',
+    });
+  };
 
+  const handleConfirmDelete = async () => {
     try {
-      await masterAdminService.deleteCompany(id);
+      await masterAdminService.deleteCompany(deleteConfirm.id);
       toast({
         title: 'Success',
         description: 'Company deleted successfully',
@@ -283,6 +300,16 @@ const Companies = () => {
           rowsPerPage={rowsPerPage}
           onPageChange={setCurrentPage}
           onRowsPerPageChange={setRowsPerPage}
+        />
+
+        <ConfirmDialog
+          isOpen={deleteConfirm.isOpen}
+          onClose={() => setDeleteConfirm(prev => ({ ...prev, isOpen: false }))}
+          onConfirm={handleConfirmDelete}
+          title="Delete Company"
+          description={`Are you sure you want to delete "${deleteConfirm.companyName}"? This action cannot be undone and will remove all associated data.`}
+          confirmText="Delete"
+          variant="destructive"
         />
       </div>
     </DashboardLayout>
