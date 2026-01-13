@@ -2,36 +2,35 @@
 import nodemailer from 'nodemailer';
 import path from 'path';
 
-const transporter = nodemailer.createTransport({
-    service: process.env.EMAIL_SERVICE || 'gmail',
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-    },
-});
+export interface EmailConfig {
+    service?: string;
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    user: string;
+    pass: string;
+    from?: string;
+}
 
 export const sendOffboardingReport = async (
     userData: any,
     pdfPath: string,
-    emailConfig?: {
+    requestedEmailConfig?: {
         to?: string[];
         cc?: string[];
         subject?: string;
         body?: string;
-    }
+    },
+    companyConfig?: EmailConfig
 ) => {
     try {
-        // Check if email credentials are properly configured
-        if (!process.env.SMTP_USER || process.env.SMTP_USER === 'your-email@gmail.com' ||
-            !process.env.SMTP_PASS || process.env.SMTP_PASS === 'your-app-password') {
-            console.warn('⚠️  Email credentials not configured. Skipping email send.');
-            
+        const smtpUser = companyConfig?.user || process.env.SMTP_USER;
+        const smtpPass = companyConfig?.pass || process.env.SMTP_PASS;
 
-            // For now, if not configured, we might want to return failure if user requested mandatory email
-            // But let's keep it as success if they didn't provide config, for dev convenience?
-            // Actually user said: "Email sending is mandatory to complete offboarding."
-            // So if it's not configured, it's a failure in a real scenario.
-            // However, to avoid blocking development, I'll return success but note it.
+        // Check if email credentials are properly configured
+        if (!smtpUser || smtpUser === 'your-email@gmail.com' ||
+            !smtpPass || smtpPass === 'your-app-password') {
+            console.warn('⚠️  Email credentials not configured. Skipping email send.');
             return {
                 success: true,
                 messageId: 'email-skipped-no-credentials',
@@ -39,15 +38,27 @@ export const sendOffboardingReport = async (
             };
         }
 
-        const to = emailConfig?.to && emailConfig.to.length > 0
-            ? emailConfig.to
+        // Create transporter dynamically
+        const transporter = nodemailer.createTransport({
+            service: companyConfig?.service || process.env.EMAIL_SERVICE || 'gmail',
+            host: companyConfig?.host || process.env.SMTP_HOST,
+            port: companyConfig?.port || Number(process.env.SMTP_PORT) || 587,
+            secure: companyConfig?.secure ?? (process.env.SMTP_SECURE === 'true'),
+            auth: {
+                user: smtpUser,
+                pass: smtpPass,
+            },
+        });
+
+        const to = requestedEmailConfig?.to && requestedEmailConfig.to.length > 0
+            ? requestedEmailConfig.to
             : [process.env.HR_NOTIFICATION_EMAIL || 'hr@company.com'];
 
-        const cc = emailConfig?.cc && emailConfig.cc.length > 0
-            ? emailConfig.cc
+        const cc = requestedEmailConfig?.cc && requestedEmailConfig.cc.length > 0
+            ? requestedEmailConfig.cc
             : (process.env.OFFBOARDING_CC_EMAILS ? process.env.OFFBOARDING_CC_EMAILS.split(',') : []);
 
-        const subject = emailConfig?.subject || `Offboarding Completion Report: ${userData.username}`;
+        const subject = requestedEmailConfig?.subject || `Offboarding Completion Report: ${userData.username}`;
 
         const defaultHtml = `
             <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
@@ -67,12 +78,12 @@ export const sendOffboardingReport = async (
             </div>
         `;
 
-        const html = emailConfig?.body
-            ? `<div style="font-family: sans-serif; line-height: 1.6; color: #333; white-space: pre-wrap;">${emailConfig.body}</div>`
+        const html = requestedEmailConfig?.body
+            ? `<div style="font-family: sans-serif; line-height: 1.6; color: #333; white-space: pre-wrap;">${requestedEmailConfig.body}</div>`
             : defaultHtml;
 
         const mailOptions = {
-            from: process.env.SMTP_FROM || '"SecurePro Offboarding" <noreply@securepro.com>',
+            from: companyConfig?.from || process.env.SMTP_FROM || '"SecurePro Offboarding" <noreply@securepro.com>',
             to: to.join(','),
             cc: cc.join(','),
             subject: subject,
@@ -93,7 +104,7 @@ export const sendOffboardingReport = async (
         if (error.code === 'EAUTH') {
             return {
                 success: false,
-                error: 'Gmail authentication failed - check SMTP configuration',
+                error: 'Email authentication failed - check SMTP configuration',
                 skipEmail: false
             };
         }

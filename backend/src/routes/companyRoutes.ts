@@ -15,7 +15,9 @@ import {
   getDashboardStats,
   getS3Config,
   updateS3Config,
-  getS3ConfigForUpload
+  getS3ConfigForUpload,
+  getEmailConfig,
+  updateEmailConfig
 } from '../controllers/companyController';
 import { authenticate } from '../middleware/auth';
 
@@ -24,26 +26,30 @@ const router = express.Router();
 router.use(authenticate);
 
 // Dashboard routes
-router.get('/dashboard',  getDashboard);
+router.get('/dashboard', getDashboard);
 router.get('/dashboard/enhanced', getEnhancedDashboard);
-router.get('/dashboard/stats',  getDashboardStats);
+router.get('/dashboard/stats', getDashboardStats);
 
 // User management routes
-router.get('/users',getAllUsers);
-router.post('/users',createUser);
-router.put('/users/:id',updateUser);
-router.patch('/users/:id/status',updateUserStatus);
-router.delete('/users/:id',  deleteUser);
-router.patch('/users/:id/permissions',updatePermissions);
+router.get('/users', getAllUsers);
+router.post('/users', createUser);
+router.put('/users/:id', updateUser);
+router.patch('/users/:id/status', updateUserStatus);
+router.delete('/users/:id', deleteUser);
+router.patch('/users/:id/permissions', updatePermissions);
 
 // Hierarchical data routes
 router.get('/organizations', getOrganizations);
-router.get('/organizations/:organizationId/collections',  getCollections);
-router.get('/organizations/:organizationId/folders',  getFolders);
+router.get('/organizations/:organizationId/collections', getCollections);
+router.get('/organizations/:organizationId/folders', getFolders);
 
 // S3 Configuration routes
 router.get('/s3-config', getS3Config);
 router.put('/s3-config', updateS3Config);
 router.get('/s3-config/upload', getS3ConfigForUpload);
+
+// Email Configuration routes
+router.get('/email-config', getEmailConfig);
+router.put('/email-config', updateEmailConfig);
 
 export default router;

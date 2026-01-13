@@ -7,6 +7,7 @@ import CheckoutProcess from '../models/CheckoutProcess';
 import User from '../models/User';
 import HardwareAllocation from '../models/HardwareAllocation';
 import SoftwareAllocation from '../models/SoftwareAllocation';
+import Company from '../models/Company';
 
 // Helper function to clean up uploaded files
 const cleanupUploadedFiles = async (checkout: any) => {
@@ -289,6 +290,12 @@ export const proceedCheckout = async (req: AuthRequest, res: Response) => {
         const { id: adminId, companyId, email: adminEmail, role: adminRole } = req.user!;
         const adminName = adminEmail.split('@')[0];
 
+        // Fetch company config for S3 and Email
+        const company = await Company.findById(companyId).select('s3Config emailConfig');
+        if (!company) {
+            return res.status(404).json({ message: 'Company not found' });
+        }
+
         const checkout = await CheckoutProcess.findOne({ _id: checkoutId, companyId })
             .populate('userId');
 
@@ -361,13 +368,13 @@ export const proceedCheckout = async (req: AuthRequest, res: Response) => {
         const { uploadPDFToS3 } = await import('../utils/s3Upload');
         const username = (checkout.userId as any)?.username || 'Employee';
         const fileName = `Checkout_Report_${username}_${Date.now()}.pdf`;
-        
-        const uploadResult = await uploadPDFToS3(pdfBuffer, fileName, checkoutId);
+
+        const uploadResult = await uploadPDFToS3(pdfBuffer, fileName, checkoutId, company.s3Config);
         const pdfS3Url = uploadResult.fileUrl;
 
         // 3. Send Email
         const { sendOffboardingReport } = await import('../utils/emailService');
-        const emailResult = await sendOffboardingReport(checkout.userId, pdfS3Url, emailConfig);
+        const emailResult = await sendOffboardingReport(checkout.userId, pdfS3Url, emailConfig, company.emailConfig);
 
         if (!emailResult.success) {
             return res.status(500).json({
@@ -488,12 +495,18 @@ export const resendOffboardingMail = async (req: AuthRequest, res: Response) => 
         });
 
         // Upload new PDF to S3
+        // Fetch company config
+        const company = await Company.findById(companyId).select('s3Config emailConfig');
+        if (!company) {
+            return res.status(404).json({ message: 'Company not found' });
+        }
+
         const { uploadPDFToS3 } = await import('../utils/s3Upload');
         const username = (checkout.userId as any)?.username || 'Employee';
         const fileName = `Checkout_Report_${username}_${Date.now()}.pdf`;
-        
-        const uploadResult = await uploadPDFToS3(pdfBuffer, fileName, checkoutId);
-        
+
+        const uploadResult = await uploadPDFToS3(pdfBuffer, fileName, checkoutId, company.s3Config);
+
         // Update checkout with new S3 URL
         checkout.pdfPath = uploadResult.fileUrl; // Keep for backward compatibility
         checkout.pdfS3Url = uploadResult.fileUrl;
@@ -502,7 +515,7 @@ export const resendOffboardingMail = async (req: AuthRequest, res: Response) => 
         await checkout.save();
 
         const { sendOffboardingReport } = await import('../utils/emailService');
-        const emailResult = await sendOffboardingReport(checkout.userId, uploadResult.fileUrl, emailConfig);
+        const emailResult = await sendOffboardingReport(checkout.userId, uploadResult.fileUrl, emailConfig, company.emailConfig);
 
         if (!emailResult.success) {
             return res.status(500).json({
@@ -537,7 +550,6 @@ export const generatePreviewPDF = async (req: AuthRequest, res: Response) => {
         if (checkout.pdfS3Url && checkout.pdfGeneratedAt) {
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
             if (checkout.pdfGeneratedAt > oneHourAgo) {
-                console.log('Using existing PDF from S3:', checkout.pdfS3Url);
                 return res.json({
                     pdfPath: checkout.pdfS3Url,
                     message: 'PDF retrieved from storage',
@@ -584,12 +596,18 @@ export const generatePreviewPDF = async (req: AuthRequest, res: Response) => {
             software: filteredSoftware
         });
 
+        // Fetch company config
+        const company = await Company.findById(companyId).select('s3Config');
+        if (!company) {
+            return res.status(404).json({ message: 'Company not found' });
+        }
+
         // Upload PDF to S3
         const { uploadPDFToS3 } = await import('../utils/s3Upload');
         const username = (checkout.userId as any)?.username || 'Employee';
         const fileName = `Checkout_Report_${username}_${Date.now()}.pdf`;
-        
-        const uploadResult = await uploadPDFToS3(pdfBuffer, fileName, checkoutId);
+
+        const uploadResult = await uploadPDFToS3(pdfBuffer, fileName, checkoutId, company.s3Config);
 
         // Update checkout with S3 URL and metadata
         await CheckoutProcess.findByIdAndUpdate(checkoutId, {
@@ -599,8 +617,6 @@ export const generatePreviewPDF = async (req: AuthRequest, res: Response) => {
             // Keep legacy pdfPath for backward compatibility
             pdfPath: uploadResult.fileUrl
         });
-
-        console.log('PDF generated and uploaded to S3:', uploadResult.fileUrl);
 
         res.json({
             pdfPath: uploadResult.fileUrl,
@@ -641,15 +657,20 @@ export const uploadCheckoutDocument = async (req: AuthRequest, res: Response) =>
             });
         }
 
+        // Fetch company config
+        const company = await Company.findById(req.user!.id).select('s3Config');
+        if (!company) {
+            return res.status(404).json({ message: 'Company not found' });
+        }
+
         // Upload to S3
         const { uploadToS3 } = await import('../utils/s3Upload');
         const uploadResult = await uploadToS3(
             req.file.buffer,
             req.file.originalname,
-            req.file.mimetype
+            req.file.mimetype,
+            company.s3Config
         );
-
-
 
         res.json({
             fileUrl: uploadResult.fileUrl,
@@ -700,7 +721,7 @@ export const uploadStepAttachment = async (req: AuthRequest, res: Response) => {
         // CRITICAL: Validate file content matches MIME type to prevent HTML uploads
         const fileHeader = req.file.buffer.toString('utf8', 0, Math.min(100, req.file.buffer.length));
 
-        
+
         // Check for HTML content being uploaded as PDF
         if (req.file.mimetype === 'application/pdf') {
             if (!fileHeader.includes('%PDF')) {
@@ -717,7 +738,7 @@ export const uploadStepAttachment = async (req: AuthRequest, res: Response) => {
             }
 
         }
-        
+
         // Check for HTML content being uploaded as image
         if (req.file.mimetype.startsWith('image/')) {
             if (fileHeader.includes('<html') || fileHeader.includes('<!DOCTYPE')) {
@@ -740,12 +761,19 @@ export const uploadStepAttachment = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ message: 'Step not found' });
         }
 
+        // Fetch company config
+        const company = await Company.findById(companyId).select('s3Config');
+        if (!company) {
+            return res.status(404).json({ message: 'Company not found' });
+        }
+
         // Upload to S3
         const { uploadToS3 } = await import('../utils/s3Upload');
         const uploadResult = await uploadToS3(
             req.file.buffer,
             req.file.originalname,
-            req.file.mimetype
+            req.file.mimetype,
+            company.s3Config
         );
 
         // Update step with attachment info
@@ -807,7 +835,7 @@ export const serveAttachmentFile = async (req: AuthRequest, res: Response) => {
             try {
                 // Import S3 client
                 const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
-                
+
                 const s3Client = new S3Client({
                     region: process.env.AWS_REGION || 'us-east-1',
                     credentials: {
@@ -824,14 +852,14 @@ export const serveAttachmentFile = async (req: AuthRequest, res: Response) => {
                 });
 
                 const s3Response = await s3Client.send(command);
-                
 
-                
+
+
                 // Verify content type
                 if (s3Response.ContentType && !s3Response.ContentType.includes(attachment.mimeType.split('/')[0])) {
                     console.warn(`⚠️ Content type mismatch: expected ${attachment.mimeType}, got ${s3Response.ContentType}`);
                 }
-                
+
                 // Set appropriate headers
                 res.setHeader('Content-Type', s3Response.ContentType || attachment.mimeType);
                 res.setHeader('Content-Disposition', `inline; filename="${attachment.fileName}"`);
@@ -839,13 +867,13 @@ export const serveAttachmentFile = async (req: AuthRequest, res: Response) => {
                 res.setHeader('Pragma', 'no-cache');
                 res.setHeader('Expires', '0');
                 res.setHeader('Content-Length', s3Response.ContentLength?.toString() || '0');
-                
 
-                
+
+
                 // Stream the file
                 if (s3Response.Body) {
                     const stream = s3Response.Body as any;
-                    
+
                     // Handle stream errors
                     stream.on('error', (streamError: any) => {
                         console.error('❌ Stream error:', streamError);
@@ -853,12 +881,12 @@ export const serveAttachmentFile = async (req: AuthRequest, res: Response) => {
                             res.status(500).json({ message: 'Stream error occurred' });
                         }
                     });
-                    
+
                     // Handle stream end
                     stream.on('end', () => {
 
                     });
-                    
+
                     // Debug: Read first few bytes of the stream to verify content
                     let firstChunk = true;
                     stream.on('data', (chunk: any) => {
@@ -868,7 +896,7 @@ export const serveAttachmentFile = async (req: AuthRequest, res: Response) => {
                             firstChunk = false;
                         }
                     });
-                    
+
 
                     stream.pipe(res);
                 } else {
@@ -883,9 +911,9 @@ export const serveAttachmentFile = async (req: AuthRequest, res: Response) => {
                     statusCode: s3Error.$metadata?.httpStatusCode,
                     requestId: s3Error.$metadata?.requestId
                 });
-                
+
                 // Return JSON error instead of letting it fall through to HTML error page
-                return res.status(500).json({ 
+                return res.status(500).json({
                     message: 'Failed to retrieve file from storage',
                     error: s3Error.message,
                     code: s3Error.Code
@@ -919,7 +947,7 @@ export const debugAttachment = async (req: AuthRequest, res: Response) => {
         // Find the step
         const step = checkout.steps.find((s: any) => s.stepIndex === parseInt(stepIndex));
         if (!step) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 message: 'Step not found',
                 availableSteps: checkout.steps.map((s: any) => ({ stepIndex: s.stepIndex, hasAttachment: !!s.attachment }))
             });
@@ -1007,7 +1035,7 @@ export const testS3File = async (req: AuthRequest, res: Response) => {
 
         if (attachment.s3Key) {
             const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
-            
+
             const s3Client = new S3Client({
                 region: process.env.AWS_REGION || 'us-east-1',
                 credentials: {
@@ -1022,19 +1050,19 @@ export const testS3File = async (req: AuthRequest, res: Response) => {
             });
 
             const s3Response = await s3Client.send(command);
-            
+
             if (s3Response.Body) {
                 // Read the entire stream into a buffer
                 const chunks: any[] = [];
                 const stream = s3Response.Body as any;
-                
+
                 for await (const chunk of stream) {
                     chunks.push(chunk);
                 }
-                
+
                 const buffer = Buffer.concat(chunks);
                 const preview = buffer.toString('utf8', 0, Math.min(200, buffer.length));
-                
+
                 res.json({
                     fileName: attachment.fileName,
                     s3Key: attachment.s3Key,

@@ -221,7 +221,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
     const { password, ...updateData } = req.body;
-    
+
     // If password is provided, hash it
     if (password) {
       updateData.password = await bcrypt.hash(password, 12);
@@ -414,7 +414,7 @@ export const getOrganizations = async (req: AuthRequest, res: Response) => {
     // Use companyId from JWT if available (for company_user), otherwise use id (for company_super_admin)
     const actualCompanyId = companyId || id;
     const query: any = { companyId: actualCompanyId };
-    
+
     // Filter by permissions for company_user role - fetch from database
     if (role === 'company_user') {
       const user = await User.findById(id);
@@ -428,7 +428,7 @@ export const getOrganizations = async (req: AuthRequest, res: Response) => {
       }
 
       // Get permissions from database (NOT from JWT token)
-      const userOrgIds = (user.permissions?.organizations || []).map((oid: any) => 
+      const userOrgIds = (user.permissions?.organizations || []).map((oid: any) =>
         oid._id ? new mongoose.Types.ObjectId(oid._id) : new mongoose.Types.ObjectId(oid)
       ).filter(Boolean);
 
@@ -439,7 +439,7 @@ export const getOrganizations = async (req: AuthRequest, res: Response) => {
         query._id = { $in: [] };
       }
     }
-    
+
     if (q) {
       query.organizationName = { $regex: q, $options: 'i' };
     }
@@ -497,7 +497,7 @@ export const getCollections = async (req: AuthRequest, res: Response) => {
       }
 
       // Get permissions from database (NOT from JWT token)
-      const userOrgIds = (user.permissions?.organizations || []).map((oid: any) => 
+      const userOrgIds = (user.permissions?.organizations || []).map((oid: any) =>
         oid._id ? oid._id.toString() : oid.toString()
       );
       const orgIdStr = organizationId.toString();
@@ -511,16 +511,16 @@ export const getCollections = async (req: AuthRequest, res: Response) => {
       companyId: actualCompanyId,
       organizationId
     };
-    
+
     // Filter by permissions for company_user role - only show collections user has permission to
     if (role === 'company_user') {
       const user = await User.findById(id);
       if (user) {
         // Get permissions from database (NOT from JWT token)
-        const userColIds = (user.permissions?.collections || []).map((cid: any) => 
+        const userColIds = (user.permissions?.collections || []).map((cid: any) =>
           cid._id ? new mongoose.Types.ObjectId(cid._id) : new mongoose.Types.ObjectId(cid)
         ).filter(Boolean);
-        
+
         if (userColIds.length > 0) {
           query._id = { $in: userColIds };
         } else {
@@ -529,7 +529,7 @@ export const getCollections = async (req: AuthRequest, res: Response) => {
         }
       }
     }
-    
+
     if (q) {
       query.collectionName = { $regex: q, $options: 'i' };
     }
@@ -588,7 +588,7 @@ export const getFolders = async (req: AuthRequest, res: Response) => {
       }
 
       // Get permissions from database (NOT from JWT token)
-      const userOrgIds = (user.permissions?.organizations || []).map((oid: any) => 
+      const userOrgIds = (user.permissions?.organizations || []).map((oid: any) =>
         oid._id ? oid._id.toString() : oid.toString()
       );
       const orgIdStr = organizationId.toString();
@@ -612,7 +612,7 @@ export const getFolders = async (req: AuthRequest, res: Response) => {
       if (validCollections.length !== collectionIds.length) {
         return res.status(400).json({ message: 'Invalid collection IDs' });
       }
-      
+
       // Check if company_user has permission to these collections - fetch from database
       if (role === 'company_user') {
         const user = await User.findById(id);
@@ -631,7 +631,7 @@ export const getFolders = async (req: AuthRequest, res: Response) => {
           }
         }
       }
-      
+
       query.collectionId = { $in: collectionIds.map(cid => new mongoose.Types.ObjectId(cid)) };
     }
 
@@ -640,10 +640,10 @@ export const getFolders = async (req: AuthRequest, res: Response) => {
       const user = await User.findById(id);
       if (user) {
         // Get permissions from database (NOT from JWT token)
-        const userFolderIds = (user.permissions?.folders || []).map((fid: any) => 
+        const userFolderIds = (user.permissions?.folders || []).map((fid: any) =>
           fid._id ? new mongoose.Types.ObjectId(fid._id) : new mongoose.Types.ObjectId(fid)
         ).filter(Boolean);
-        
+
         if (userFolderIds.length > 0) {
           query._id = { $in: userFolderIds };
         } else {
@@ -740,7 +740,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 export const getS3Config = async (req: AuthRequest, res: Response) => {
   try {
     const { id, role } = req.user!;
-    
+
     if (role !== 'company_super_admin') {
       return res.status(403).json({ message: 'Only company super admin can access S3 configuration' });
     }
@@ -768,7 +768,7 @@ export const getS3Config = async (req: AuthRequest, res: Response) => {
 export const updateS3Config = async (req: AuthRequest, res: Response) => {
   try {
     const { id, role } = req.user!;
-    
+
     if (role !== 'company_super_admin') {
       return res.status(403).json({ message: 'Only company super admin can update S3 configuration' });
     }
@@ -809,10 +809,10 @@ export const updateS3Config = async (req: AuthRequest, res: Response) => {
 export const getS3ConfigForUpload = async (req: AuthRequest, res: Response) => {
   try {
     const { id, role, companyId } = req.user!;
-    
+
     // Get the actual company ID based on role
     const actualCompanyId = role === 'company_super_admin' ? id : companyId;
-    
+
     if (!actualCompanyId) {
       return res.status(400).json({ message: 'Company ID not found' });
     }
@@ -835,6 +835,80 @@ export const getS3ConfigForUpload = async (req: AuthRequest, res: Response) => {
       bucket: config.bucket,
       s3Url: config.s3Url || `https://${config.bucket}.s3.${config.region}.amazonaws.com`,
     });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Email Configuration methods
+export const getEmailConfig = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Only company super admin can access email configuration' });
+    }
+
+    const company = await Company.findById(id).select('emailConfig');
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    // Return config without password for security (mask it)
+    const config = company.emailConfig || { service: 'gmail', host: '', port: 587, secure: false, user: '', pass: '', from: '' };
+    res.json({
+      service: config.service || 'gmail',
+      host: config.host || '',
+      port: config.port || 587,
+      secure: config.secure || false,
+      user: config.user || '',
+      pass: config.pass ? '********' : '',
+      from: config.from || '',
+      hasPass: !!config.pass,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateEmailConfig = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Only company super admin can update email configuration' });
+    }
+
+    const { service, host, port, secure, user, pass, from } = req.body;
+
+    // Validate required fields
+    if (!user || (!pass && pass !== '********')) {
+      return res.status(400).json({ message: 'Email user and password are required' });
+    }
+
+    const company = await Company.findById(id);
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    // Update email config
+    const updateData: any = {
+      'emailConfig.service': service || 'gmail',
+      'emailConfig.host': host || '',
+      'emailConfig.port': port || 587,
+      'emailConfig.secure': secure || false,
+      'emailConfig.user': user,
+      'emailConfig.from': from || user,
+    };
+
+    // Only update password if a new one is provided (not the masked value)
+    if (pass && pass !== '********') {
+      updateData['emailConfig.pass'] = pass;
+    }
+
+    await Company.findByIdAndUpdate(id, { $set: updateData });
+
+    res.json({ message: 'Email configuration updated successfully' });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

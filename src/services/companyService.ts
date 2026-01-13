@@ -293,6 +293,34 @@ export const companyService = {
     const response = await api.get('/company/s3-config/upload');
     return response.data;
   },
+
+  // Email Configuration
+  getEmailConfig: async (): Promise<{
+    service: string;
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    pass: string;
+    from: string;
+    hasPass: boolean;
+  }> => {
+    const response = await api.get('/company/email-config');
+    return response.data;
+  },
+
+  updateEmailConfig: async (config: {
+    service: string;
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    user: string;
+    pass: string;
+    from?: string;
+  }): Promise<{ message: string }> => {
+    const response = await api.put('/company/email-config', config);
+    return response.data;
+  },
 };
 
 

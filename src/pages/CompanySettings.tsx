@@ -1,10 +1,11 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Cloud, Settings as SettingsIcon, Shield } from 'lucide-react';
+import { Cloud, Settings as SettingsIcon, Shield, Mail } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import S3ConfigForm from '@/components/common/S3ConfigForm';
+import EmailConfigForm from '@/components/common/EmailConfigForm';
 
 const CompanySettings = () => {
   return (
@@ -23,6 +24,10 @@ const CompanySettings = () => {
               <Cloud className="h-4 w-4" />
               Storage
             </TabsTrigger>
+            <TabsTrigger value="email" className="flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              Email (SMTP)
+            </TabsTrigger>
             <TabsTrigger value="security" className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
               Security
@@ -35,6 +40,10 @@ const CompanySettings = () => {
 
           <TabsContent value="storage" className="space-y-4">
             <S3ConfigForm />
+          </TabsContent>
+
+          <TabsContent value="email" className="space-y-4">
+            <EmailConfigForm />
           </TabsContent>
 
           <TabsContent value="security" className="space-y-4">

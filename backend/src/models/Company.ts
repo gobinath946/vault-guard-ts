@@ -8,6 +8,16 @@ export interface IS3Config {
   s3Url?: string;
 }
 
+export interface IEmailConfig {
+  service: string;
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  user: string;
+  pass: string;
+  from: string;
+}
+
 export interface ICompany extends Document {
   companyName: string;
   email: string;
@@ -21,6 +31,7 @@ export interface ICompany extends Document {
   role: 'company_super_admin';
   isActive: boolean;
   s3Config?: IS3Config;
+  emailConfig?: IEmailConfig;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -83,6 +94,15 @@ const companySchema = new Schema<ICompany>(
       region: { type: String, default: '' },
       bucket: { type: String, default: '' },
       s3Url: { type: String, default: '' },
+    },
+    emailConfig: {
+      service: { type: String, default: 'gmail' },
+      host: { type: String, default: '' },
+      port: { type: Number, default: 587 },
+      secure: { type: Boolean, default: false },
+      user: { type: String, default: '' },
+      pass: { type: String, default: '' },
+      from: { type: String, default: '' },
     },
   },
   {
