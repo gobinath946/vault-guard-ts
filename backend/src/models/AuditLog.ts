@@ -6,8 +6,8 @@ export interface IAuditLog extends Document {
   userName: string;
   userRole: string;
   companyId: mongoose.Types.ObjectId;
-  action: 'login' | 'view_username' | 'copy_username' | 'view_password' | 'copy_password' | 'edit_password';
-  resourceType?: 'password';
+  action: 'login' | 'view_username' | 'copy_username' | 'view_password' | 'copy_password' | 'edit_password' | 'complete_offboarding';
+  resourceType?: 'password' | 'checkout';
   resourceId?: mongoose.Types.ObjectId;
   resourceName?: string;
   ipAddress: string;
@@ -58,13 +58,13 @@ const auditLogSchema = new Schema<IAuditLog>(
     },
     action: {
       type: String,
-      enum: ['login', 'view_username', 'copy_username', 'view_password', 'copy_password', 'edit_password'],
+      enum: ['login', 'view_username', 'copy_username', 'view_password', 'copy_password', 'edit_password', 'complete_offboarding'],
       required: true,
       index: true,
     },
     resourceType: {
       type: String,
-      enum: ['password'],
+      enum: ['password', 'checkout'],
     },
     resourceId: {
       type: Schema.Types.ObjectId,

@@ -399,24 +399,67 @@ class AssetService {
 
   // Asset Checker
   async getAssetChecker(userId: string): Promise<AssetChecker> {
-    const response = await api.get(`/assets/checker/${userId}`);
-    // Map backend response to frontend terminology
-    const mappedData = {
-      ...response.data,
-      hardware: response.data.hardware?.map((allocation: any) => ({
-        ...allocation,
-        allocatedDate: allocation.assignedDate
-      })) || [],
-      software: response.data.software?.map((allocation: any) => {
-        const mappedAllocation = {
+    try {
+      const response = await api.get(`/assets/checker/${userId}`);
+      
+      if (!response.data) {
+        throw new Error('No data received from asset checker API');
+      }
+      
+      // Validate response structure
+      if (typeof response.data !== 'object') {
+        throw new Error('Invalid response format from asset checker API');
+      }
+      
+      // Ensure user data exists
+      if (!response.data.user || !response.data.user._id) {
+        throw new Error('Invalid user data in asset checker response');
+      }
+      
+      // Map backend response to frontend terminology
+      const mappedData = {
+        user: {
+          _id: response.data.user._id,
+          username: response.data.user.username || 'Unknown',
+          email: response.data.user.email || 'Unknown'
+        },
+        hardware: Array.isArray(response.data.hardware) ? response.data.hardware.map((allocation: any) => ({
           ...allocation,
-          allocatedDate: allocation.assignedDate
-        };
-        // Don't override backend status - trust the backend status
-        return mappedAllocation;
-      }) || []
-    };
-    return mappedData;
+          allocatedDate: allocation.assignedDate || allocation.allocatedDate
+        })) : [],
+        software: Array.isArray(response.data.software) ? response.data.software.map((allocation: any) => {
+          const mappedAllocation = {
+            ...allocation,
+            allocatedDate: allocation.assignedDate || allocation.allocatedDate
+          };
+          // Don't override backend status - trust the backend status
+          return mappedAllocation;
+        }) : []
+      };
+      
+      return mappedData;
+    } catch (error: any) {
+      console.error('Asset API Error:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        url: error.config?.url
+      });
+      
+      // Provide more specific error messages
+      if (error.response?.status === 404) {
+        throw new Error('User not found or access denied');
+      } else if (error.response?.status === 403) {
+        throw new Error('Access denied - insufficient permissions');
+      } else if (error.response?.status >= 500) {
+        throw new Error('Server error - please try again later');
+      } else if (!error.response) {
+        throw new Error('Network error - please check your connection');
+      } else {
+        throw new Error(error.response?.data?.message || error.message || 'Failed to fetch asset data');
+      }
+    }
   }
 
   // Utility endpoints

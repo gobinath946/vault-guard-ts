@@ -6,6 +6,8 @@ export interface User {
   email: string;
   role: string;
   isActive: boolean;
+  emailStatus?: string;
+  isCheckoutStarted?: boolean;
   createdAt: string;
   permissions?: {
     organizations: any[];
@@ -161,11 +163,11 @@ export const companyService = {
 
   getFolders: async (organizationId: string, collectionIds: string[] = [], page = 1, limit = 50, q = ''): Promise<{ folders: Folder[]; total: number }> => {
     const response = await api.get(`/company/organizations/${organizationId}/folders`, {
-      params: { 
-        collectionIds: collectionIds.join(','), 
-        page, 
-        limit, 
-        q 
+      params: {
+        collectionIds: collectionIds.join(','),
+        page,
+        limit,
+        q
       }
     });
     return response.data;

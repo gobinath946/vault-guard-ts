@@ -23,6 +23,8 @@ import AssetManagement from "./pages/AssetManagement";
 import AssetsDashboard from "./pages/assets/AssetsDashboard";
 import HardwareAssetsPage from "./pages/assets/HardwareAssetsPage";
 import SoftwareAssetsPage from "./pages/assets/SoftwareAssetsPage";
+import Checkout from "./pages/CheckoutPage";
+import CheckoutWizardPage from "./pages/CheckoutWizardPage";
 
 
 const queryClient = new QueryClient();
@@ -35,7 +37,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />app.ts
+            <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
@@ -52,6 +54,8 @@ const App = () => (
             <Route path="/assets/dashboard" element={<AssetsDashboard />} />
             <Route path="/assets/hardware" element={<HardwareAssetsPage />} />
             <Route path="/assets/software" element={<SoftwareAssetsPage />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/checkout/wizard" element={<CheckoutWizardPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

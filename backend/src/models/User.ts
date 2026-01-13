@@ -7,6 +7,9 @@ export interface IUser extends Document {
   password: string;
   role: 'company_user';
   isActive: boolean;
+  emailStatus: 'Active' | 'Inactive';
+  isCheckoutStarted: boolean;
+  checkoutStatus?: 'In Progress' | 'Completed' | 'Failed';
   permissions: {
     organizations: mongoose.Types.ObjectId[];
     collections: mongoose.Types.ObjectId[];
@@ -49,18 +52,31 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: true,
     },
+    emailStatus: {
+      type: String,
+      enum: ['Active', 'Inactive'],
+      default: 'Active',
+    },
+    isCheckoutStarted: {
+      type: Boolean,
+      default: false,
+    },
+    checkoutStatus: {
+      type: String,
+      enum: ['Initiated', 'In Progress', 'Completed', 'Failed'],
+    },
     permissions: {
-      organizations: [{ 
-        type: Schema.Types.ObjectId, 
-        ref: 'Organization' 
+      organizations: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Organization'
       }],
-      collections: [{ 
-        type: Schema.Types.ObjectId, 
-        ref: 'Collection' 
+      collections: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Collection'
       }],
-      folders: [{ 
-        type: Schema.Types.ObjectId, 
-        ref: 'Folder' 
+      folders: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Folder'
       }]
     },
     createdBy: {

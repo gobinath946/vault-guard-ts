@@ -17,9 +17,10 @@ import {
   FileText,
   Package,
   HardDrive,
-  Monitor
+  Monitor,
+  UserCheck
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 interface MenuItem {
@@ -81,6 +82,12 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
+    title: 'Checkout Process',
+    path: '/checkout',
+    icon: UserCheck,
+    roles: ['company_super_admin'],
+  },
+  {
     title: 'Password Creation',
     path: '/password-creation',
     icon: KeyRound,
@@ -113,7 +120,18 @@ export const Sidebar = ({
 }) => {
   const { user } = useAuth();
   const location = useLocation();
-  const [expandedItems, setExpandedItems] = useState<string[]>(['Asset Management']);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+
+  // Auto-expand Asset Management when on asset pages
+  useEffect(() => {
+    if (location.pathname.startsWith('/assets')) {
+      setExpandedItems(prev => 
+        prev.includes('Asset Management') 
+          ? prev 
+          : [...prev, 'Asset Management']
+      );
+    }
+  }, [location.pathname]);
 
   // If user is 'company_user', only show Password Creation
   let filteredMenuItems = menuItems.filter((item) => item.roles.includes(user?.role || ''));
@@ -128,8 +146,6 @@ export const Sidebar = ({
         : [...prev, title]
     );
   };
-
-  const isAssetManagementActive = location.pathname.startsWith('/assets');
 
   const renderMenuItem = (item: MenuItem, level: number = 0) => {
     const hasChildren = item.children && item.children.length > 0;

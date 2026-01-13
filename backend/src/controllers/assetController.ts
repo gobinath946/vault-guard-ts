@@ -68,7 +68,7 @@ const checkAndUpdateAllExpiredSoftware = async () => {
         }
       );
 
-      console.log(`Updated ${expiredAssets.length} software assets to EXPIRED status`);
+
     }
   } catch (error) {
     console.error('Error checking expired software assets:', error);
@@ -101,7 +101,7 @@ const checkAndUpdateAllExpiredAllocations = async () => {
         }
       );
 
-      console.log(`Updated ${expiredAllocations.length} software allocations to EXPIRED status`);
+
     }
 
     // Also expire allocations whose parent software is expired
@@ -123,7 +123,7 @@ const checkAndUpdateAllExpiredAllocations = async () => {
         { status: 'EXPIRED' }
       );
 
-      console.log(`Updated ${expiredSoftwareAllocationIds.length} allocations to EXPIRED due to expired parent software`);
+
     }
   } catch (error) {
     console.error('Error checking expired software allocations:', error);
@@ -173,7 +173,7 @@ const updateAllocationExpiryDates = async (softwareAssetId: string, newEndDate: 
     // Execute bulk update
     if (bulkOps.length > 0) {
       await SoftwareAllocation.bulkWrite(bulkOps);
-      console.log(`Updated ${bulkOps.length} allocation expiry dates for software ${softwareAssetId}. Reactivated ${reactivatedCount} expired allocations.`);
+
     }
 
     return { updated: bulkOps.length, reactivated: reactivatedCount };
@@ -503,7 +503,7 @@ export const updateHardwareAsset = async (req: AuthRequest, res: Response) => {
         }
       );
 
-      console.log(`Hardware asset ${assetId} status changed to ${status}. Active allocations marked as RETURNED.`);
+
     }
 
     res.json(updatedAsset);
@@ -1200,11 +1200,6 @@ export const updateSoftwareAsset = async (req: AuthRequest, res: Response) => {
 
       // Update software asset status based on potentially reactivated allocations
       await updateSoftwareAssetStatus(assetId, companyId);
-
-      // Log the update for debugging
-      if (updateResult.updated > 0) {
-        console.log(`Software asset ${assetId} end date updated. ${updateResult.updated} allocations updated, ${updateResult.reactivated} allocations reactivated.`);
-      }
     }
 
     // Log update (including status changes)
@@ -1748,11 +1743,16 @@ export const getAssetChecker = async (req: AuthRequest, res: Response) => {
     const { userId } = req.params;
     const companyId = id;
 
+
+
     // Validate user belongs to company
     const user = await User.findOne({ _id: userId, companyId });
     if (!user) {
+
       return res.status(404).json({ message: 'User not found' });
     }
+
+
 
     // Get hardware allocations
     const hardwareAllocations = await HardwareAllocation.find({
@@ -1764,6 +1764,8 @@ export const getAssetChecker = async (req: AuthRequest, res: Response) => {
       .populate('hardwareAssetId', 'assetName brand assetModel serialNumber')
       .populate('userId', 'username email');
 
+
+
     // Get software allocations
     const softwareAllocations = await SoftwareAllocation.find({
       companyId,
@@ -1774,7 +1776,9 @@ export const getAssetChecker = async (req: AuthRequest, res: Response) => {
       .populate('softwareAssetId', '_id softwareName vendor totalLicenseCount')
       .populate('userId', 'username email');
 
-    res.json({
+
+
+    const responseData = {
       user: {
         _id: user._id,
         username: user.username,
@@ -1782,8 +1786,13 @@ export const getAssetChecker = async (req: AuthRequest, res: Response) => {
       },
       hardware: hardwareAllocations,
       software: softwareAllocations
-    });
+    };
+
+
+
+    res.json(responseData);
   } catch (error: any) {
+    console.error('Asset checker error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -2058,18 +2067,6 @@ export const getHardwareAllocationLogs = async (req: AuthRequest, res: Response)
       .limit(100)
       .lean();
 
-    // Debug: Log what we found in database BEFORE transformation
-    const returnLogsInDb = logs.filter(log => log.action === 'return');
-    const assignLogsInDb = logs.filter(log => log.action === 'assign');
-    if (returnLogsInDb.length > 0) {
-      console.log(`  Return log details:`, returnLogsInDb.map(l => ({
-        id: l._id,
-        action: l.action,
-        assetId: l.hardwareAssetId,
-        timestamp: l.timestamp
-      })));
-    }
-    console.log(`  All log actions:`, logs.map(l => l.action));
 
     // Transform logs to include asset and user information
     // Use the asset name from each log's hardwareAssetId (for return logs, this will be the old asset)

@@ -57,6 +57,8 @@ interface User {
   email: string;
   role: string;
   isActive: boolean;
+  emailStatus?: string;
+  isCheckoutStarted?: boolean;
   createdAt: string;
   permissions?: UserPermissions;
 }
@@ -119,7 +121,7 @@ const Users = () => {
   // Password visibility states
   const [showPassword, setShowPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
-  
+
   // Password generator states
   const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] = useState(false);
   const [isEditPasswordGeneratorOpen, setIsEditPasswordGeneratorOpen] = useState(false);
@@ -128,6 +130,17 @@ const Users = () => {
   const [isManageOrgDialogOpen, setIsManageOrgDialogOpen] = useState(false);
   const [isManageCollectionDialogOpen, setIsManageCollectionDialogOpen] = useState(false);
   const [isManageFolderDialogOpen, setIsManageFolderDialogOpen] = useState(false);
+
+  const [formData, setFormData] = useState<FormData>({
+    username: '',
+    email: '',
+    password: '',
+    permissions: {
+      organizations: [],
+      collections: [],
+      folders: []
+    }
+  });
 
   // Edit form states
   const [editFormData, setEditFormData] = useState<FormData>({
@@ -147,17 +160,6 @@ const Users = () => {
   const [editFoldersAutoExpanded, setEditFoldersAutoExpanded] = useState(false);
 
   const { toast } = useToast();
-
-  const [formData, setFormData] = useState<FormData>({
-    username: '',
-    email: '',
-    password: '',
-    permissions: {
-      organizations: [],
-      collections: [],
-      folders: []
-    }
-  });
 
   useEffect(() => {
     fetchUsers(currentPage, rowsPerPage, searchTerm);
@@ -913,13 +915,13 @@ const Users = () => {
       // Auto-generate username and password
       const autoUsername = generateUsernameFromEmail(formData.email);
       const autoPassword = generateRandomPassword(12);
-      
+
       const userData = {
         ...formData,
         username: autoUsername,
         password: hashPassword(autoPassword),
       };
-      
+
       await companyService.createUser(userData);
       toast({
         title: 'Success',

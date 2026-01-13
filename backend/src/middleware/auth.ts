@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 
 export interface AuthRequest extends Request {
   user?: {
+    _id: string;
     id: string;
     email: string;
     role: string;
@@ -35,3 +36,6 @@ export const authorize = (...roles: string[]) => {
     next();
   };
 };
+
+// Alias for authenticate function to match controller imports
+export const authenticateToken = authenticate;
