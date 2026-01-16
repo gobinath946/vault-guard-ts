@@ -4,9 +4,11 @@ export interface IUser extends Document {
   companyId: mongoose.Types.ObjectId;
   email: string;
   username: string;
+  employeeId?: string;
   password: string;
   role: 'company_user';
   isActive: boolean;
+  offboardingInactive: boolean;
   emailStatus: 'Active' | 'Inactive';
   isCheckoutStarted: boolean;
   checkoutStatus?: 'In Progress' | 'Completed' | 'Failed';
@@ -39,6 +41,11 @@ const userSchema = new Schema<IUser>(
       required: true,
       trim: true,
     },
+    employeeId: {
+      type: String,
+      trim: true,
+      sparse: true,
+    },
     password: {
       type: String,
       required: true,
@@ -51,6 +58,10 @@ const userSchema = new Schema<IUser>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    offboardingInactive: {
+      type: Boolean,
+      default: false,
     },
     emailStatus: {
       type: String,

@@ -22,6 +22,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from '@/components/ui/command';
 import {
   Popover,
@@ -237,7 +238,7 @@ export const AssetChecker = ({ isOpen, onClose }: AssetCheckerProps) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Asset Checker</DialogTitle>
         </DialogHeader>
@@ -262,26 +263,33 @@ export const AssetChecker = ({ isOpen, onClose }: AssetCheckerProps) => {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-full p-0" style={{ width: 'var(--radix-popover-trigger-width)' }}>
-                <Command>
-                  <CommandInput placeholder="Search users..." />
-                  <CommandEmpty>No user found.</CommandEmpty>
-                  <CommandGroup>
-                    {users.map((user) => (
-                      <CommandItem
-                        key={user._id}
-                        value={`${user.username} ${user.email}`}
-                        onSelect={() => handleUserSelect(user._id)}
-                      >
-                        <Check
-                          className={`mr-2 h-4 w-4 ${
-                            selectedUserId === user._id ? "opacity-100" : "opacity-0"
-                          }`}
-                        />
-                        {user.username} ({user.email})
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
+              <PopoverContent 
+                className="w-full p-0 max-h-[400px]" 
+                style={{ width: 'var(--radix-popover-trigger-width)' }}
+                align="start"
+              >
+                <Command shouldFilter className="max-h-[400px]">
+                  <CommandInput placeholder="Search users..." className="border-b" />
+                  <CommandList className="max-h-[300px] overflow-y-auto">
+                    <CommandEmpty>No user found.</CommandEmpty>
+                    <CommandGroup>
+                      {users.map((user) => (
+                        <CommandItem
+                          key={user._id}
+                          value={`${user.username} ${user.email}`}
+                          onSelect={() => handleUserSelect(user._id)}
+                          className="cursor-pointer"
+                        >
+                          <Check
+                            className={`mr-2 h-4 w-4 ${
+                              selectedUserId === user._id ? "opacity-100" : "opacity-0"
+                            }`}
+                          />
+                          <span className="truncate">{user.username} ({user.email})</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
                 </Command>
               </PopoverContent>
             </Popover>

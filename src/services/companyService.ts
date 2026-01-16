@@ -3,12 +3,16 @@ import { api } from '@/lib/api';
 export interface User {
   _id: string;
   username: string;
+  employeeId?: string;
   email: string;
   role: string;
   isActive: boolean;
   emailStatus?: string;
   isCheckoutStarted?: boolean;
+  checkoutStatus?: string;
+  offboardingInactive?: boolean;
   createdAt: string;
+  updatedAt?: string;
   permissions?: {
     organizations: any[];
     collections: any[];
@@ -66,6 +70,7 @@ export interface QuickStats {
 
 export interface UserFormData {
   username: string;
+  employeeId?: string;
   email: string;
   password: string;
   permissions: {
@@ -77,6 +82,7 @@ export interface UserFormData {
 
 export interface UpdateUserData {
   username?: string;
+  employeeId?: string;
   email?: string;
   password?: string;
   permissions?: {
@@ -109,9 +115,9 @@ export const companyService = {
   },
 
   // User management methods
-  getUsers: async (page = 1, limit = 10, q = ''): Promise<{ users: User[]; total: number }> => {
+  getUsers: async (page = 1, limit = 10, q = '', offboarding = false): Promise<{ users: User[]; total: number }> => {
     const response = await api.get('/company/users', {
-      params: { page, limit, q }
+      params: { page, limit, q, offboarding }
     });
     return response.data;
   },

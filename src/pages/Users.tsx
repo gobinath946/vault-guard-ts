@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -54,12 +55,16 @@ import {
 interface User {
   _id: string;
   username: string;
+  employeeId?: string;
   email: string;
   role: string;
   isActive: boolean;
+  offboardingInactive?: boolean;
   emailStatus?: string;
   isCheckoutStarted?: boolean;
+  checkoutStatus?: string;
   createdAt: string;
+  updatedAt?: string;
   permissions?: UserPermissions;
 }
 
@@ -92,6 +97,7 @@ interface UserPermissions {
 
 interface FormData {
   username: string;
+  employeeId: string;
   email: string;
   password: string;
   permissions: UserPermissions;
@@ -117,6 +123,7 @@ const Users = () => {
   const [loadingOrganizations, setLoadingOrganizations] = useState(false);
   const [loadingCollections, setLoadingCollections] = useState(false);
   const [loadingFolders, setLoadingFolders] = useState(false);
+  const [showOffboardingUsers, setShowOffboardingUsers] = useState(false);
 
   // Password visibility states
   const [showPassword, setShowPassword] = useState(false);
@@ -133,6 +140,7 @@ const Users = () => {
 
   const [formData, setFormData] = useState<FormData>({
     username: '',
+    employeeId: '',
     email: '',
     password: '',
     permissions: {
@@ -145,6 +153,7 @@ const Users = () => {
   // Edit form states
   const [editFormData, setEditFormData] = useState<FormData>({
     username: '',
+    employeeId: '',
     email: '',
     password: '',
     permissions: {
@@ -162,8 +171,8 @@ const Users = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchUsers(currentPage, rowsPerPage, searchTerm);
-  }, [currentPage, rowsPerPage, searchTerm]);
+    fetchUsers(currentPage, rowsPerPage, searchTerm, showOffboardingUsers);
+  }, [currentPage, rowsPerPage, searchTerm, showOffboardingUsers]);
 
   useEffect(() => {
     if (isDialogOpen || isEditDialogOpen) {
@@ -176,6 +185,7 @@ const Users = () => {
     if (isDialogOpen) {
       setFormData({
         username: '',
+        employeeId: '',
         email: '',
         password: '',
         permissions: { organizations: [], collections: [], folders: [] }
@@ -354,10 +364,10 @@ const Users = () => {
     }));
   }, [editSelectedOrganizations, editSelectedCollections, editSelectedFolders]);
 
-  const fetchUsers = async (page = 1, limit = 10, q = '') => {
+  const fetchUsers = async (page = 1, limit = 10, q = '', offboarding = false) => {
     setLoading(true);
     try {
-      const data = await companyService.getUsers(page, limit, q);
+      const data = await companyService.getUsers(page, limit, q, offboarding);
       setUsers(data.users);
       setTotalUsers(data.total);
     } catch (error: any) {
@@ -501,7 +511,7 @@ const Users = () => {
       });
       setIsDeleteDialogOpen(false);
       setDeleteUserId(null);
-      fetchUsers();
+      fetchUsers(currentPage, rowsPerPage, searchTerm, showOffboardingUsers);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -536,6 +546,7 @@ const Users = () => {
 
     setEditFormData({
       username: user.username,
+      employeeId: user.employeeId || '',
       email: user.email,
       password: '',
       permissions: {
@@ -622,6 +633,7 @@ const Users = () => {
       const updateData: any = {
         username: editFormData.username,
         email: editFormData.email,
+        employeeId: editFormData.employeeId,
         permissions: editFormData.permissions
       };
 
@@ -639,6 +651,7 @@ const Users = () => {
       setEditFormData({
         username: '',
         email: '',
+        employeeId: '',
         password: '',
         permissions: {
           organizations: [],
@@ -650,7 +663,7 @@ const Users = () => {
       setEditSelectedCollections([]);
       setEditSelectedFolders([]);
       setShowEditPassword(false);
-      fetchUsers();
+      fetchUsers(currentPage, rowsPerPage, searchTerm, showOffboardingUsers);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -667,7 +680,7 @@ const Users = () => {
         title: 'Success',
         description: `User ${newStatus ? 'activated' : 'deactivated'} successfully`,
       });
-      fetchUsers(currentPage, rowsPerPage, searchTerm);
+      fetchUsers(currentPage, rowsPerPage, searchTerm, showOffboardingUsers);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -931,6 +944,7 @@ const Users = () => {
       setFormData({
         username: '',
         email: '',
+        employeeId: '',
         password: '',
         permissions: { organizations: [], collections: [], folders: [] }
       });
@@ -939,7 +953,7 @@ const Users = () => {
       setSelectedFolders([]);
       setExpandedCollections([]);
       setShowPassword(false);
-      fetchUsers();
+      fetchUsers(currentPage, rowsPerPage, searchTerm, showOffboardingUsers);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -1153,6 +1167,33 @@ const Users = () => {
   return (
     <DashboardLayout title="Users">
       <div className="space-y-6">
+        <Tabs
+          defaultValue="active"
+          value={showOffboardingUsers ? 'offboarding' : 'active'}
+          onValueChange={(val) => {
+            setShowOffboardingUsers(val === 'offboarding');
+            setCurrentPage(1);
+          }}
+          className="w-full"
+        >
+          <TabsList className="mb-6 bg-transparent gap-3 p-0 h-auto flex flex-wrap justify-start">
+            <TabsTrigger
+              value="active"
+              className="data-[state=active]:bg-[#8C47D1] data-[state=active]:text-white data-[state=active]:border-[#8C47D1] border border-muted text-muted-foreground hover:text-[#8C47D1] hover:border-[#8C47D1] px-4 py-2 rounded-md transition-all flex items-center gap-2 h-9 shadow-sm"
+            >
+              <UsersIcon className="h-4 w-4" />
+              All Users
+            </TabsTrigger>
+            <TabsTrigger
+              value="offboarding"
+              className="data-[state=active]:bg-[#8C47D1] data-[state=active]:text-white data-[state=active]:border-[#8C47D1] border border-muted text-muted-foreground hover:text-[#8C47D1] hover:border-[#8C47D1] px-4 py-2 rounded-md transition-all flex items-center gap-2 h-9 shadow-sm"
+            >
+              <UsersIcon className="h-4 w-4" />
+              Offboarded Users
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Users</h2>
@@ -1264,6 +1305,16 @@ const Users = () => {
                     />
                   </div>
                   <div>
+                    <Label htmlFor="edit-employeeId">Employee ID</Label>
+                    <Input
+                      id="edit-employeeId"
+                      type="text"
+                      value={editFormData.employeeId}
+                      onChange={(e) => setEditFormData({ ...editFormData, employeeId: e.target.value })}
+                      placeholder="Enter employee ID (optional)"
+                    />
+                  </div>
+                  <div>
                     <Label htmlFor="edit-email">Email *</Label>
                     <Input
                       id="edit-email"
@@ -1342,7 +1393,7 @@ const Users = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UsersIcon className="h-5 w-5" />
-              All Users ({totalUsers})
+              {showOffboardingUsers ? 'Offboarded Users' : 'User Management'} ({totalUsers})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1354,62 +1405,106 @@ const Users = () => {
                       S.No
                     </th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Username</th>
+                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Employee ID</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Email</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Role</th>
                     <th className="p-4 text-left text-sm font-medium text-muted-foreground">Status</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Created</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
+                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                      {showOffboardingUsers ? 'Offboarded' : 'Created'}
+                    </th>
+                    {!showOffboardingUsers && (
+                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user, index) => (
-                    <tr key={user._id} className="border-b border-border">
-                      <td className="p-4 align-middle">
-                        {(currentPage - 1) * rowsPerPage + index + 1}
-                      </td>
-                      <td className="p-4 text-sm font-medium">{user.username}</td>
-                      <td className="p-4 text-sm">{user.email}</td>
-                      <td className="p-4 text-sm capitalize">{user.role?.replace('_', ' ')}</td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${user.isActive ? 'bg-[#8C47D1]' : 'bg-gray-300'
-                              }`}
-                            onClick={() => handleStatusToggle(user._id, !user.isActive)}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isActive ? 'translate-x-6' : 'translate-x-1'
-                                }`}
-                            />
-                          </div>
-                          <Badge variant={user.isActive ? 'default' : 'secondary'}>
-                            {user.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm">
-                        {new Date(user.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEdit(user)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDelete(user._id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                  {users.length === 0 ? (
+                    <tr>
+                      <td colSpan={showOffboardingUsers ? 7 : 8} className="p-8 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <UsersIcon className="h-12 w-12 opacity-20" />
+                          <p className="text-lg font-medium">No users found</p>
+                          <p className="text-sm">
+                            {showOffboardingUsers
+                              ? "No users have been deactivated due to offboarding yet."
+                              : "No active or inactive users found."}
+                          </p>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    users.map((user, index) => (
+                      <tr key={user._id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                        <td className="p-4 align-middle">
+                          {(currentPage - 1) * rowsPerPage + index + 1}
+                        </td>
+                        <td className="p-4 text-sm font-medium">
+                          <div className="flex flex-col">
+                            <span>{user.username}</span>
+                            {user.offboardingInactive && (
+                              <Badge variant="outline" className="w-fit text-[10px] h-4 mt-1 bg-amber-50 text-amber-600 border-amber-200">
+                                Offboarding Inactive
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4 text-sm">{user.employeeId || '-'}</td>
+                        <td className="p-4 text-sm">{user.email}</td>
+                        <td className="p-4 text-sm capitalize">{user.role?.replace('_', ' ')}</td>
+                        <td className="p-4">
+                          {showOffboardingUsers ? (
+                            // For offboarded users, only show the badge without toggle
+                            <Badge variant="secondary">
+                              Inactive
+                            </Badge>
+                          ) : (
+                            // For all users, show toggle and badge
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${user.isActive ? 'bg-[#8C47D1]' : 'bg-gray-300'
+                                  }`}
+                                onClick={() => !user.offboardingInactive && handleStatusToggle(user._id, !user.isActive)}
+                                style={{ cursor: user.offboardingInactive ? 'not-allowed' : 'pointer', opacity: user.offboardingInactive ? 0.6 : 1 }}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isActive ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
+                                />
+                              </div>
+                              <Badge variant={user.isActive ? 'default' : 'secondary'}>
+                                {user.isActive ? 'Active' : 'Inactive'}
+                              </Badge>
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4 text-sm">
+                          {showOffboardingUsers && user.updatedAt
+                            ? new Date(user.updatedAt).toLocaleDateString()
+                            : new Date(user.createdAt).toLocaleDateString()}
+                        </td>
+                        {!showOffboardingUsers && (
+                          <td className="p-4">
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEdit(user)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDelete(user._id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

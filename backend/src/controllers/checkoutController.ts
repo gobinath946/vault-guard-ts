@@ -249,7 +249,8 @@ export const updateCheckoutStep = async (req: AuthRequest, res: Response) => {
         if (stepIndex === 2 && status === 'Completed') {
             await User.findByIdAndUpdate(checkout.userId, {
                 emailStatus: 'Inactive',
-                isActive: false // Also deactivating user login
+                isActive: false, // Also deactivating user login
+                offboardingInactive: true
             });
         }
 
@@ -409,7 +410,8 @@ export const proceedCheckout = async (req: AuthRequest, res: Response) => {
         await User.findByIdAndUpdate(checkout.userId, {
             checkoutStatus: 'Completed',
             isActive: false,
-            emailStatus: 'Inactive'
+            emailStatus: 'Inactive',
+            offboardingInactive: true
         });
 
         // 6. Log Audit Activity

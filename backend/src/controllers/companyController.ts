@@ -137,17 +137,40 @@ export const getEnhancedDashboard = async (req: AuthRequest, res: Response) => {
 
 export const getAllUsers = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.user!;
+    const { id, companyId } = req.user!;
+    const actualCompanyId = companyId || id;
     const page = parseInt((req.query.page as string) || '1', 10);
     const limit = parseInt((req.query.limit as string) || '10', 10);
     const q = (req.query.q as string) || '';
+    const offboarding = req.query.offboarding === 'true';
 
-    const query: any = { companyId: id };
+    const query: any = { companyId: actualCompanyId };
+
+    if (offboarding) {
+      // Show only users whose checkout process is fully completed
+      query.checkoutStatus = 'Completed';
+    } else {
+      // Hide users whose checkout is completed (show all others including in-progress)
+      query.checkoutStatus = { $ne: 'Completed' };
+    }
+
     if (q) {
-      query.$or = [
-        { username: { $regex: q, $options: 'i' } },
-        { email: { $regex: q, $options: 'i' } },
-      ];
+      // If there's a search query, we need to combine it with the offboarding filter
+      const searchCondition = {
+        $or: [
+          { username: { $regex: q, $options: 'i' } },
+          { email: { $regex: q, $options: 'i' } },
+        ]
+      };
+      
+      // Combine with existing conditions using $and
+      const existingConditions = { ...query };
+      query.$and = [existingConditions, searchCondition];
+      
+      // Remove the duplicate $or if it exists
+      if (query.$or) {
+        delete query.$or;
+      }
     }
 
     const total = await User.countDocuments(query);
@@ -175,13 +198,21 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
 
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { email, username, password, permissions } = req.body;
+    const { email, username, employeeId, password, permissions } = req.body;
     const { id: companyId, id: createdBy } = req.user!;
 
     // Check if user exists within the same company
     const existingUser = await User.findOne({ email, companyId });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists in this company' });
+    }
+
+    // Check if employeeId is provided and if it already exists in the company
+    if (employeeId) {
+      const existingEmployeeId = await User.findOne({ employeeId, companyId });
+      if (existingEmployeeId) {
+        return res.status(400).json({ message: 'Employee ID already exists in this company' });
+      }
     }
 
     // Hash password
@@ -198,6 +229,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       companyId,
       email,
       username,
+      employeeId: employeeId || undefined,
       password: hashedPassword,
       permissions: processedPermissions,
       createdBy: new mongoose.Types.ObjectId(createdBy),
@@ -220,7 +252,27 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 
 export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { password, ...updateData } = req.body;
+    const { password, employeeId, ...updateData } = req.body;
+    const { id: companyId } = req.user!;
+
+    // Handle employeeId - can be set, cleared, or left unchanged
+    if (employeeId !== undefined) {
+      if (employeeId && employeeId.trim() !== '') {
+        // If employeeId is provided and not empty, check if it already exists for another user
+        const existingEmployeeId = await User.findOne({ 
+          employeeId, 
+          companyId,
+          _id: { $ne: req.params.id } // Exclude current user
+        });
+        if (existingEmployeeId) {
+          return res.status(400).json({ message: 'Employee ID already exists in this company' });
+        }
+        updateData.employeeId = employeeId.trim();
+      } else {
+        // If employeeId is empty string, clear it (set to undefined)
+        updateData.employeeId = undefined;
+      }
+    }
 
     // If password is provided, hash it
     if (password) {
