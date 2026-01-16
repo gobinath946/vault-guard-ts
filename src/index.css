@@ -2,70 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Modern Glass Design System with Professional Theme */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 270 60% 10%;
+    /* Light Mode - Clean, Professional */
+    --background: 0 0% 98%;
+    --foreground: 240 10% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 270 60% 10%;
+    --card-foreground: 240 10% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 270 60% 10%;
-    --primary: 270 60% 55%;
+    --popover-foreground: 240 10% 10%;
+    --primary: 250 84% 54%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 10 70% 70%;
-    --secondary-foreground: 270 60% 10%;
-    --muted: 270 20% 95%;
-    --muted-foreground: 270 20% 45%;
-    --accent: 270 60% 85%;
-    --accent-foreground: 270 60% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 10% 10%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 250 84% 96%;
+    --accent-foreground: 250 84% 40%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 270 20% 90%;
-    --input: 270 20% 90%;
-    --ring: 270 60% 55%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 250 84% 54%;
     --radius: 0.5rem;
-    --sidebar-background: 270 60% 55%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 270 70% 45%;
+    
+    /* Glass effect variables */
+    --glass-bg: 0 0% 100% / 0.7;
+    --glass-border: 0 0% 100% / 0.2;
+    --glass-shadow: 0 0% 0% / 0.05;
+    
+    /* Sidebar */
+    --sidebar-background: 250 30% 98%;
+    --sidebar-foreground: 240 10% 10%;
+    --sidebar-primary: 250 84% 54%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 270 60% 65%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 270 50% 50%;
-    --sidebar-ring: 270 60% 75%;
+    --sidebar-accent: 250 84% 96%;
+    --sidebar-accent-foreground: 250 84% 40%;
+    --sidebar-border: 240 6% 90%;
+    --sidebar-ring: 250 84% 54%;
   }
 
   .dark {
-    --background: 270 40% 8%;
-    --foreground: 0 0% 98%;
-    --card: 270 40% 10%;
-    --card-foreground: 0 0% 98%;
-    --popover: 270 40% 10%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 270 60% 60%;
+    /* Dark Mode - Sleek, Modern */
+    --background: 240 10% 6%;
+    --foreground: 0 0% 95%;
+    --card: 240 10% 9%;
+    --card-foreground: 0 0% 95%;
+    --popover: 240 10% 9%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 250 84% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 10 70% 65%;
-    --secondary-foreground: 270 60% 10%;
-    --muted: 270 30% 20%;
-    --muted-foreground: 270 10% 65%;
-    --accent: 270 50% 25%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 270 30% 20%;
-    --input: 270 30% 20%;
-    --ring: 270 60% 60%;
-    --sidebar-background: 270 50% 12%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 270 60% 60%;
+    --secondary: 240 5% 16%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 240 5% 16%;
+    --muted-foreground: 240 5% 60%;
+    --accent: 250 40% 20%;
+    --accent-foreground: 250 84% 80%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5% 18%;
+    --input: 240 5% 18%;
+    --ring: 250 84% 60%;
+    
+    /* Glass effect variables - dark mode */
+    --glass-bg: 240 10% 12% / 0.8;
+    --glass-border: 0 0% 100% / 0.08;
+    --glass-shadow: 0 0% 0% / 0.3;
+    
+    /* Sidebar - dark mode */
+    --sidebar-background: 240 10% 8%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 250 84% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 270 40% 20%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 270 40% 18%;
-    --sidebar-ring: 270 60% 70%;
+    --sidebar-accent: 250 40% 20%;
+    --sidebar-accent-foreground: 250 84% 80%;
+    --sidebar-border: 240 5% 18%;
+    --sidebar-ring: 250 84% 60%;
   }
 }
 
@@ -74,12 +88,65 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
-/* Hide number input spinner controls in edit mode */
+@layer utilities {
+  /* Glass morphism utilities */
+  .glass {
+    @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-white/20 dark:border-white/10;
+  }
+  
+  .glass-card {
+    @apply bg-white/60 dark:bg-slate-900/60 backdrop-blur-lg border border-white/30 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20;
+  }
+  
+  .glass-subtle {
+    @apply bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/20 dark:border-white/5;
+  }
+  
+  .glass-input {
+    @apply bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50;
+  }
+  
+  /* Modern gradient backgrounds */
+  .gradient-primary {
+    @apply bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500;
+  }
+  
+  .gradient-subtle {
+    @apply bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800;
+  }
+  
+  /* Glow effects */
+  .glow {
+    @apply shadow-lg shadow-primary/25;
+  }
+  
+  .glow-sm {
+    @apply shadow-md shadow-primary/20;
+  }
+  
+  /* Modern hover transitions */
+  .hover-lift {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg;
+  }
+  
+  .hover-glow {
+    @apply transition-all duration-200 hover:shadow-lg hover:shadow-primary/20;
+  }
+}
+
+/* Hide number input spinner controls */
 .no-spinner::-webkit-outer-spin-button,
 .no-spinner::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -88,4 +155,22 @@ All colors MUST be HSL.
 
 .no-spinner[type=number] {
   -moz-appearance: textfield;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400 dark:bg-slate-600;
 }
