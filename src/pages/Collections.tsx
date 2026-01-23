@@ -161,7 +161,7 @@ export const CollectionsContent = () => {
       });
       setIsEditDialogOpen(false);
       setSelectedCollection(null);
-  setFormData({ collectionName: '', description: '', organizationId: '' });
+      setFormData({ collectionName: '', description: '', organizationId: '' });
       fetchCollections();
     } catch (error: any) {
       toast({
@@ -229,7 +229,9 @@ export const CollectionsContent = () => {
   }
 
   return (
-      <div className="space-y-6">
+    <div className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
+      {/* Fixed Header Section (Title and Add Button) */}
+      <div className="flex-shrink-0 px-6 py-4 space-y-4 bg-background">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Collections</h2>
@@ -242,12 +244,12 @@ export const CollectionsContent = () => {
                 Create Collection
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Create New Collection</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleCreateSubmit} className="space-y-4">
-                <div>
+              <form onSubmit={handleCreateSubmit} className="space-y-4 pt-4">
+                <div className="space-y-2">
                   <Label>Collection Name</Label>
                   <Input
                     required
@@ -256,7 +258,7 @@ export const CollectionsContent = () => {
                     placeholder="e.g., Social Media Accounts"
                   />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label>Organization (optional)</Label>
                   <Select value={formData.organizationId} onValueChange={(value) => setFormData({ ...formData, organizationId: value })}>
                     <SelectTrigger>
@@ -271,12 +273,13 @@ export const CollectionsContent = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label>Description</Label>
                   <Textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Describe what this collection contains..."
+                    className="min-h-[100px]"
                   />
                 </div>
                 <Button type="submit" className="w-full">Create Collection</Button>
@@ -285,149 +288,157 @@ export const CollectionsContent = () => {
           </Dialog>
         </div>
 
-  <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search collections..." />
-
-        {filteredCollections.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <BookOpen className="mb-4 h-12 w-12 text-muted-foreground" />
-              <p className="text-center text-muted-foreground">
-                No collections yet. Create your first collection to group passwords.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Collections List</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                     <TableHead>S.No</TableHead>
-                    <TableHead>Collection Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Created At</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCollections.map((collection , index) => (
-                    <TableRow key={collection._id}>
-                       <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <BookOpen className="h-4 w-4 text-primary" />
-                          {collection.collectionName}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {collection.description || '-'}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(collection.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => openEditDialog(collection)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openDeleteDialog(collection)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
-
-        <div>
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalCollections}
-            rowsPerPage={rowsPerPage}
-            onPageChange={(page) => { setCurrentPage(page); fetchCollections(page, rowsPerPage); }}
-            onRowsPerPageChange={(rows) => { setRowsPerPage(rows); setCurrentPage(1); fetchCollections(1, rows); }}
-          />
-        </div>
-
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Collection</DialogTitle>
-            </DialogHeader>
-              <form onSubmit={handleEditSubmit} className="space-y-4">
-                <div>
-                  <Label>Collection Name</Label>
-                  <Input
-                    required
-                    value={formData.collectionName}
-                    onChange={(e) => setFormData({ ...formData, collectionName: e.target.value })}
-                    placeholder="e.g., Social Media Accounts"
-                  />
-                </div>
-                <div>
-                  <Label>Organization (optional)</Label>
-                  <Select value={formData.organizationId} onValueChange={(value) => setFormData({ ...formData, organizationId: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select organization (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(orgOptions || []).map((org) => (
-                        <SelectItem key={org._id} value={org._id}>
-                          {org.organizationName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Description</Label>
-                  <Textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Describe what this collection contains..."
-                  />
-                </div>
-                <Button type="submit" className="w-full">Update Collection</Button>
-              </form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the collection
-                "{selectedCollection?.collectionName}" and remove all associated data.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search collections..." />
       </div>
+
+      {/* Main Content Area - Card fits inside flex-1 */}
+      <div className="flex-1 flex flex-col min-h-0 px-6 pb-6 overflow-hidden">
+        <Card className="flex flex-col h-full overflow-hidden border-border/50">
+
+
+          <CardContent className="flex-1 flex flex-col min-h-0 p-0 overflow-hidden">
+            {filteredCollections.length === 0 && !loading ? (
+              <div className="flex flex-col items-center justify-center py-12 flex-1">
+                <BookOpen className="mb-4 h-12 w-12 text-muted-foreground opacity-20" />
+                <p className="text-center text-muted-foreground">
+                  No collections yet. Create your first collection to group passwords.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto">
+                  <Table containerClassName="overflow-visible">
+                    <TableHeader className="sticky top-0 bg-white z-20 shadow-sm">
+                      <TableRow>
+                        <TableHead className="w-[80px]">S.No</TableHead>
+                        <TableHead>Collection Name</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Created At</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCollections.map((collection, index) => (
+                        <TableRow key={collection._id} className="hover:bg-muted/30">
+                          <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
+                          <TableCell className="font-medium text-primary">
+                            <div className="flex items-center gap-2">
+                              <BookOpen className="h-4 w-4" />
+                              {collection.collectionName}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            {collection.description || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(collection.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => openEditDialog(collection)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                onClick={() => openDeleteDialog(collection)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="flex-initial flex justify-end px-6 py-4 border-t bg-muted/10">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalCollections}
+                    rowsPerPage={rowsPerPage}
+                    onPageChange={(page) => { setCurrentPage(page); fetchCollections(page, rowsPerPage); }}
+                    onRowsPerPageChange={(rows) => { setRowsPerPage(rows); setCurrentPage(1); fetchCollections(1, rows); }}
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Collection</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div>
+              <Label>Collection Name</Label>
+              <Input
+                required
+                value={formData.collectionName}
+                onChange={(e) => setFormData({ ...formData, collectionName: e.target.value })}
+                placeholder="e.g., Social Media Accounts"
+              />
+            </div>
+            <div>
+              <Label>Organization (optional)</Label>
+              <Select value={formData.organizationId} onValueChange={(value) => setFormData({ ...formData, organizationId: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select organization (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(orgOptions || []).map((org) => (
+                    <SelectItem key={org._id} value={org._id}>
+                      {org.organizationName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Describe what this collection contains..."
+              />
+            </div>
+            <Button type="submit" className="w-full">Update Collection</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the collection
+              "{selectedCollection?.collectionName}" and remove all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 };
 

@@ -73,6 +73,7 @@ export interface UserFormData {
   employeeId?: string;
   email: string;
   password: string;
+  role?: 'company_user' | 'company_super_admin';
   permissions: {
     organizations: string[];
     collections: string[];

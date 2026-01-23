@@ -25,6 +25,9 @@ import HardwareAssetsPage from "./pages/assets/HardwareAssetsPage";
 import SoftwareAssetsPage from "./pages/assets/SoftwareAssetsPage";
 import Checkout from "./pages/CheckoutPage";
 import CheckoutWizardPage from "./pages/CheckoutWizardPage";
+import Profile from "./pages/Profile";
+import MyAllocatedHardware from "./pages/MyAllocatedHardware";
+import MyAllocatedSoftware from "./pages/MyAllocatedSoftware";
 
 
 const queryClient = new QueryClient();
@@ -56,6 +59,9 @@ const App = () => (
             <Route path="/assets/software" element={<SoftwareAssetsPage />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/checkout/wizard" element={<CheckoutWizardPage />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/my-assets/hardware" element={<MyAllocatedHardware />} />
+            <Route path="/my-assets/software" element={<MyAllocatedSoftware />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -121,8 +121,9 @@ const CompanySuperAdminDashboard = () => {
     <DashboardLayout title="Company Dashboard">
       <div className="space-y-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">Overview of your company's password management</p>
+          <p className="text-[#1A1A1A] font-medium">
+            Overview of your company's password management
+          </p>
         </div>
 
         {/* Statistics Cards */}

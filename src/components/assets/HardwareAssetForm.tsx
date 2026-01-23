@@ -53,9 +53,8 @@ export const HardwareAssetForm = ({
   const [loading, setLoading] = useState(false);
   const [originalStatus, setOriginalStatus] = useState<string>('AVAILABLE');
   const { toast } = useToast();
-  
-  // Check if asset is assigned to a user
-  const isAssigned = editingAsset?.status === 'ASSIGNED';
+
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -80,7 +79,7 @@ export const HardwareAssetForm = ({
         brand: editingAsset.brand,
         model: editingAsset.assetModel,
         serialNumber: editingAsset.serialNumber,
-        purchaseDate: editingAsset.purchaseDate 
+        purchaseDate: editingAsset.purchaseDate
           ? new Date(editingAsset.purchaseDate).toISOString().split('T')[0]
           : '',
         isReturned: editingAsset.status === 'RETURNED',
@@ -117,7 +116,7 @@ export const HardwareAssetForm = ({
   const onSubmit = async (data: FormData) => {
     try {
       setLoading(true);
-      
+
       // Determine the status based on the toggle
       let status: 'AVAILABLE' | 'ASSIGNED' | 'RETURNED' | 'DELETED' = 'AVAILABLE';
       if (editingAsset && data.isReturned !== undefined) {
@@ -142,7 +141,7 @@ export const HardwareAssetForm = ({
         // If no toggle change, keep the original status
         status = originalStatus as 'AVAILABLE' | 'ASSIGNED' | 'RETURNED' | 'DELETED';
       }
-      
+
       const submitData = {
         assetName: data.assetName,
         assetType: data.assetType || '',
@@ -201,11 +200,9 @@ export const HardwareAssetForm = ({
                   <FormItem>
                     <FormLabel>Asset Name *</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="e.g., MacBook Pro" 
-                        disabled={isAssigned}
-                        className={isAssigned ? "bg-muted cursor-not-allowed" : ""}
-                        {...field} 
+                      <Input
+                        placeholder="e.g., MacBook Pro"
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -220,11 +217,9 @@ export const HardwareAssetForm = ({
                   <FormItem>
                     <FormLabel>Asset Type</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="e.g., Laptop, Desktop, Monitor" 
-                        disabled={isAssigned}
-                        className={isAssigned ? "bg-muted cursor-not-allowed" : ""}
-                        {...field} 
+                      <Input
+                        placeholder="e.g., Laptop, Desktop, Monitor"
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -241,11 +236,9 @@ export const HardwareAssetForm = ({
                   <FormItem>
                     <FormLabel>Brand</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="e.g., Apple" 
-                        disabled={isAssigned}
-                        className={isAssigned ? "bg-muted cursor-not-allowed" : ""}
-                        {...field} 
+                      <Input
+                        placeholder="e.g., Apple"
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -260,11 +253,9 @@ export const HardwareAssetForm = ({
                   <FormItem>
                     <FormLabel>Model</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="e.g., MacBook Pro 16-inch" 
-                        disabled={isAssigned}
-                        className={isAssigned ? "bg-muted cursor-not-allowed" : ""}
-                        {...field} 
+                      <Input
+                        placeholder="e.g., MacBook Pro 16-inch"
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -281,11 +272,9 @@ export const HardwareAssetForm = ({
                   <FormItem>
                     <FormLabel>Serial Number</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="e.g., ABC123456789" 
-                        disabled={isAssigned}
-                        className={isAssigned ? "bg-muted cursor-not-allowed" : ""}
-                        {...field} 
+                      <Input
+                        placeholder="e.g., ABC123456789"
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -300,11 +289,9 @@ export const HardwareAssetForm = ({
                   <FormItem>
                     <FormLabel>Purchase Date</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="date" 
-                        disabled={isAssigned}
-                        className={isAssigned ? "bg-muted cursor-not-allowed" : ""}
-                        {...field} 
+                      <Input
+                        type="date"
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -375,8 +362,8 @@ export const HardwareAssetForm = ({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={loading}
                 onClick={() => console.log('Create button clicked', form.formState.errors)}
               >

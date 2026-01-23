@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import { hashPassword } from '@/lib/crypto';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
-import { Plus, Edit, Trash2, Users as UsersIcon, ChevronDown, ChevronUp, Eye, EyeOff, X, Building2, BookOpen, FolderTree, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, Users as UsersIcon, ChevronDown, ChevronUp, Eye, EyeOff, X, Building2, BookOpen, FolderTree, RefreshCw, ShieldCheck, Shield, User } from 'lucide-react';
 import { companyService } from '@/services/companyService';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -16,7 +18,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -100,16 +101,21 @@ interface FormData {
   employeeId: string;
   email: string;
   password: string;
+  role: 'company_user' | 'company_super_admin';
   permissions: UserPermissions;
 }
 
 const Users = () => {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalUsers, setTotalUsers] = useState(0);
+  const [allUsersCount, setAllUsersCount] = useState(0);
+  const [offboardedUsersCount, setOffboardedUsersCount] = useState(0);
+  const [activeUsersCount, setActiveUsersCount] = useState(0);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -143,6 +149,7 @@ const Users = () => {
     employeeId: '',
     email: '',
     password: '',
+    role: 'company_user',
     permissions: {
       organizations: [],
       collections: [],
@@ -156,6 +163,7 @@ const Users = () => {
     employeeId: '',
     email: '',
     password: '',
+    role: 'company_user',
     permissions: {
       organizations: [],
       collections: [],
@@ -188,6 +196,7 @@ const Users = () => {
         employeeId: '',
         email: '',
         password: '',
+        role: 'company_user',
         permissions: { organizations: [], collections: [], folders: [] }
       });
       setSelectedOrganizations([]);
@@ -224,6 +233,7 @@ const Users = () => {
       setSelectedFolders([]);
       setFormData(prev => ({
         ...prev,
+        role: 'company_user',
         permissions: {
           organizations: [],
           collections: [],
@@ -370,6 +380,24 @@ const Users = () => {
       const data = await companyService.getUsers(page, limit, q, offboarding);
       setUsers(data.users);
       setTotalUsers(data.total);
+
+      // Fetch dashboard stats for active users count
+      try {
+        const stats = await companyService.getDashboard();
+        setActiveUsersCount(stats.activeUsers);
+      } catch (e) {
+        console.error('Failed to fetch active stats', e);
+      }
+
+      // Also fetch the counts for the other category to keep filters updated
+      const otherData = await companyService.getUsers(1, 1, '', !offboarding);
+      if (offboarding) {
+        setOffboardedUsersCount(data.total);
+        setAllUsersCount(otherData.total);
+      } else {
+        setAllUsersCount(data.total);
+        setOffboardedUsersCount(otherData.total);
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -549,6 +577,7 @@ const Users = () => {
       employeeId: user.employeeId || '',
       email: user.email,
       password: '',
+      role: (user.role as 'company_user' | 'company_super_admin') || 'company_user',
       permissions: {
         organizations: orgIds,
         collections: collectionIds,
@@ -653,6 +682,7 @@ const Users = () => {
         email: '',
         employeeId: '',
         password: '',
+        role: 'company_user',
         permissions: {
           organizations: [],
           collections: [],
@@ -932,7 +962,7 @@ const Users = () => {
       const userData = {
         ...formData,
         username: autoUsername,
-        password: hashPassword(autoPassword),
+        password: autoPassword,
       };
 
       await companyService.createUser(userData);
@@ -946,6 +976,7 @@ const Users = () => {
         email: '',
         employeeId: '',
         password: '',
+        role: 'company_user',
         permissions: { organizations: [], collections: [], folders: [] }
       });
       setSelectedOrganizations([]);
@@ -1165,414 +1196,479 @@ const Users = () => {
   }
 
   return (
-    <DashboardLayout title="Users">
-      <div className="space-y-6">
-        <Tabs
-          defaultValue="active"
-          value={showOffboardingUsers ? 'offboarding' : 'active'}
-          onValueChange={(val) => {
-            setShowOffboardingUsers(val === 'offboarding');
-            setCurrentPage(1);
-          }}
-          className="w-full"
-        >
-          <TabsList className="mb-6 bg-transparent gap-3 p-0 h-auto flex flex-wrap justify-start">
-            <TabsTrigger
-              value="active"
-              className="data-[state=active]:bg-[#8C47D1] data-[state=active]:text-white data-[state=active]:border-[#8C47D1] border border-muted text-muted-foreground hover:text-[#8C47D1] hover:border-[#8C47D1] px-4 py-2 rounded-md transition-all flex items-center gap-2 h-9 shadow-sm"
-            >
-              <UsersIcon className="h-4 w-4" />
-              All Users
-            </TabsTrigger>
-            <TabsTrigger
-              value="offboarding"
-              className="data-[state=active]:bg-[#8C47D1] data-[state=active]:text-white data-[state=active]:border-[#8C47D1] border border-muted text-muted-foreground hover:text-[#8C47D1] hover:border-[#8C47D1] px-4 py-2 rounded-md transition-all flex items-center gap-2 h-9 shadow-sm"
-            >
-              <UsersIcon className="h-4 w-4" />
-              Offboarded Users
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+    <>
+      <DashboardLayout
+        title="Users"
+        mainClassName="p-0 flex flex-col overflow-hidden"
+        header={
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            {/* Left side: Filter Pills (Matches Example) */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className={cn(
+                  "px-4 py-1.5 rounded-full text-xs font-semibold transition-all border",
+                  !showOffboardingUsers
+                    ? "bg-[#EEF2FF] text-[#4F46E5] border-[#4F46E5]/20 shadow-sm"
+                    : "bg-white text-muted-foreground border-border hover:bg-accent"
+                )}
+                onClick={() => {
+                  setShowOffboardingUsers(false);
+                  setCurrentPage(1);
+                }}
+              >
+                All Users: {allUsersCount}
+              </button>
+              <button
+                className={cn(
+                  "px-4 py-1.5 rounded-full text-xs font-semibold transition-all border",
+                  showOffboardingUsers
+                    ? "bg-[#EEF2FF] text-[#4F46E5] border-[#4F46E5]/20 shadow-sm"
+                    : "bg-white text-muted-foreground border-border hover:bg-accent"
+                )}
+                onClick={() => {
+                  setShowOffboardingUsers(true);
+                  setCurrentPage(1);
+                }}
+              >
+                Offboarded: {offboardedUsersCount}
+              </button>
+              <div className="h-4 w-[1px] bg-border/60 mx-1 hidden sm:block"></div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-50 border border-emerald-200">
+                <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                <span className="text-xs font-semibold text-emerald-700">ACTIVE: {activeUsersCount}</span>
+              </div>
+            </div>
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Users</h2>
-            <p className="text-muted-foreground">Manage company users and permissions</p>
-          </div>
-          <div className="grid grid-cols-1 gap-2 w-full sm:w-auto sm:flex sm:flex-row sm:gap-2">
-            <Button
-              className="w-full sm:w-auto"
-              size="sm"
-              onClick={() => setIsManageOrgDialogOpen(true)}
-            >
-              <Building2 className="mr-2 h-4 w-4" />
-              Manage Organization
-            </Button>
-            <Button
-              className="w-full sm:w-auto"
-              size="sm"
-              onClick={() => setIsManageCollectionDialogOpen(true)}
-            >
-              <BookOpen className="mr-2 h-4 w-4" />
-              Manage Collection
-            </Button>
-            <Button
-              className="w-full sm:w-auto"
-              size="sm"
-              onClick={() => setIsManageFolderDialogOpen(true)}
-            >
-              <FolderTree className="mr-2 h-4 w-4" />
-              Manage Folder
-            </Button>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto" size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add User
+            {/* Right side: Actions & Search (Matches Example) */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="p-2 hover:bg-accent rounded-lg text-muted-foreground transition-colors border border-border/50"
+                onClick={() => window.location.reload()}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+
+              <div className="w-full sm:w-64">
+                <SearchBar
+                  value={searchTerm}
+                  onChange={setSearchTerm}
+                  placeholder="Search users..."
+                />
+              </div>
+
+              <div className="h-4 w-[1px] bg-border/60 mx-1 hidden lg:block"></div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+                  onClick={() => setIsManageOrgDialogOpen(true)}
+                >
+                  <Building2 className="h-4 w-4" />
+                  <span className="hidden xl:inline">Organization</span>
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
-                <DialogHeader>
-                  <DialogTitle>Create New User</DialogTitle>
-                </DialogHeader>
-                <ScrollArea className="max-h-[70vh] pr-4">
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Basic Information</h3>
-                      <div>
-                        <Label htmlFor="email">Email *</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          required
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          placeholder="Enter email address"
-                        />
-                      </div>
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="text-sm text-muted-foreground">
-                          Username and password will be auto-generated and sent to the user's email.
-                        </p>
-                      </div>
-                    </div>
-
-                    {renderPermissionSection(
-                      false,
-                      selectedOrganizations,
-                      selectedCollections,
-                      selectedFolders,
-                      expandedCollections,
-                      handleOrganizationToggle,
-                      handleCollectionToggle,
-                      handleFolderToggle,
-                      handleSelectAllFoldersInCollection,
-                      toggleCollectionExpansion
-                    )}
-
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={!selectedOrganizations.length || !formData.email}
-                    >
-                      Create User
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+                  onClick={() => setIsManageCollectionDialogOpen(true)}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span className="hidden xl:inline">Collection</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+                  onClick={() => setIsManageFolderDialogOpen(true)}
+                >
+                  <FolderTree className="h-4 w-4" />
+                  <span className="hidden xl:inline">Folder</span>
+                </Button>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="h-9 gap-2 bg-[#4F46E5] hover:bg-[#4338CA] shadow-md">
+                      <Plus className="h-4 w-4" />
+                      Add User
                     </Button>
-                  </form>
-                </ScrollArea>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+                    <DialogHeader>
+                      <DialogTitle>Create New User</DialogTitle>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[70vh] pr-4">
+                      <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-medium">Basic Information</h3>
+                          <div>
+                            <Label htmlFor="email">Email *</Label>
+                            <Input
+                              id="email"
+                              type="email"
+                              required
+                              value={formData.email}
+                              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                              placeholder="Enter email address"
+                            />
+                          </div>
+                          <div className="p-3 bg-muted/50 rounded-lg">
+                            <p className="text-sm text-muted-foreground">
+                              Username and password will be auto-generated and sent to the user's email.
+                            </p>
+                          </div>
+                        </div>
 
-        {/* Edit User Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
-            <DialogHeader>
-              <DialogTitle>Edit User - {editingUser?.username}</DialogTitle>
-            </DialogHeader>
-            <ScrollArea className="max-h-[70vh] pr-4">
-              <form onSubmit={handleEditSubmit} className="space-y-6">
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Basic Information</h3>
-                  <div>
-                    <Label htmlFor="edit-username">Username *</Label>
-                    <Input
-                      id="edit-username"
-                      required
-                      value={editFormData.username}
-                      onChange={(e) => setEditFormData({ ...editFormData, username: e.target.value })}
-                      placeholder="Enter username"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-employeeId">Employee ID</Label>
-                    <Input
-                      id="edit-employeeId"
-                      type="text"
-                      value={editFormData.employeeId}
-                      onChange={(e) => setEditFormData({ ...editFormData, employeeId: e.target.value })}
-                      placeholder="Enter employee ID (optional)"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-email">Email *</Label>
-                    <Input
-                      id="edit-email"
-                      type="email"
-                      required
-                      value={editFormData.email}
-                      onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                      placeholder="Enter email address"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>
-                    <div className="flex gap-2 items-center">
-                      <div className="relative w-full">
-                        <Input
-                          id="edit-password"
-                          type={showEditPassword ? "text" : "password"}
-                          value={editFormData.password}
-                          onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
-                          placeholder="Enter new password (optional)"
-                          className="pr-10"
-                        />
+                        {currentUser?.role === 'company_super_admin' && currentUser?.isPrimaryAdmin && (
+                          <div className="space-y-2">
+                            <Label htmlFor="role">Role</Label>
+                            <Select
+                              value={formData.role}
+                              onValueChange={(value: 'company_user' | 'company_super_admin') =>
+                                setFormData({ ...formData, role: value })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a role" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="company_user">Company User</SelectItem>
+                                <SelectItem value="company_super_admin">Company Super Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {renderPermissionSection(
+                          false,
+                          selectedOrganizations,
+                          selectedCollections,
+                          selectedFolders,
+                          expandedCollections,
+                          handleOrganizationToggle,
+                          handleCollectionToggle,
+                          handleFolderToggle,
+                          handleSelectAllFoldersInCollection,
+                          toggleCollectionExpansion
+                        )}
+
+                        <Button
+                          type="submit"
+                          className="w-full"
+                          disabled={!selectedOrganizations.length || !formData.email}
+                        >
+                          Create User
+                        </Button>
+                      </form>
+                    </ScrollArea>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+          </div>
+        }
+        footer={
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalUsers}
+            rowsPerPage={rowsPerPage}
+            onPageChange={setCurrentPage}
+            onRowsPerPageChange={setRowsPerPage}
+          />
+        }
+      >
+        <div className="flex-1 flex flex-col min-h-0 w-full">
+          {/* Edit User Dialog */}
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+              <DialogHeader>
+                <DialogTitle>Edit User - {editingUser?.username}</DialogTitle>
+              </DialogHeader>
+              <ScrollArea className="max-h-[70vh] pr-4">
+                <form onSubmit={handleEditSubmit} className="space-y-6">
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Basic Information</h3>
+                    <div>
+                      <Label htmlFor="edit-username">Username *</Label>
+                      <Input
+                        id="edit-username"
+                        required
+                        value={editFormData.username}
+                        onChange={(e) => setEditFormData({ ...editFormData, username: e.target.value })}
+                        placeholder="Enter username"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-employeeId">Employee ID</Label>
+                      <Input
+                        id="edit-employeeId"
+                        type="text"
+                        value={editFormData.employeeId}
+                        onChange={(e) => setEditFormData({ ...editFormData, employeeId: e.target.value })}
+                        placeholder="Enter employee ID (optional)"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-email">Email *</Label>
+                      <Input
+                        id="edit-email"
+                        type="email"
+                        required
+                        value={editFormData.email}
+                        onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                        placeholder="Enter email address"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>
+                      <div className="flex gap-2 items-center">
+                        <div className="relative w-full">
+                          <Input
+                            id="edit-password"
+                            type={showEditPassword ? "text" : "password"}
+                            value={editFormData.password}
+                            onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                            placeholder="Enter new password (optional)"
+                            className="pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={toggleEditPasswordVisibility}
+                          >
+                            {showEditPassword ? (
+                              <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </div>
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                          onClick={toggleEditPasswordVisibility}
+                          variant="outline"
+                          onClick={() => setIsEditPasswordGeneratorOpen(true)}
                         >
-                          {showEditPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
+                          <RefreshCw className="h-4 w-4" />
                         </Button>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsEditPasswordGeneratorOpen(true)}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
-                </div>
 
-                {renderPermissionSection(
-                  true,
-                  editSelectedOrganizations,
-                  editSelectedCollections,
-                  editSelectedFolders,
-                  editExpandedCollections,
-                  handleEditOrganizationToggle,
-                  handleEditCollectionToggle,
-                  handleEditFolderToggle,
-                  handleEditSelectAllFoldersInCollection,
-                  toggleEditCollectionExpansion
-                )}
+                  {renderPermissionSection(
+                    true,
+                    editSelectedOrganizations,
+                    editSelectedCollections,
+                    editSelectedFolders,
+                    editExpandedCollections,
+                    handleEditOrganizationToggle,
+                    handleEditCollectionToggle,
+                    handleEditFolderToggle,
+                    handleEditSelectAllFoldersInCollection,
+                    toggleEditCollectionExpansion
+                  )}
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={!editSelectedOrganizations.length || !editFormData.username || !editFormData.email}
-                >
-                  Update User
-                </Button>
-              </form>
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={!editSelectedOrganizations.length || !editFormData.username || !editFormData.email}
+                  >
+                    Update User
+                  </Button>
+                </form>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
 
-        <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search users..." />
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UsersIcon className="h-5 w-5" />
-              {showOffboardingUsers ? 'Offboarded Users' : 'User Management'} ({totalUsers})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
-                      S.No
-                    </th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Username</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Employee ID</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Email</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Role</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Status</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">
-                      {showOffboardingUsers ? 'Offboarded' : 'Created'}
-                    </th>
-                    {!showOffboardingUsers && (
-                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.length === 0 ? (
-                    <tr>
-                      <td colSpan={showOffboardingUsers ? 7 : 8} className="p-8 text-center text-muted-foreground">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <UsersIcon className="h-12 w-12 opacity-20" />
-                          <p className="text-lg font-medium">No users found</p>
-                          <p className="text-sm">
-                            {showOffboardingUsers
-                              ? "No users have been deactivated due to offboarding yet."
-                              : "No active or inactive users found."}
-                          </p>
-                        </div>
-                      </td>
+          <Card className="flex-1 flex flex-col border-0 shadow-none rounded-none w-full">
+            <CardHeader className="flex-none px-6 py-4 border-b">
+              <CardTitle className="flex items-center gap-2">
+                <UsersIcon className="h-5 w-5" />
+                {showOffboardingUsers ? 'Offboarded Users' : 'User Management'} ({totalUsers})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 relative p-0 min-h-0 bg-background">
+              <div className="absolute inset-0 overflow-y-auto">
+                <table className="w-full">
+                  <thead className="sticky top-0 bg-card z-10 shadow-sm">
+                    <tr className="border-b border-border">
+                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
+                        S.No
+                      </th>
+                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Username</th>
+                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Employee ID</th>
+                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Email</th>
+                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Role</th>
+                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Status</th>
+                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                        {showOffboardingUsers ? 'Offboarded' : 'Created'}
+                      </th>
+                      {!showOffboardingUsers && (
+                        <th className="p-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
+                      )}
                     </tr>
-                  ) : (
-                    users.map((user, index) => (
-                      <tr key={user._id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                        <td className="p-4 align-middle">
-                          {(currentPage - 1) * rowsPerPage + index + 1}
-                        </td>
-                        <td className="p-4 text-sm font-medium">
-                          <div className="flex flex-col">
-                            <span>{user.username}</span>
-                            {user.offboardingInactive && (
-                              <Badge variant="outline" className="w-fit text-[10px] h-4 mt-1 bg-amber-50 text-amber-600 border-amber-200">
-                                Offboarding Inactive
-                              </Badge>
-                            )}
+                  </thead>
+                  <tbody>
+                    {users.length === 0 ? (
+                      <tr>
+                        <td colSpan={showOffboardingUsers ? 7 : 8} className="p-8 text-center text-muted-foreground">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <UsersIcon className="h-12 w-12 opacity-20" />
+                            <p className="text-lg font-medium">No users found</p>
+                            <p className="text-sm">
+                              {showOffboardingUsers
+                                ? "No users have been deactivated due to offboarding yet."
+                                : "No active or inactive users found."}
+                            </p>
                           </div>
                         </td>
-                        <td className="p-4 text-sm">{user.employeeId || '-'}</td>
-                        <td className="p-4 text-sm">{user.email}</td>
-                        <td className="p-4 text-sm capitalize">{user.role?.replace('_', ' ')}</td>
-                        <td className="p-4">
-                          {showOffboardingUsers ? (
-                            // For offboarded users, only show the badge without toggle
-                            <Badge variant="secondary">
-                              Inactive
-                            </Badge>
-                          ) : (
-                            // For all users, show toggle and badge
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${user.isActive ? 'bg-[#8C47D1]' : 'bg-gray-300'
-                                  }`}
-                                onClick={() => !user.offboardingInactive && handleStatusToggle(user._id, !user.isActive)}
-                                style={{ cursor: user.offboardingInactive ? 'not-allowed' : 'pointer', opacity: user.offboardingInactive ? 0.6 : 1 }}
-                              >
-                                <span
-                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isActive ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
-                                />
-                              </div>
-                              <Badge variant={user.isActive ? 'default' : 'secondary'}>
-                                {user.isActive ? 'Active' : 'Inactive'}
-                              </Badge>
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-4 text-sm">
-                          {showOffboardingUsers && user.updatedAt
-                            ? new Date(user.updatedAt).toLocaleDateString()
-                            : new Date(user.createdAt).toLocaleDateString()}
-                        </td>
-                        {!showOffboardingUsers && (
-                          <td className="p-4">
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleEdit(user)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDelete(user._id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                      </tr>
+                    ) : (
+                      users.map((user, index) => (
+                        <tr key={user._id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                          <td className="p-4 align-middle">
+                            {(currentPage - 1) * rowsPerPage + index + 1}
+                          </td>
+                          <td className="p-4 text-sm font-medium">
+                            <div className="flex flex-col">
+                              <span>{user.username}</span>
+                              {user.offboardingInactive && (
+                                <Badge variant="outline" className="w-fit text-[10px] h-4 mt-1 bg-amber-50 text-amber-600 border-amber-200">
+                                  Offboarding Inactive
+                                </Badge>
+                              )}
                             </div>
                           </td>
-                        )}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Delete User</DialogTitle>
-            </DialogHeader>
-            <div className="py-4">
-              <p>Are you sure you want to delete this user? This action cannot be undone.</p>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setIsDeleteDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={confirmDelete}>
-                Delete
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Manage Organization Dialog */}
-        <Dialog open={isManageOrgDialogOpen} onOpenChange={setIsManageOrgDialogOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
-            <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
-              <div className="p-6">
-                <OrganizationsContent />
+                          <td className="p-4 text-sm">{user.employeeId || '-'}</td>
+                          <td className="p-4 text-sm">{user.email}</td>
+                          <td className="p-4 text-sm">
+                            <div className="flex items-center gap-2">
+                              {user.role === 'company_super_admin' ? (
+                                <ShieldCheck className="h-4 w-4 text-indigo-600" />
+                              ) : user.role === 'company_admin' ? (
+                                <Shield className="h-4 w-4 text-indigo-500" />
+                              ) : (
+                                <User className="h-4 w-4 text-slate-400" />
+                              )}
+                              <span className="capitalize">{user.role?.replace('_', ' ')}</span>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            {showOffboardingUsers ? (
+                              // For offboarded users, only show the badge without toggle
+                              <Badge variant="secondary">
+                                Inactive
+                              </Badge>
+                            ) : (
+                              // For all users, show toggle and badge
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${user.isActive ? 'bg-[#4F46E5]' : 'bg-gray-300'
+                                    }`}
+                                  onClick={() => !user.offboardingInactive && handleStatusToggle(user._id, !user.isActive)}
+                                  style={{ cursor: user.offboardingInactive ? 'not-allowed' : 'pointer', opacity: user.offboardingInactive ? 0.6 : 1 }}
+                                >
+                                  <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isActive ? 'translate-x-6' : 'translate-x-1'
+                                      }`}
+                                  />
+                                </div>
+                                <Badge variant={user.isActive ? 'default' : 'secondary'}>
+                                  {user.isActive ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-4 text-sm">
+                            {showOffboardingUsers && user.updatedAt
+                              ? new Date(user.updatedAt).toLocaleDateString()
+                              : new Date(user.createdAt).toLocaleDateString()}
+                          </td>
+                          {!showOffboardingUsers && (
+                            <td className="p-4">
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEdit(user)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDelete(user._id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
+            </CardContent>
+          </Card>
 
-        {/* Manage Collection Dialog */}
-        <Dialog open={isManageCollectionDialogOpen} onOpenChange={setIsManageCollectionDialogOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
-            <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
-              <div className="p-6">
-                <CollectionsContent />
+          {/* Delete Confirmation Dialog */}
+          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Delete User</DialogTitle>
+              </DialogHeader>
+              <div className="py-4">
+                <p>Are you sure you want to delete this user? This action cannot be undone.</p>
               </div>
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
-
-        {/* Manage Folder Dialog */}
-        <Dialog open={isManageFolderDialogOpen} onOpenChange={setIsManageFolderDialogOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
-            <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
-              <div className="p-6">
-                <FoldersContent />
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setIsDeleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={confirmDelete}>
+                  Delete
+                </Button>
               </div>
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </DashboardLayout>
 
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalUsers}
-          rowsPerPage={rowsPerPage}
-          onPageChange={setCurrentPage}
-          onRowsPerPageChange={setRowsPerPage}
-        />
-      </div>
+      {/* Manage Organization Dialog */}
+      <Dialog open={isManageOrgDialogOpen} onOpenChange={setIsManageOrgDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
+          <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
+            <div className="p-6">
+              <OrganizationsContent />
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Collection Dialog */}
+      <Dialog open={isManageCollectionDialogOpen} onOpenChange={setIsManageCollectionDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
+          <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
+            <div className="p-6">
+              <CollectionsContent />
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Folder Dialog */}
+      <Dialog open={isManageFolderDialogOpen} onOpenChange={setIsManageFolderDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
+          <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
+            <div className="p-6">
+              <FoldersContent />
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       {/* Password Generator for Create Form */}
       <PasswordGenerator
@@ -1587,7 +1683,7 @@ const Users = () => {
         onOpenChange={setIsEditPasswordGeneratorOpen}
         onPasswordGenerated={handleEditGeneratedPassword}
       />
-    </DashboardLayout>
+    </>
   );
 };
 

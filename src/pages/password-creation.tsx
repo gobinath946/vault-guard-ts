@@ -3,7 +3,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SearchBar } from "@/components/common/SearchBar";
 import { Pagination } from "@/components/common/Pagination";
 import {
   Plus,
@@ -16,6 +15,7 @@ import {
   X,
   EyeOff,
   History,
+  Search,
 } from "lucide-react";
 import {
   passwordService,
@@ -415,13 +415,13 @@ const Password = () => {
 
       setIsDialogOpen(false);
       resetForm();
-      
+
       // Store currently visible passwords before refetching
       const currentlyVisiblePasswords = new Set(visiblePasswords);
       const currentlyVisibleUsernames = new Set(visibleUsernames);
-      
+
       await fetchData();
-      
+
       // Re-decrypt visible passwords after fetch
       if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
         const decryptPromises = Array.from(new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames])).map(async (id) => {
@@ -432,9 +432,9 @@ const Password = () => {
             return { id, decrypted: null };
           }
         });
-        
+
         const results = await Promise.all(decryptPromises);
-        
+
         setPasswords((prev) => {
           const updated = [...prev];
           results.forEach(({ id, decrypted }) => {
@@ -472,7 +472,7 @@ const Password = () => {
       });
       setIsDeleteDialogOpen(false);
       setPasswordToDelete(null);
-      
+
       // Remove deleted password from visible sets
       setVisiblePasswords((prev) => {
         const newSet = new Set(prev);
@@ -484,17 +484,17 @@ const Password = () => {
         newSet.delete(id);
         return newSet;
       });
-      
+
       // Store currently visible passwords before refetching
       const currentlyVisiblePasswords = new Set(visiblePasswords);
       const currentlyVisibleUsernames = new Set(visibleUsernames);
-      
+
       await fetchData();
-      
+
       // Re-decrypt visible passwords after fetch (excluding the deleted one)
       const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
       allVisible.delete(id); // Remove the deleted password
-      
+
       if (allVisible.size > 0) {
         const decryptPromises = Array.from(allVisible).map(async (passwordId) => {
           try {
@@ -504,9 +504,9 @@ const Password = () => {
             return { id: passwordId, decrypted: null };
           }
         });
-        
+
         const results = await Promise.all(decryptPromises);
-        
+
         setPasswords((prev) => {
           const updated = [...prev];
           results.forEach(({ id: passwordId, decrypted }) => {
@@ -565,7 +565,7 @@ const Password = () => {
         password: decryptedPassword.password, // This will be the actual decrypted password
         websiteUrls:
           decryptedPassword.websiteUrls &&
-          decryptedPassword.websiteUrls.length > 0
+            decryptedPassword.websiteUrls.length > 0
             ? decryptedPassword.websiteUrls
             : [""],
         notes: decryptedPassword.notes,
@@ -613,7 +613,7 @@ const Password = () => {
         const decrypted = await passwordService.getById(id);
         setPasswords((prev) => prev.map((p) => (p._id === id ? decrypted : p)));
         setVisiblePasswords((prev) => new Set(prev).add(id));
-        
+
         // Log view password action
         const password = passwords.find(p => p._id === id);
         if (password) {
@@ -647,7 +647,7 @@ const Password = () => {
         const decrypted = await passwordService.getById(id);
         setPasswords((prev) => prev.map((p) => (p._id === id ? decrypted : p)));
         setVisibleUsernames((prev) => new Set(prev).add(id));
-        
+
         // Log view username action
         const password = passwords.find(p => p._id === id);
         if (password) {
@@ -675,7 +675,7 @@ const Password = () => {
       title: "Copied",
       description: `${label} copied to clipboard`,
     });
-    
+
     // Log copy action if password context is provided
     if (passwordId && passwordName) {
       if (label === "Username") {
@@ -780,100 +780,73 @@ const Password = () => {
     );
   }
 
-  return (
-    <DashboardLayout title="Password">
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Password</h2>
-            <p className="text-muted-foreground">
-              Manage all your passwords and login entries
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Bulk Selection Button */}
-            <Button
-              variant="outline"
-              onClick={() => setIsBulkSelectionOpen(true)}
-            >
-              Bulk Selection
-            </Button>
-            {/* Bulk Operation Button */}
-            <Button
-              variant="outline"
-              onClick={() => setIsBulkOperationOpen(true)}
-            >
-              Bulk Operation
-            </Button>
-            {/* Password Generator Button */}
-            <Button onClick={() => setIsPasswordGeneratorOpen(true)}>
-              <Key className="mr-2 h-4 w-4" />
-              Password Generator
-            </Button>
-            {/* Add Password Dialog - Always render but conditionally enable */}
-            <AddPasswordForm
-              trigger={
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Password
-                </Button>
-              }
-              sourceType="organization"
-              onSuccess={async () => {
-                // Store currently visible passwords before refetching
-                const currentlyVisiblePasswords = new Set(visiblePasswords);
-                const currentlyVisibleUsernames = new Set(visibleUsernames);
-                
-                await fetchData();
-                
-                // Re-decrypt visible passwords after fetch
-                if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
-                  const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
-                  const decryptPromises = Array.from(allVisible).map(async (id) => {
-                    try {
-                      const decrypted = await passwordService.getById(id);
-                      return { id, decrypted };
-                    } catch (error) {
-                      return { id, decrypted: null };
-                    }
-                  });
-                  
-                  const results = await Promise.all(decryptPromises);
-                  
-                  setPasswords((prev) => {
-                    const updated = [...prev];
-                    results.forEach(({ id, decrypted }) => {
-                      if (decrypted) {
-                        const index = updated.findIndex((p) => p._id === id);
-                        if (index !== -1) {
-                          updated[index] = decrypted;
-                        }
-                      }
-                    });
-                    return updated;
-                  });
-                }
-              }}
+  // Header component
+  const header = (
+    <div className="flex flex-col gap-4">
+      {/* First Row: Search and Actions */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Left side: Search */}
+        <div className="w-full sm:w-64">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input
+              placeholder="Search passwords..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
             />
           </div>
-          {/* Edit Password Dialog - Always render but conditionally open */}
+        </div>
+
+        {/* Right side: Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="p-2 hover:bg-accent rounded-lg text-muted-foreground transition-colors border border-border/50"
+            onClick={() => fetchData()}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+
+          <div className="h-4 w-[1px] bg-border/60 mx-1 hidden sm:block"></div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsBulkSelectionOpen(true)}
+          >
+            Bulk Selection
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsBulkOperationOpen(true)}
+          >
+            Bulk Operation
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={() => setIsPasswordGeneratorOpen(true)}
+          >
+            <Key className="mr-2 h-4 w-4" />
+            Password Generator
+          </Button>
+
           <AddPasswordForm
-            isEditMode
-            password={editingPassword}
+            trigger={
+              <Button size="sm">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Password
+              </Button>
+            }
             sourceType="organization"
-            open={isEditMode}
-            onOpenChange={(open) => {
-              setIsEditMode(open);
-              if (!open) setEditingPassword(null);
-            }}
             onSuccess={async () => {
-              // Store currently visible passwords before refetching
               const currentlyVisiblePasswords = new Set(visiblePasswords);
               const currentlyVisibleUsernames = new Set(visibleUsernames);
-              
+
               await fetchData();
-              
-              // Re-decrypt visible passwords after fetch
+
               if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
                 const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
                 const decryptPromises = Array.from(allVisible).map(async (id) => {
@@ -884,9 +857,9 @@ const Password = () => {
                     return { id, decrypted: null };
                   }
                 });
-                
+
                 const results = await Promise.all(decryptPromises);
-                
+
                 setPasswords((prev) => {
                   const updated = [...prev];
                   results.forEach(({ id, decrypted }) => {
@@ -900,304 +873,352 @@ const Password = () => {
                   return updated;
                 });
               }
-              
-              setIsEditMode(false);
-              setEditingPassword(null);
             }}
-            trigger={null}
           />
         </div>
-
-        {/* Filter Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Filters</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="filter-organization">
-                  Organization (Default)
-                </Label>
-                <Select
-                  value={filterOrganization}
-                  onValueChange={(value) => {
-                    setFilterOrganization(value);
-                    setFilterCollections([]);
-                    setFilterFolders([]);
-                  }}
-                  disabled={loadingOrganizations}
-                >
-                  <SelectTrigger id="filter-organization">
-                    <SelectValue placeholder="Select organization (default)..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Organizations</SelectItem>
-                    {organizations.map((org: any) => (
-                      <SelectItem key={org._id} value={org._id}>
-                        {org.name || org.organizationName}{" "}
-                        {org.description || org.organizationEmail
-                          ? `(${org.description || org.organizationEmail})`
-                          : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <MultiSelectDropdown
-                  options={filterCollectionsList.map((col) => ({
-                    value: col._id,
-                    label:
-                      (col.name || col.collectionName) +
-                      (col.description ? ` (${col.description})` : ""),
-                  }))}
-                  value={filterCollections}
-                  onChange={setFilterCollections}
-                  label="Collections"
-                  placeholder={
-                    filterOrganization && filterOrganization !== "all"
-                      ? "Select collections..."
-                      : "Select organization first"
-                  }
-                  isDisabled={
-                    loadingFilterCollections ||
-                    !filterOrganization ||
-                    filterOrganization === "all"
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <MultiSelectDropdown
-                  options={filterFoldersList
-                    .filter(
-                      (f) =>
-                        filterCollections.length === 0 ||
-                        filterCollections.includes(f.collectionId)
-                    )
-                    .map((f) => {
-                      const collectionName =
-                        filterCollectionsList.find(
-                          (c) => c._id === f.collectionId
-                        )?.name ||
-                        filterCollectionsList.find(
-                          (c) => c._id === f.collectionId
-                        )?.collectionName ||
-                        "";
-                      return {
-                        value: f._id,
-                        label: `${f.name || f.folderName}${
-                          collectionName ? ` (${collectionName})` : ""
-                        }`,
-                      };
-                    })}
-                  value={filterFolders}
-                  onChange={setFilterFolders}
-                  label="Folders"
-                  placeholder={
-                    filterCollections.length > 0
-                      ? "Select folders..."
-                      : "Select collections first"
-                  }
-                  isDisabled={
-                    loadingFilterFolders || filterCollections.length === 0
-                  }
-                />
-              </div>
-            </div>
-            {((filterOrganization && filterOrganization !== "all") ||
-              filterCollections.length > 0 ||
-              filterFolders.length > 0) && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setFilterOrganization("all");
-                  setFilterCollections([]);
-                  setFilterFolders([]);
-                }}
-                className="w-full sm:w-auto"
-              >
-                Clear Filters
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        <SearchBar
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Search..."
-        />
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              All Passwords ({filteredPasswords.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
-                      S.No
-                    </th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">
-                      Name
-                    </th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">
-                      Username
-                    </th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">
-                      Password
-                    </th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">
-                      Website
-                    </th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">
-                      Created
-                    </th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedPasswords.map((password, index) => (
-                    <tr key={password._id} className="border-b border-border">
-                      <td className="p-4 align-middle">
-                        {(currentPage - 1) * rowsPerPage + index + 1}
-                      </td>
-                      <td className="p-4 text-sm font-medium">
-                        {password.itemName}
-                      </td>
-                      <td className="p-4 text-sm font-mono">
-                        <div className="flex items-center gap-2">
-                          {visibleUsernames.has(password._id)
-                            ? password.username
-                            : "••••••••"}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              toggleUsernameVisibility(password._id)
-                            }
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              copyToClipboard(password.username, "Username", password._id, password.itemName)
-                            }
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm font-mono">
-                        <div className="flex items-center gap-2">
-                          {visiblePasswords.has(password._id)
-                            ? password.password
-                            : "••••••••"}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              togglePasswordVisibility(password._id)
-                            }
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              copyToClipboard(password.password, "Password", password._id, password.itemName)
-                            }
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm">
-                        {password.websiteUrls &&
-                        password.websiteUrls.length > 0 ? (
-                          <div className="space-y-1">
-                            {password.websiteUrls
-                              .slice(0, 2)
-                              .map((url, index) => (
-                                <a
-                                  key={index}
-                                  href={url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline block text-xs"
-                                >
-                                  {url}
-                                </a>
-                              ))}
-                            {password.websiteUrls.length > 2 && (
-                              <span className="text-xs text-muted-foreground">
-                                +{password.websiteUrls.length - 2} more
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">
-                            No website
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">
-                        {new Date(password.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEdit(password)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => viewLogs(password)}
-                          >
-                            <History className="h-4 w-4" />
-                          </Button>
-                          {/* Show delete button for all users */}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => confirmDelete(password._id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalPasswords}
-          rowsPerPage={rowsPerPage}
-          onPageChange={setCurrentPage}
-          onRowsPerPageChange={setRowsPerPage}
-        />
       </div>
+
+      {/* Second Row: Filters */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <div className="flex-1 grid gap-4 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="filter-organization" className="text-xs font-medium">
+              Organization
+            </Label>
+            <Select
+              value={filterOrganization}
+              onValueChange={(value) => {
+                setFilterOrganization(value);
+                setFilterCollections([]);
+                setFilterFolders([]);
+              }}
+              disabled={loadingOrganizations}
+            >
+              <SelectTrigger id="filter-organization">
+                <SelectValue placeholder="Select organization..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Organizations</SelectItem>
+                {organizations.map((org: any) => (
+                  <SelectItem key={org._id} value={org._id}>
+                    {org.name || org.organizationName}{" "}
+                    {org.description || org.organizationEmail
+                      ? `(${org.description || org.organizationEmail})`
+                      : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <MultiSelectDropdown
+              options={filterCollectionsList.map((col) => ({
+                value: col._id,
+                label:
+                  (col.name || col.collectionName) +
+                  (col.description ? ` (${col.description})` : ""),
+              }))}
+              value={filterCollections}
+              onChange={setFilterCollections}
+              label="Collections"
+              placeholder={
+                filterOrganization && filterOrganization !== "all"
+                  ? "Select collections..."
+                  : "Select organization first"
+              }
+              isDisabled={
+                loadingFilterCollections ||
+                !filterOrganization ||
+                filterOrganization === "all"
+              }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <MultiSelectDropdown
+              options={filterFoldersList
+                .filter(
+                  (f) =>
+                    filterCollections.length === 0 ||
+                    filterCollections.includes(f.collectionId)
+                )
+                .map((f) => {
+                  const collectionName =
+                    filterCollectionsList.find(
+                      (c) => c._id === f.collectionId
+                    )?.name ||
+                    filterCollectionsList.find(
+                      (c) => c._id === f.collectionId
+                    )?.collectionName ||
+                    "";
+                  return {
+                    value: f._id,
+                    label: `${f.name || f.folderName}${collectionName ? ` (${collectionName})` : ""
+                      }`,
+                  };
+                })}
+              value={filterFolders}
+              onChange={setFilterFolders}
+              label="Folders"
+              placeholder={
+                filterCollections.length > 0
+                  ? "Select folders..."
+                  : "Select collections first"
+              }
+              isDisabled={
+                loadingFilterFolders || filterCollections.length === 0
+              }
+            />
+          </div>
+        </div>
+
+        {((filterOrganization && filterOrganization !== "all") ||
+          filterCollections.length > 0 ||
+          filterFolders.length > 0) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFilterOrganization("all");
+                setFilterCollections([]);
+                setFilterFolders([]);
+              }}
+            >
+              Clear Filters
+            </Button>
+          )}
+      </div>
+    </div>
+  );
+
+  // Footer component
+  const footer = (
+    <Pagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      totalItems={totalPasswords}
+      rowsPerPage={rowsPerPage}
+      onPageChange={setCurrentPage}
+      onRowsPerPageChange={setRowsPerPage}
+    />
+  );
+
+  return (
+    <DashboardLayout
+      title="Password"
+      header={header}
+      footer={footer}
+      mainClassName="p-0 flex flex-col overflow-hidden"
+    >
+      {/* Edit Password Dialog - Always render but conditionally open */}
+      <AddPasswordForm
+        isEditMode
+        password={editingPassword}
+        sourceType="organization"
+        open={isEditMode}
+        onOpenChange={(open) => {
+          setIsEditMode(open);
+          if (!open) setEditingPassword(null);
+        }}
+        onSuccess={async () => {
+          const currentlyVisiblePasswords = new Set(visiblePasswords);
+          const currentlyVisibleUsernames = new Set(visibleUsernames);
+
+          await fetchData();
+
+          if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
+            const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
+            const decryptPromises = Array.from(allVisible).map(async (id) => {
+              try {
+                const decrypted = await passwordService.getById(id);
+                return { id, decrypted };
+              } catch (error) {
+                return { id, decrypted: null };
+              }
+            });
+
+            const results = await Promise.all(decryptPromises);
+
+            setPasswords((prev) => {
+              const updated = [...prev];
+              results.forEach(({ id, decrypted }) => {
+                if (decrypted) {
+                  const index = updated.findIndex((p) => p._id === id);
+                  if (index !== -1) {
+                    updated[index] = decrypted;
+                  }
+                }
+              });
+              return updated;
+            });
+          }
+
+          setIsEditMode(false);
+          setEditingPassword(null);
+        }}
+        trigger={null}
+      />
+
+      <Card className="flex-1 flex flex-col border-0 shadow-none rounded-none w-full">
+        <CardHeader className="flex-none px-6 py-4 border-b">
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            All Passwords ({filteredPasswords.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 relative p-0 min-h-0 bg-background">
+          <div className="absolute inset-0 overflow-y-auto">
+            <table className="w-full">
+              <thead className="sticky top-0 bg-card z-10 shadow-sm">
+                <tr className="border-b border-border">
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
+                    S.No
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Name
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Username
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Password
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Website
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Created
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedPasswords.map((password, index) => (
+                  <tr key={password._id} className="border-b border-border">
+                    <td className="p-4 align-middle">
+                      {(currentPage - 1) * rowsPerPage + index + 1}
+                    </td>
+                    <td className="p-4 text-sm font-medium">
+                      {password.itemName}
+                    </td>
+                    <td className="p-4 text-sm font-mono">
+                      <div className="flex items-center gap-2">
+                        {visibleUsernames.has(password._id)
+                          ? password.username
+                          : "••••••••"}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            toggleUsernameVisibility(password._id)
+                          }
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            copyToClipboard(password.username, "Username", password._id, password.itemName)
+                          }
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm font-mono">
+                      <div className="flex items-center gap-2">
+                        {visiblePasswords.has(password._id)
+                          ? password.password
+                          : "••••••••"}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            togglePasswordVisibility(password._id)
+                          }
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            copyToClipboard(password.password, "Password", password._id, password.itemName)
+                          }
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm">
+                      {password.websiteUrls &&
+                        password.websiteUrls.length > 0 ? (
+                        <div className="space-y-1">
+                          {password.websiteUrls
+                            .slice(0, 2)
+                            .map((url, index) => (
+                              <a
+                                key={index}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline block text-xs"
+                              >
+                                {url}
+                              </a>
+                            ))}
+                          {password.websiteUrls.length > 2 && (
+                            <span className="text-xs text-muted-foreground">
+                              +{password.websiteUrls.length - 2} more
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          No website
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-sm text-muted-foreground">
+                      {new Date(password.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(password)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => viewLogs(password)}
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                        {/* Show delete button for all users */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => confirmDelete(password._id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Password Generator Dialog */}
       <Dialog open={isGeneratorOpen} onOpenChange={setIsGeneratorOpen}>
@@ -1417,7 +1438,7 @@ const Password = () => {
               {selectedPassword?.itemName} - Complete history of changes and access
             </p>
           </DialogHeader>
-          
+
           {/* Audit Logs Section */}
           <div className="space-y-4">
             <div className="border-b pb-2">
@@ -1439,10 +1460,10 @@ const Password = () => {
                         log.action === "login"
                           ? "default"
                           : log.action.includes("view")
-                          ? "secondary"
-                          : log.action.includes("copy")
-                          ? "outline"
-                          : "destructive"
+                            ? "secondary"
+                            : log.action.includes("copy")
+                              ? "outline"
+                              : "destructive"
                       }
                     >
                       {log.action.replace(/_/g, " ").toUpperCase()}
@@ -1512,8 +1533,8 @@ const Password = () => {
                         log.action === "create"
                           ? "default"
                           : log.action === "update"
-                          ? "secondary"
-                          : "destructive"
+                            ? "secondary"
+                            : "destructive"
                       }
                     >
                       {log.action.toUpperCase()}
@@ -1528,10 +1549,10 @@ const Password = () => {
                     {log.performedByName && log.performedByEmail
                       ? `${log.performedByName} (${log.performedByEmail})`
                       : log.performedByEmail
-                      ? `User (${log.performedByEmail})`
-                      : log.performedByName
-                      ? log.performedByName
-                      : "Unknown user"}
+                        ? `User (${log.performedByEmail})`
+                        : log.performedByName
+                          ? log.performedByName
+                          : "Unknown user"}
                   </div>
 
                   {log.action === "create" && (
@@ -1632,9 +1653,9 @@ const Password = () => {
           // Store currently visible passwords before refetching
           const currentlyVisiblePasswords = new Set(visiblePasswords);
           const currentlyVisibleUsernames = new Set(visibleUsernames);
-          
+
           await fetchData();
-          
+
           // Re-decrypt visible passwords after fetch
           if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
             const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
@@ -1646,9 +1667,9 @@ const Password = () => {
                 return { id, decrypted: null };
               }
             });
-            
+
             const results = await Promise.all(decryptPromises);
-            
+
             setPasswords((prev) => {
               const updated = [...prev];
               results.forEach(({ id, decrypted }) => {
@@ -1662,7 +1683,7 @@ const Password = () => {
               return updated;
             });
           }
-          
+
           setIsAddPasswordOpen(false);
           setPasswordFromGenerator("");
         }}
@@ -1682,9 +1703,9 @@ const Password = () => {
           // Store currently visible passwords before refetching
           const currentlyVisiblePasswords = new Set(visiblePasswords);
           const currentlyVisibleUsernames = new Set(visibleUsernames);
-          
+
           await fetchData();
-          
+
           // Re-decrypt visible passwords after fetch
           if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
             const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
@@ -1696,9 +1717,9 @@ const Password = () => {
                 return { id, decrypted: null };
               }
             });
-            
+
             const results = await Promise.all(decryptPromises);
-            
+
             setPasswords((prev) => {
               const updated = [...prev];
               results.forEach(({ id, decrypted }) => {
@@ -1726,9 +1747,9 @@ const Password = () => {
           // Store currently visible passwords before refetching
           const currentlyVisiblePasswords = new Set(visiblePasswords);
           const currentlyVisibleUsernames = new Set(visibleUsernames);
-          
+
           await fetchData();
-          
+
           // Re-decrypt visible passwords after fetch
           if (currentlyVisiblePasswords.size > 0 || currentlyVisibleUsernames.size > 0) {
             const allVisible = new Set([...currentlyVisiblePasswords, ...currentlyVisibleUsernames]);
@@ -1740,9 +1761,9 @@ const Password = () => {
                 return { id, decrypted: null };
               }
             });
-            
+
             const results = await Promise.all(decryptPromises);
-            
+
             setPasswords((prev) => {
               const updated = [...prev];
               results.forEach(({ id, decrypted }) => {

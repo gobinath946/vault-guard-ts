@@ -76,7 +76,56 @@ export const HardwareAllocationForm = ({
   const [userSearchOpen, setUserSearchOpen] = useState(false);
   const [hardwareSearchOpen, setHardwareSearchOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const { toast } = useToast();
+
+  const handleSendEmailAllocation = async () => {
+    try {
+      setSendingEmail(true);
+      const data = form.getValues();
+
+      // Validate form
+      if (!data.userId) {
+        toast({
+          title: 'Error',
+          description: 'Please select a user',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (selectedAssets.length !== 1) {
+        toast({
+          title: 'Error',
+          description: 'Email allocation only supports single asset selection',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const emailData = {
+        userId: data.userId,
+        hardwareAssetId: selectedAssets[0]._id,
+        remarks: data.remarks,
+      };
+
+      await assetService.createHardwareAllocationEmailRequest(emailData);
+      toast({
+        title: 'Success',
+        description: 'Allocation request email sent successfully',
+      });
+      onSuccess();
+    } catch (error: any) {
+      console.error('Error sending allocation email:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to send allocation request email',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -101,7 +150,7 @@ export const HardwareAllocationForm = ({
     if (editingAllocation) {
       // Check if this is an event edit (has event metadata)
       const isEventEdit = (editingAllocation as any)._eventId;
-      
+
       if (isEventEdit) {
         // Event editing mode - show all assets in the event
         const eventAssets = (editingAllocation as any)._eventAssets || [];
@@ -112,10 +161,10 @@ export const HardwareAllocationForm = ({
           assetModel: asset.assetModel,
           serialNumber: asset.serialNumber,
         }));
-        
+
         setSelectedAssets(eventAssetObjects);
         setBulkMode(true); // Use bulk mode for event editing
-        
+
         form.reset({
           userId: editingAllocation.userId._id,
           hardwareAssetId: '',
@@ -195,18 +244,18 @@ export const HardwareAllocationForm = ({
 
       if (editingAllocation) {
         const isEventEdit = (editingAllocation as any)._eventId;
-        
+
         if (isEventEdit) {
           // Event editing - update all allocations in the event
           const eventAssets = (editingAllocation as any)._eventAssets || [];
-          const updatePromises = eventAssets.map((asset: any) => 
+          const updatePromises = eventAssets.map((asset: any) =>
             assetService.updateHardwareAllocation(asset.allocationId, {
               userId: data.userId,
               hardwareAssetId: asset._id,
               remarks: data.remarks,
             })
           );
-          
+
           await Promise.all(updatePromises);
           toast({
             title: 'Success',
@@ -218,17 +267,17 @@ export const HardwareAllocationForm = ({
             hardwareAssetId?: string;
             remarks?: string;
           } = {};
-          
+
           // Only include hardwareAssetId if it actually changed
           if (data.hardwareAssetId && data.hardwareAssetId !== editingAllocation.hardwareAssetId._id) {
             updateData.hardwareAssetId = data.hardwareAssetId;
           }
-          
+
           // Only include remarks if it changed
           if (data.remarks !== undefined && data.remarks !== (editingAllocation.remarks || '')) {
             updateData.remarks = data.remarks;
           }
-          
+
           await assetService.updateHardwareAllocation(editingAllocation._id, updateData);
           toast({
             title: 'Success',
@@ -299,11 +348,11 @@ export const HardwareAllocationForm = ({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {editingAllocation ? 
-              ((editingAllocation as any)._eventId ? 
-                `Edit Hardware Event (${(editingAllocation as any)._eventAssetCount} assets)` : 
+            {editingAllocation ?
+              ((editingAllocation as any)._eventId ?
+                `Edit Hardware Event (${(editingAllocation as any)._eventAssetCount} assets)` :
                 'Edit Hardware Allocation'
-              ) : 
+              ) :
               'Allocate Hardware'
             }
           </DialogTitle>
@@ -317,7 +366,7 @@ export const HardwareAllocationForm = ({
               <span className="font-medium">Editing Allocation Event</span>
             </div>
             <p className="text-sm text-blue-700 mt-1">
-              You are editing an allocation event with {(editingAllocation as any)._eventAssetCount} assets. 
+              You are editing an allocation event with {(editingAllocation as any)._eventAssetCount} assets.
               Changes will be applied to all allocations in this event.
             </p>
           </div>
@@ -331,7 +380,7 @@ export const HardwareAllocationForm = ({
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>User *</FormLabel>
-                  <Popover open={userSearchOpen && !editingAllocation} onOpenChange={(open) => !editingAllocation && setUserSearchOpen(open)}>
+                  <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -340,10 +389,9 @@ export const HardwareAllocationForm = ({
                           aria-expanded={userSearchOpen}
                           className={cn(
                             "w-full justify-between",
-                            !field.value && "text-muted-foreground",
-                            editingAllocation && "bg-muted cursor-not-allowed"
+                            !field.value && "text-muted-foreground"
                           )}
-                          disabled={loadingUsers || !!editingAllocation}
+                          disabled={loadingUsers}
                         >
                           {loadingUsers ? (
                             "Loading users..."
@@ -507,7 +555,7 @@ export const HardwareAllocationForm = ({
                     {selectedAssets.length} selected
                   </Badge>
                 </div>
-                
+
                 {/* Selected Assets */}
                 {selectedAssets.length > 0 && (
                   <div className="space-y-2">
@@ -603,12 +651,22 @@ export const HardwareAllocationForm = ({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
+              {!editingAllocation && selectedAssets.length === 1 && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleSendEmailAllocation}
+                  disabled={sendingEmail || loadingUsers || loadingHardware}
+                >
+                  {sendingEmail ? 'Sending...' : 'Send Mail Allocation'}
+                </Button>
+              )}
               <Button type="submit" disabled={loading || loadingUsers || (loadingHardware && !editingAllocation)}>
-                {loading ? 'Saving...' : editingAllocation ? 
-                  ((editingAllocation as any)._eventId ? 
-                    `Update Event (${(editingAllocation as any)._eventAssetCount} assets)` : 
+                {loading ? 'Saving...' : editingAllocation ?
+                  ((editingAllocation as any)._eventId ?
+                    `Update Event (${(editingAllocation as any)._eventAssetCount} assets)` :
                     'Update'
-                  ) : 
+                  ) :
                   selectedAssets.length > 1 ? `Allocate ${selectedAssets.length} Assets` : 'Allocate'
                 }
               </Button>

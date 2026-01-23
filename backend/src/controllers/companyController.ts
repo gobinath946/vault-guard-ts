@@ -8,6 +8,8 @@ import Collection from '../models/Collection';
 import Folder from '../models/Folder';
 import Company from '../models/Company';
 import { AuthRequest } from '../middleware/auth';
+import { sendWelcomeEmail } from '../utils/emailService';
+import crypto from 'crypto';
 
 export const getDashboard = async (req: AuthRequest, res: Response) => {
   try {
@@ -162,11 +164,11 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
           { email: { $regex: q, $options: 'i' } },
         ]
       };
-      
+
       // Combine with existing conditions using $and
       const existingConditions = { ...query };
       query.$and = [existingConditions, searchCondition];
-      
+
       // Remove the duplicate $or if it exists
       if (query.$or) {
         delete query.$or;
@@ -198,8 +200,16 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
 
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { email, username, employeeId, password, permissions } = req.body;
-    const { id: companyId, id: createdBy } = req.user!;
+    const { email, username, employeeId, permissions, role } = req.body;
+    const { id: companyId, id: createdBy, isPrimaryAdmin } = req.user!;
+
+    // Validate Status Logic
+    const targetRole = role === 'company_super_admin' ? 'company_super_admin' : 'company_user';
+
+    // Only Primary Admin can create Company Super Admins
+    if (targetRole === 'company_super_admin' && !isPrimaryAdmin) {
+      return res.status(403).json({ message: 'Only Primary Admin can create Company Super Admins' });
+    }
 
     // Check if user exists within the same company
     const existingUser = await User.findOne({ email, companyId });
@@ -215,8 +225,14 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Set default password
+    const password = "Welcome@123";
+
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // We expect plaintext password here (so we can email it), but our login flow expects bcrypt(SHA256(password)).
+    // So we first SHA256 hash it, then bcrypt it.
+    const sha256Password = crypto.createHash('sha256').update(password).digest('hex');
+    const hashedPassword = await bcrypt.hash(sha256Password, 12);
 
     // Process permissions - convert string IDs to ObjectIds
     const processedPermissions = {
@@ -231,11 +247,30 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       username,
       employeeId: employeeId || undefined,
       password: hashedPassword,
+      role: targetRole,
+      isPrimaryAdmin: false, // Explicitly false for all new users created this way
       permissions: processedPermissions,
       createdBy: new mongoose.Types.ObjectId(createdBy),
     });
 
     await user.save();
+
+    // Fetch company to get email config and send welcome email
+    const company = await Company.findById(companyId);
+    if (company) {
+      // Don't await this to avoid blocking the response? 
+      // User said "send mail ... password ok make it", usually implies sync or at least "it happens".
+      // Given the flow, awaiting it ensures we know if it fails (though we catch errors in the service).
+      // Let's await it to be safe, or start it without await if performance is critical (unlikely here).
+      // I'll await it but ignore errors so user creation still succeeds even if email fails?
+      // Actually, if email fails, we probably still want the user created, but maybe log it.
+      // The service already logs errors.
+      await sendWelcomeEmail({
+        email: user.email,
+        username: user.username,
+        password: password
+      }, company.emailConfig);
+    }
 
     // Return user without password and with populated permissions
     const userResponse = await User.findById(user._id)
@@ -259,8 +294,8 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     if (employeeId !== undefined) {
       if (employeeId && employeeId.trim() !== '') {
         // If employeeId is provided and not empty, check if it already exists for another user
-        const existingEmployeeId = await User.findOne({ 
-          employeeId, 
+        const existingEmployeeId = await User.findOne({
+          employeeId,
           companyId,
           _id: { $ne: req.params.id } // Exclude current user
         });
@@ -961,6 +996,68 @@ export const updateEmailConfig = async (req: AuthRequest, res: Response) => {
     await Company.findByIdAndUpdate(id, { $set: updateData });
 
     res.json({ message: 'Email configuration updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Asset Allocation Email Configuration
+export const getAssetAllocationEmailConfig = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Only company super admin can access asset allocation email configuration' });
+    }
+
+    const company = await Company.findById(id).select('assetAllocationEmailConfig');
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    const config = company.assetAllocationEmailConfig || {
+      to: '',
+      subject: 'Hardware Asset Allocation Request - {{assetName}} for {{userName}}',
+      body: 'Dear Team,\n\nA hardware asset allocation request has been submitted:\n\nUser: {{userName}} ({{userEmail}})\nAsset: {{assetName}} - {{assetBrand}} {{assetModel}}\nSerial Number: {{serialNumber}}\nRemarks: {{remarks}}\n\nPlease reply with APPROVED or REJECTED to process this request.\n\nThank you.'
+    };
+
+    res.json(config);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateAssetAllocationEmailConfig = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Only company super admin can update asset allocation email configuration' });
+    }
+
+    const { to, subject, body, infraEmail } = req.body;
+
+    // Validate required fields
+    if (!to || !subject || !body) {
+      return res.status(400).json({ message: 'To, subject, and body are required' });
+    }
+
+    const company = await Company.findById(id);
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    // Update asset allocation email config (always HTML)
+    await Company.findByIdAndUpdate(id, {
+      $set: {
+        'assetAllocationEmailConfig.to': to,
+        'assetAllocationEmailConfig.subject': subject,
+        'assetAllocationEmailConfig.body': body,
+        'assetAllocationEmailConfig.infraEmail': infraEmail || '',
+      }
+    });
+
+    res.json({ message: 'Asset allocation email configuration updated successfully' });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

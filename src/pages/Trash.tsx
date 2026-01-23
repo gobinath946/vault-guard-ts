@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Pagination } from '@/components/common/Pagination';
-import { Eye, Undo, Trash2, RefreshCw, Archive, User, Calendar, Folder, Building2, BookOpen, Key } from 'lucide-react';
+import { Eye, Undo, Trash2, RefreshCw, Archive, User, Calendar, Folder, Building2, BookOpen, Key, Search } from 'lucide-react';
 import { trashService, TrashItem } from '@/services/trashService';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -165,7 +166,7 @@ const Trash = () => {
     };
 
     const config = typeConfig[type as keyof typeof typeConfig] || { label: type, variant: 'default' as const };
-    
+
     return (
       <Badge variant={config.variant} className="flex items-center gap-1">
         {getItemTypeIcon(type)}
@@ -200,240 +201,266 @@ const Trash = () => {
     );
   }
 
-  return (
-    <DashboardLayout title="Trash">
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Trash</h2>
-            <p className="text-muted-foreground">Manage your deleted items</p>
-          </div>
-          {trashItems.length > 0 && (
+  // Header component
+  const header = (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Left side: Search */}
+      <div className="w-full sm:w-64">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Input
+            placeholder="Search deleted items..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
+      {/* Right side: Refresh and Empty Trash */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          className="p-2 hover:bg-accent rounded-lg text-muted-foreground transition-colors border border-border/50"
+          onClick={() => fetchTrashItems()}
+        >
+          <RefreshCw className="h-4 w-4" />
+        </button>
+
+        {trashItems.length > 0 && (
+          <>
+            <div className="h-4 w-[1px] bg-border/60 mx-1 hidden sm:block"></div>
             <Button
               variant="destructive"
+              size="sm"
               onClick={() => setIsEmptyTrashDialogOpen(true)}
             >
               <Trash2 className="mr-2 h-4 w-4" />
               Empty Trash
             </Button>
-          )}
-        </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 
-        <SearchBar 
-          value={searchTerm} 
-          onChange={setSearchTerm} 
-          placeholder="Search deleted items..." 
-        />
+  // Footer component
+  const footer = (
+    <Pagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      totalItems={totalItems}
+      rowsPerPage={rowsPerPage}
+      onPageChange={setCurrentPage}
+      onRowsPerPageChange={setRowsPerPage}
+    />
+  );
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Archive className="h-5 w-5" />
-              Deleted Items ({totalItems})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
-                        S.No
-                      </th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Item Name</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Type</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Deleted From</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Deleted By</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Deleted At</th>
-                    <th className="p-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
+  return (
+    <DashboardLayout
+      title="Trash"
+      header={header}
+      footer={footer}
+      mainClassName="p-0 flex flex-col overflow-hidden"
+    >
+      <Card className="flex-1 flex flex-col border-0 shadow-none rounded-none w-full">
+        <CardHeader className="flex-none px-6 py-4 border-b">
+          <CardTitle className="flex items-center gap-2">
+            <Archive className="h-5 w-5" />
+            Deleted Items ({totalItems})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 relative p-0 min-h-0 bg-background">
+          <div className="absolute inset-0 overflow-y-auto">
+            <table className="w-full">
+              <thead className="sticky top-0 bg-card z-10 shadow-sm">
+                <tr className="border-b border-border">
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12 bg-card">
+                    S.No
+                  </th>
+                  <th className="h-12 px-4 text-left text-sm font-medium text-muted-foreground bg-card">Item Name</th>
+                  <th className="h-12 px-4 text-left text-sm font-medium text-muted-foreground bg-card">Type</th>
+                  <th className="h-12 px-4 text-left text-sm font-medium text-muted-foreground bg-card">Deleted From</th>
+                  <th className="h-12 px-4 text-left text-sm font-medium text-muted-foreground bg-card">Deleted By</th>
+                  <th className="h-12 px-4 text-left text-sm font-medium text-muted-foreground bg-card">Deleted At</th>
+                  <th className="h-12 px-4 text-left text-sm font-medium text-muted-foreground bg-card">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trashItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                      <Archive className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                      <p>No items in trash</p>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {trashItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                        <Archive className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                        <p>No items in trash</p>
+                ) : (
+                  filteredItems.map((item, index) => (
+                    <tr key={item._id} className="border-b border-border hover:bg-muted/50">
+                      <td className="p-4 align-middle">
+                        {(currentPage - 1) * rowsPerPage + index + 1}
+                      </td>
+                      <td className="p-4 text-sm font-medium">{item.itemName}</td>
+                      <td className="p-4 text-sm">
+                        {getItemTypeBadge(item.itemType)}
+                      </td>
+                      <td className="p-4 text-sm">{item.deletedFrom}</td>
+                      <td className="p-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <User className="h-3 w-3" />
+                          {getDeletedByDisplay(item)}
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(item.deletedAt), 'MMM dd, yyyy HH:mm')}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openViewDialog(item)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openRestoreDialog(item)}
+                          >
+                            <Undo className="h-4 w-4 text-green-600" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openDeleteDialog(item)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
-                  ) : (
-                    filteredItems.map((item, index) => (
-                      <tr key={item._id} className="border-b border-border hover:bg-muted/50">
-                        <td className="p-4 align-middle">
-                          {(currentPage - 1) * rowsPerPage + index + 1}
-                        </td>
-                        <td className="p-4 text-sm font-medium">{item.itemName}</td>
-                        <td className="p-4 text-sm">
-                          {getItemTypeBadge(item.itemType)}
-                        </td>
-                        <td className="p-4 text-sm">{item.deletedFrom}</td>
-                        <td className="p-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <User className="h-3 w-3" />
-                            {getDeletedByDisplay(item)}
-                          </div>
-                        </td>
-                        <td className="p-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(item.deletedAt), 'MMM dd, yyyy HH:mm')}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              onClick={() => openViewDialog(item)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              onClick={() => openRestoreDialog(item)}
-                            >
-                              <Undo className="h-4 w-4 text-green-600" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              onClick={() => openDeleteDialog(item)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          rowsPerPage={rowsPerPage}
-          onPageChange={setCurrentPage}
-          onRowsPerPageChange={setRowsPerPage}
-        />
-
-        {/* View Details Dialog */}
-        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Item Details</DialogTitle>
-            </DialogHeader>
-            {selectedItem && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Item Name</label>
-                    <p className="text-sm">{selectedItem.itemName}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Type</label>
-                    <div className="mt-1">
-                      {getItemTypeBadge(selectedItem.itemType)}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Deleted From</label>
-                    <p className="text-sm">{selectedItem.deletedFrom}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Deleted By</label>
-                    <p className="text-sm">
-                      {getDeletedByDisplay(selectedItem)}
-                      {selectedItem.deletedBy?.email && ` (${selectedItem.deletedBy.email})`}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Deleted At</label>
-                    <p className="text-sm">
-                      {format(new Date(selectedItem.deletedAt), 'PPpp')}
-                    </p>
+      {/* View Details Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Item Details</DialogTitle>
+          </DialogHeader>
+          {selectedItem && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Item Name</label>
+                  <p className="text-sm">{selectedItem.itemName}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Type</label>
+                  <div className="mt-1">
+                    {getItemTypeBadge(selectedItem.itemType)}
                   </div>
                 </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Deleted From</label>
+                  <p className="text-sm">{selectedItem.deletedFrom}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Deleted By</label>
+                  <p className="text-sm">
+                    {getDeletedByDisplay(selectedItem)}
+                    {selectedItem.deletedBy?.email && ` (${selectedItem.deletedBy.email})`}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Deleted At</label>
+                  <p className="text-sm">
+                    {format(new Date(selectedItem.deletedAt), 'PPpp')}
+                  </p>
+                </div>
               </div>
-            )}
-          </DialogContent>
-        </Dialog>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
-        {/* Restore Confirmation Dialog */}
-        <AlertDialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Restore Item</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to restore "{selectedItem?.itemName}"? 
-                The item will be moved back to its original location.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => selectedItem && handleRestore(selectedItem._id)}>
-                <Undo className="mr-2 h-4 w-4" />
-                Restore
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+      {/* Restore Confirmation Dialog */}
+      <AlertDialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to restore "{selectedItem?.itemName}"?
+              The item will be moved back to its original location.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => selectedItem && handleRestore(selectedItem._id)}>
+              <Undo className="mr-2 h-4 w-4" />
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-        {/* Permanent Delete Confirmation Dialog */}
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Permanently Delete</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete 
-                "{selectedItem?.itemName}" from the database.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => selectedItem && handlePermanentDelete(selectedItem._id)}
-                className="bg-destructive text-destructive-foreground"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Permanently
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+      {/* Permanent Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently Delete</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete
+              "{selectedItem?.itemName}" from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => selectedItem && handlePermanentDelete(selectedItem._id)}
+              className="bg-destructive text-destructive-foreground"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-        {/* Empty Trash Confirmation Dialog */}
-        <AlertDialog open={isEmptyTrashDialogOpen} onOpenChange={setIsEmptyTrashDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Empty Trash</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete all items in the trash.
-                {trashItems.length > 0 && (
-                  <span className="font-semibold block mt-2">
-                    This will delete {trashItems.length} item(s).
-                  </span>
-                )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={handleEmptyTrash}
-                className="bg-destructive text-destructive-foreground"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Empty Trash
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+      {/* Empty Trash Confirmation Dialog */}
+      <AlertDialog open={isEmptyTrashDialogOpen} onOpenChange={setIsEmptyTrashDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Empty Trash</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete all items in the trash.
+              {trashItems.length > 0 && (
+                <span className="font-semibold block mt-2">
+                  This will delete {trashItems.length} item(s).
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleEmptyTrash}
+              className="bg-destructive text-destructive-foreground"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Empty Trash
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };

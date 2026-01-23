@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import SoftwareAssets from '@/components/assets/SoftwareAssets';
 
 const SoftwareAssetsPage = () => {
@@ -43,18 +42,7 @@ const SoftwareAssetsPage = () => {
   }
 
   return (
-    <DashboardLayout title="Software Assets">
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Software Assets</h2>
-          <p className="text-muted-foreground">
-            Manage and track company software assets
-          </p>
-        </div>
-
-        <SoftwareAssets />
-      </div>
-    </DashboardLayout>
+    <SoftwareAssets />
   );
 };
 

@@ -109,7 +109,7 @@ export const getCheckoutList = async (req: AuthRequest, res: Response) => {
         // Build the base query
         const query: any = {
             companyId,
-            status: { $in: ['In Progress', 'Completed', 'Failed'] }
+            status: { $in: ['Initiated', 'In Progress', 'Completed', 'Failed'] }
         };
 
         // Add status filter if provided

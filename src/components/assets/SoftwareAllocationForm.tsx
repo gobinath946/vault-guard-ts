@@ -79,6 +79,7 @@ export const SoftwareAllocationForm = ({
   editingAllocation,
 }: SoftwareAllocationFormProps) => {
   const [loading, setLoading] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [availableSoftware, setAvailableSoftware] = useState<SoftwareAsset[]>([]);
   const [selectedSoftware, setSelectedSoftware] = useState<SoftwareAsset | null>(null);
@@ -86,6 +87,65 @@ export const SoftwareAllocationForm = ({
   const [loadingSoftware, setLoadingSoftware] = useState(true);
   const [userSearchOpen, setUserSearchOpen] = useState(false);
   const { toast } = useToast();
+
+  const handleSendEmailAllocation = async () => {
+    try {
+      setSendingEmail(true);
+      const data = form.getValues();
+
+      // Validate form
+      if (!data.userId) {
+        toast({
+          title: 'Error',
+          description: 'Please select a user',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!data.softwareAssetId) {
+        toast({
+          title: 'Error',
+          description: 'Please select a software asset',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!data.licenseCount || data.licenseCount < 1) {
+        toast({
+          title: 'Error',
+          description: 'Please enter a valid license count',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const emailData = {
+        userId: data.userId,
+        softwareAssetId: data.softwareAssetId,
+        licenseCount: data.licenseCount,
+        expiryDate: data.expiryDate || undefined,
+        remarks: data.remarks,
+      };
+
+      await assetService.createSoftwareAllocationEmailRequest(emailData);
+      toast({
+        title: 'Success',
+        description: 'Software allocation request email sent successfully',
+      });
+      onSuccess();
+    } catch (error: any) {
+      console.error('Error sending allocation email:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to send allocation request email',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -108,7 +168,7 @@ export const SoftwareAllocationForm = ({
     if (isOpen) {
       fetchUsers();
       fetchAvailableSoftware(); // Always fetch available software
-      
+
       // If editing, immediately add the software to availableSoftware list
       // so the Select can show it as selected
       if (editingAllocation && editingAllocation.softwareAssetId) {
@@ -125,7 +185,7 @@ export const SoftwareAllocationForm = ({
           createdAt: '',
           updatedAt: '',
         };
-        
+
         setAvailableSoftware(prev => {
           const exists = prev.some(s => s._id === editingSoftware._id);
           if (!exists) {
@@ -133,7 +193,7 @@ export const SoftwareAllocationForm = ({
           }
           return prev;
         });
-        
+
         setSelectedSoftware(editingSoftware);
       }
     }
@@ -175,7 +235,7 @@ export const SoftwareAllocationForm = ({
           remarks: editingAllocation.remarks || '',
           customFields: customFieldsArray,
         });
-        
+
         // Immediately set selected software from editing allocation
         const editingSoftware: SoftwareAsset = {
           _id: editingAllocation.softwareAssetId._id,
@@ -687,6 +747,16 @@ export const SoftwareAllocationForm = ({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
+              {!editingAllocation && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleSendEmailAllocation}
+                  disabled={sendingEmail || loadingUsers || loadingSoftware}
+                >
+                  {sendingEmail ? 'Sending...' : 'Send Mail Allocation'}
+                </Button>
+              )}
               <Button type="submit" disabled={loading || loadingUsers || (loadingSoftware && !editingAllocation)}>
                 {loading ? 'Saving...' : editingAllocation ? 'Update' : 'Allocate'}
               </Button>

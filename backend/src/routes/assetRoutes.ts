@@ -49,11 +49,37 @@ import {
   getSoftwareAssetAllocationHistory,
   getUserHardwareAllocationHistory,
   getUserSoftwareAllocationHistory,
+  
+  // Hardware Allocation Email Requests
+  createHardwareAllocationEmailRequest,
+  processAllocationEmailApproval,
+  getAllocationRequests,
+  approveAllocationViaLink,
+  rejectAllocationViaLink,
+  
+  // Software Allocation Email Requests
+  createSoftwareAllocationEmailRequest,
+  
+  // Company User Endpoints
+  getUserAllocatedHardware,
+  getUserAllocatedSoftware,
+  getUserAllocatedAssetsDashboard,
 } from '../controllers/assetController';
 
 const router = express.Router();
 
-// All routes require authentication and Super Admin role
+// Public routes (no authentication required) - for email link clicks
+router.get('/hardware/allocation-request/approve/:requestId', approveAllocationViaLink);
+router.get('/hardware/allocation-request/reject/:requestId', rejectAllocationViaLink);
+router.get('/software/allocation-request/approve/:requestId', approveAllocationViaLink);
+router.get('/software/allocation-request/reject/:requestId', rejectAllocationViaLink);
+
+// Company User Routes (requires authentication but not super_admin role)
+router.get('/user/allocated-hardware', authenticate, getUserAllocatedHardware);
+router.get('/user/allocated-software', authenticate, getUserAllocatedSoftware);
+router.get('/user/allocated-dashboard', authenticate, getUserAllocatedAssetsDashboard);
+
+// All other routes require authentication and Super Admin role
 router.use(authenticate);
 router.use(authorize('company_super_admin'));
 
@@ -109,5 +135,13 @@ router.get('/checker/:userId', getAssetChecker);
 // User allocation history
 router.get('/hardware/user/:userId/allocation-history', getUserHardwareAllocationHistory);
 router.get('/software/user/:userId/allocation-history', getUserSoftwareAllocationHistory);
+
+// Hardware Allocation Email Requests
+router.post('/hardware/allocation-request', createHardwareAllocationEmailRequest);
+router.post('/hardware/allocation-request/process', processAllocationEmailApproval);
+router.get('/hardware/allocation-requests', getAllocationRequests);
+
+// Software Allocation Email Requests
+router.post('/software/allocation-request', createSoftwareAllocationEmailRequest);
 
 export default router;

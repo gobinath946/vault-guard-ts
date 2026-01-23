@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import express, { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth';
 import HardwareAsset from '../models/HardwareAsset';
@@ -10,6 +10,8 @@ import HardwareAssetLog from '../models/HardwareAssetLog';
 import SoftwareAssetLog from '../models/SoftwareAssetLog';
 import HardwareAllocationLog from '../models/HardwareAllocationLog';
 import SoftwareAllocationLog from '../models/SoftwareAllocationLog';
+import HardwareAllocationRequest from '../models/HardwareAllocationRequest';
+import SoftwareAllocationRequest from '../models/SoftwareAllocationRequest';
 import {
   logAssetCreate,
   logAssetUpdate,
@@ -19,6 +21,7 @@ import {
   logAllocationDelete,
   logAllocationReturn,
 } from '../utils/assetLogger';
+import { sendAllocationRequestEmail, processAllocationApproval, processAllocationRejection } from '../utils/emailService';
 import Company from '../models/Company';
 
 // Utility function to check and update software asset expiry status
@@ -2804,6 +2807,806 @@ export const getUserSoftwareAllocationHistory = async (req: AuthRequest, res: Re
     }
 
     res.json({ logs: transformedLogs });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Hardware Allocation Email Request Controllers
+export const createHardwareAllocationEmailRequest = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Access denied. Super Admin only.' });
+    }
+
+    const { userId, hardwareAssetId, remarks } = req.body;
+    const companyId = id;
+
+    // Validate user belongs to company
+    const user = await User.findOne({ _id: userId, companyId });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Validate hardware asset
+    const asset = await HardwareAsset.findOne({
+      _id: hardwareAssetId,
+      companyId,
+      isDeleted: false
+    });
+    if (!asset) {
+      return res.status(404).json({ message: 'Hardware asset not found' });
+    }
+
+    // Check if asset is available
+    if (asset.status !== 'AVAILABLE') {
+      return res.status(400).json({ message: 'Hardware asset is not available for allocation' });
+    }
+
+    // Check if there's already an active allocation for this asset
+    const existingAllocation = await HardwareAllocation.findOne({
+      hardwareAssetId,
+      status: 'ACTIVE',
+      isDeleted: false
+    });
+
+    if (existingAllocation) {
+      return res.status(400).json({ message: 'Hardware asset is already assigned' });
+    }
+
+    // Create allocation request
+    const allocationRequest = new HardwareAllocationRequest({
+      companyId,
+      userId,
+      hardwareAssetId,
+      remarks,
+      requestedBy: companyId,
+      status: 'PENDING',
+    });
+
+    await allocationRequest.save();
+
+    // Get company configuration
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    // Send email request
+    try {
+      const emailResult = await sendAllocationRequestEmail(
+        {
+          userName: user.username,
+          userEmail: user.email,
+          assetName: asset.assetName || 'Unknown Asset',
+          assetBrand: asset.brand || '',
+          assetModel: asset.assetModel || '',
+          serialNumber: asset.serialNumber || '',
+          remarks: remarks || '',
+          requestId: String(allocationRequest._id),
+          assetType: 'hardware', // Specify hardware type
+        },
+        company.assetAllocationEmailConfig,
+        company.emailConfig
+      );
+
+      if (emailResult.success) {
+        // Update request with email message ID
+        allocationRequest.emailMessageId = emailResult.messageId;
+        await allocationRequest.save();
+
+        res.status(201).json({
+          message: 'Allocation request email sent successfully',
+          request: allocationRequest,
+        });
+      } else {
+        // Delete the request if email failed
+        await HardwareAllocationRequest.findByIdAndDelete(allocationRequest._id);
+        return res.status(500).json({
+          message: 'Failed to send allocation request email',
+          error: emailResult.error,
+        });
+      }
+    } catch (emailError: any) {
+      // Delete the request if email failed
+      await HardwareAllocationRequest.findByIdAndDelete(allocationRequest._id);
+      return res.status(500).json({
+        message: 'Failed to send allocation request email',
+        error: emailError.message,
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const processAllocationEmailApproval = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Access denied. Super Admin only.' });
+    }
+
+    const { requestId, decision } = req.body;
+    const companyId = id;
+
+    if (!['APPROVED', 'REJECTED'].includes(decision)) {
+      return res.status(400).json({ message: 'Invalid decision. Must be APPROVED or REJECTED' });
+    }
+
+    // Find the allocation request
+    const allocationRequest = await HardwareAllocationRequest.findOne({
+      _id: requestId,
+      companyId,
+      status: 'PENDING',
+    });
+
+    if (!allocationRequest) {
+      return res.status(404).json({ message: 'Allocation request not found or already processed' });
+    }
+
+    // Update request status
+    allocationRequest.status = decision as 'APPROVED' | 'REJECTED';
+    allocationRequest.processedAt = new Date();
+    await allocationRequest.save();
+
+    if (decision === 'APPROVED') {
+      // Create the actual allocation
+      const allocation = new HardwareAllocation({
+        companyId,
+        userId: allocationRequest.userId,
+        hardwareAssetId: allocationRequest.hardwareAssetId,
+        remarks: allocationRequest.remarks,
+        createdBy: companyId,
+      });
+
+      await allocation.save();
+
+      // Update asset status
+      await HardwareAsset.findByIdAndUpdate(allocationRequest.hardwareAssetId, {
+        status: 'ASSIGNED',
+        updatedBy: companyId,
+      });
+
+      // Populate and log
+      await allocation.populate([
+        { path: 'userId', select: 'username email' },
+        { path: 'hardwareAssetId', select: 'assetName brand assetModel serialNumber' },
+        { path: 'createdBy', select: 'companyName' }
+      ]);
+
+      const hardwareAssetIdForLog = allocation.hardwareAssetId || (allocation as any).hardwareAssetId;
+
+      await logAllocationCreate('hardware', String(allocation._id), {
+        userId: String(allocation.userId),
+        userName: (allocation.userId as any)?.username || 'Unknown',
+        userEmail: (allocation.userId as any)?.email || '',
+        hardwareAssetId: hardwareAssetIdForLog,
+        assetName: (allocation.hardwareAssetId as any)?.assetName || 'Unknown Asset',
+        allocatedDate: allocation.assignedDate,
+        remarks: allocation.remarks,
+      }, req);
+
+      // Send confirmation email to infra team
+      const company = await Company.findById(companyId);
+      if (company && company.emailConfig) {
+        try {
+          await processAllocationApproval(
+            {
+              userName: (allocation.userId as any)?.username || 'Unknown',
+              userEmail: (allocation.userId as any)?.email || '',
+              assetName: (allocation.hardwareAssetId as any)?.assetName || 'Unknown Asset',
+              assetBrand: (allocation.hardwareAssetId as any)?.brand || '',
+              assetModel: (allocation.hardwareAssetId as any)?.assetModel || '',
+              serialNumber: (allocation.hardwareAssetId as any)?.serialNumber || '',
+            },
+            company.emailConfig,
+            company.assetAllocationEmailConfig?.infraEmail
+          );
+        } catch (emailError) {
+          console.error('Failed to send confirmation email:', emailError);
+        }
+      }
+
+      res.json({
+        message: 'Allocation approved and created successfully',
+        allocation,
+      });
+    } else {
+      res.json({
+        message: 'Allocation request rejected',
+        request: allocationRequest,
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getAllocationRequests = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Access denied. Super Admin only.' });
+    }
+
+    const companyId = id;
+    const status = req.query.status as string;
+
+    const query: any = { companyId };
+    if (status && status !== 'ALL') {
+      query.status = status;
+    }
+
+    const requests = await HardwareAllocationRequest.find(query)
+      .populate('userId', 'username email')
+      .populate('hardwareAssetId', 'assetName brand assetModel serialNumber')
+      .sort({ requestedAt: -1 })
+      .limit(100);
+
+    res.json({ requests });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const approveAllocationViaLink = async (req: express.Request, res: Response) => {
+  try {
+    const { requestId } = req.params;
+
+    // Try to find hardware allocation request first
+    let allocationRequest: any = await HardwareAllocationRequest.findOne({
+      _id: requestId,
+      status: 'PENDING',
+    }).populate('companyId');
+
+    let assetType: 'hardware' | 'software' = 'hardware';
+
+    // If not found, try software allocation request
+    if (!allocationRequest) {
+      allocationRequest = await SoftwareAllocationRequest.findOne({
+        _id: requestId,
+        status: 'PENDING',
+      }).populate('companyId');
+      assetType = 'software';
+    }
+
+    if (!allocationRequest) {
+      return res.status(404).send(`
+        <html>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h2 style="color: #dc3545;">Request Not Found or Already Processed</h2>
+            <p>This allocation request has either been processed or does not exist.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    const companyId = allocationRequest.companyId;
+
+    // Update request status
+    allocationRequest.status = 'APPROVED';
+    allocationRequest.processedAt = new Date();
+    await allocationRequest.save();
+
+    if (assetType === 'hardware') {
+      // Create hardware allocation
+      const allocation = new HardwareAllocation({
+        companyId: allocationRequest.companyId,
+        userId: allocationRequest.userId,
+        hardwareAssetId: allocationRequest.hardwareAssetId,
+        remarks: allocationRequest.remarks,
+        createdBy: allocationRequest.companyId,
+      });
+
+      await allocation.save();
+
+      // Update asset status
+      await HardwareAsset.findByIdAndUpdate(allocationRequest.hardwareAssetId, {
+        status: 'ASSIGNED',
+        updatedBy: allocationRequest.companyId,
+      });
+
+      // Populate and log
+      await allocation.populate([
+        { path: 'userId', select: 'username email' },
+        { path: 'hardwareAssetId', select: 'assetName brand assetModel serialNumber' },
+        { path: 'createdBy', select: 'companyName' }
+      ]);
+
+      const hardwareAssetIdForLog = allocation.hardwareAssetId || (allocation as any).hardwareAssetId;
+
+      // Create a mock request object for logging
+      const mockReq = {
+        user: { id: String(companyId), role: 'company_super_admin' },
+        ip: req.ip,
+        headers: req.headers
+      } as AuthRequest;
+
+      await logAllocationCreate('hardware', String(allocation._id), {
+        userId: String(allocation.userId),
+        userName: (allocation.userId as any)?.username || 'Unknown',
+        userEmail: (allocation.userId as any)?.email || '',
+        hardwareAssetId: hardwareAssetIdForLog,
+        assetName: (allocation.hardwareAssetId as any)?.assetName || 'Unknown Asset',
+        allocatedDate: allocation.assignedDate,
+        remarks: allocation.remarks,
+      }, mockReq);
+
+      // Send confirmation email to infra team
+      const company = await Company.findById(companyId);
+      if (company && company.emailConfig) {
+        try {
+          await processAllocationApproval(
+            {
+              userName: (allocation.userId as any)?.username || 'Unknown',
+              userEmail: (allocation.userId as any)?.email || '',
+              assetName: (allocation.hardwareAssetId as any)?.assetName || 'Unknown Asset',
+              assetBrand: (allocation.hardwareAssetId as any)?.brand || '',
+              assetModel: (allocation.hardwareAssetId as any)?.assetModel || '',
+              serialNumber: (allocation.hardwareAssetId as any)?.serialNumber || '',
+              assetType: 'hardware',
+            },
+            company.emailConfig,
+            company.assetAllocationEmailConfig?.infraEmail
+          );
+        } catch (emailError) {
+          console.error('Failed to send confirmation email:', emailError);
+        }
+      }
+    } else {
+      // Create software allocation
+      const allocation = new SoftwareAllocation({
+        companyId: allocationRequest.companyId,
+        userId: allocationRequest.userId,
+        softwareAssetId: allocationRequest.softwareAssetId,
+        licenseCount: allocationRequest.licenseCount,
+        expiryDate: allocationRequest.expiryDate,
+        remarks: allocationRequest.remarks,
+        createdBy: allocationRequest.companyId,
+      });
+
+      await allocation.save();
+
+      // Update available license count
+      const asset = await SoftwareAsset.findById(allocationRequest.softwareAssetId);
+      if (asset) {
+        const currentAvailable = asset.availableLicenseCount ?? 0;
+        const licenseCountValue = allocationRequest.licenseCount ?? 0;
+        const newAvailableCount = currentAvailable - licenseCountValue;
+        await SoftwareAsset.findByIdAndUpdate(allocationRequest.softwareAssetId, {
+          availableLicenseCount: newAvailableCount,
+          updatedBy: allocationRequest.companyId,
+        });
+      }
+
+      // Populate and log
+      await allocation.populate([
+        { path: 'userId', select: 'username email' },
+        { path: 'softwareAssetId', select: 'softwareName vendor' },
+        { path: 'createdBy', select: 'companyName' }
+      ]);
+
+      const softwareAssetIdForLog = allocation.softwareAssetId || (allocation as any).softwareAssetId;
+
+      // Create a mock request object for logging
+      const mockReq = {
+        user: { id: String(companyId), role: 'company_super_admin' },
+        ip: req.ip,
+        headers: req.headers
+      } as AuthRequest;
+
+      await logAllocationCreate('software', String(allocation._id), {
+        userId: String(allocation.userId),
+        userName: (allocation.userId as any)?.username || 'Unknown',
+        userEmail: (allocation.userId as any)?.email || '',
+        softwareAssetId: softwareAssetIdForLog,
+        assetName: (allocation.softwareAssetId as any)?.softwareName || 'Unknown Software',
+        allocatedDate: allocation.assignedDate,
+        expiryDate: allocation.expiryDate,
+        licenseCount: allocation.licenseCount,
+        remarks: allocation.remarks,
+      }, mockReq);
+
+      // Send confirmation email to infra team for software
+      const company = await Company.findById(companyId);
+      if (company && company.emailConfig) {
+        try {
+          await processAllocationApproval(
+            {
+              userName: (allocation.userId as any)?.username || 'Unknown',
+              userEmail: (allocation.userId as any)?.email || '',
+              assetName: (allocation.softwareAssetId as any)?.softwareName || 'Unknown Software',
+              assetBrand: (allocation.softwareAssetId as any)?.vendor || '',
+              assetModel: `${allocation.licenseCount} License(s)`,
+              serialNumber: allocation.expiryDate ? `Expires: ${new Date(allocation.expiryDate).toLocaleDateString()}` : 'No Expiry',
+              assetType: 'software',
+            },
+            company.emailConfig,
+            company.assetAllocationEmailConfig?.infraEmail
+          );
+        } catch (emailError) {
+          console.error('Failed to send confirmation email:', emailError);
+        }
+      }
+    }
+
+    res.send(`
+      <html>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h2 style="color: #28a745;">✓ Allocation Approved Successfully</h2>
+          <p>The ${assetType} asset has been allocated to the user.</p>
+          <p style="color: #666; font-size: 14px;">You can close this window now.</p>
+        </body>
+      </html>
+    `);
+  } catch (error: any) {
+    console.error('Error approving allocation:', error);
+    res.status(500).send(`
+      <html>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h2 style="color: #dc3545;">Error Processing Request</h2>
+          <p>${error.message}</p>
+        </body>
+      </html>
+    `);
+  }
+};
+
+export const rejectAllocationViaLink = async (req: express.Request, res: Response) => {
+  try {
+    const { requestId } = req.params;
+
+    // Try to find hardware allocation request first
+    let allocationRequest: any = await HardwareAllocationRequest.findOne({
+      _id: requestId,
+      status: 'PENDING',
+    })
+      .populate('userId', 'username email')
+      .populate('hardwareAssetId', 'assetName brand assetModel serialNumber')
+      .populate('companyId');
+
+    let assetType: 'hardware' | 'software' = 'hardware';
+
+    // If not found, try software allocation request
+    if (!allocationRequest) {
+      allocationRequest = await SoftwareAllocationRequest.findOne({
+        _id: requestId,
+        status: 'PENDING',
+      })
+        .populate('userId', 'username email')
+        .populate('softwareAssetId', 'softwareName vendor')
+        .populate('companyId');
+      assetType = 'software';
+    }
+
+    if (!allocationRequest) {
+      return res.status(404).send(`
+        <html>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h2 style="color: #dc3545;">Request Not Found or Already Processed</h2>
+            <p>This allocation request has either been processed or does not exist.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    const companyId = allocationRequest.companyId._id;
+
+    // Update request status
+    allocationRequest.status = 'REJECTED';
+    allocationRequest.processedAt = new Date();
+    await allocationRequest.save();
+
+    // Send rejection email to infra team
+    // We already populated companyId which is the Company document
+    const company = allocationRequest.companyId;
+
+    if (company && company.emailConfig) {
+      try {
+        await processAllocationRejection(
+          {
+            userName: (allocationRequest.userId as any)?.username || 'Unknown',
+            userEmail: (allocationRequest.userId as any)?.email || '',
+            assetName: assetType === 'hardware'
+              ? (allocationRequest.hardwareAssetId as any)?.assetName
+              : (allocationRequest.softwareAssetId as any)?.softwareName || 'Unknown Asset',
+            assetBrand: assetType === 'hardware'
+              ? (allocationRequest.hardwareAssetId as any)?.brand || ''
+              : (allocationRequest.softwareAssetId as any)?.vendor || '',
+            assetModel: assetType === 'hardware'
+              ? (allocationRequest.hardwareAssetId as any)?.assetModel || ''
+              : `${allocationRequest.licenseCount} License(s)`,
+            serialNumber: assetType === 'hardware'
+              ? (allocationRequest.hardwareAssetId as any)?.serialNumber || ''
+              : (allocationRequest.expiryDate ? `Expires: ${new Date(allocationRequest.expiryDate).toLocaleDateString()}` : 'No Expiry'),
+            remarks: allocationRequest.remarks || '',
+            assetType: assetType,
+          },
+          company.emailConfig,
+          company.assetAllocationEmailConfig?.infraEmail
+        );
+      } catch (emailError) {
+        console.error('Failed to send rejection email:', emailError);
+      }
+    }
+
+    res.send(`
+      <html>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h2 style="color: #ef4444;"> Allocation Rejected</h2>
+          <p>The allocation request has been rejected.</p>
+          <p style="color: #666; font-size: 14px;">You can close this window now.</p>
+        </body>
+      </html>
+    `);
+  } catch (error: any) {
+    console.error('Error rejecting allocation:', error);
+    res.status(500).send(`
+      <html>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h2 style="color: #dc3545;">Error Processing Request</h2>
+          <p>${error.message}</p>
+        </body>
+      </html>
+    `);
+  }
+};
+
+// Software Allocation Email Request Controllers
+export const createSoftwareAllocationEmailRequest = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Access denied. Super Admin only.' });
+    }
+
+    const { userId, softwareAssetId, licenseCount, expiryDate, remarks } = req.body;
+    const companyId = id;
+
+    // Validate user belongs to company
+    const user = await User.findOne({ _id: userId, companyId });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Validate software asset
+    const asset = await SoftwareAsset.findOne({
+      _id: softwareAssetId,
+      companyId,
+      isDeleted: false
+    });
+    if (!asset) {
+      return res.status(404).json({ message: 'Software asset not found' });
+    }
+
+    // Check if enough licenses are available
+    const availableLicenses = asset.availableLicenseCount || 0;
+    if (licenseCount > availableLicenses) {
+      return res.status(400).json({
+        message: `Only ${availableLicenses} licenses available`
+      });
+    }
+
+    // Check if user already has an active allocation for this software
+    const existingAllocation = await SoftwareAllocation.findOne({
+      userId,
+      softwareAssetId,
+      companyId,
+      isDeleted: { $ne: true }
+    });
+
+    if (existingAllocation) {
+      return res.status(400).json({
+        message: 'User already has an active allocation for this software'
+      });
+    }
+
+    // Create allocation request
+    const allocationRequest = new SoftwareAllocationRequest({
+      companyId,
+      userId,
+      softwareAssetId,
+      licenseCount,
+      expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+      remarks,
+      requestedBy: companyId,
+      status: 'PENDING',
+    });
+
+    await allocationRequest.save();
+
+    // Get company configuration
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    // Send email request
+    try {
+      const emailResult = await sendAllocationRequestEmail(
+        {
+          userName: user.username,
+          userEmail: user.email,
+          assetName: asset.softwareName || 'Unknown Software',
+          assetBrand: asset.vendor || '',
+          assetModel: `${licenseCount} License(s)`,
+          serialNumber: expiryDate ? `Expires: ${new Date(expiryDate).toLocaleDateString()}` : 'No Expiry',
+          remarks: remarks || '',
+          requestId: String(allocationRequest._id),
+          assetType: 'software', // Specify software type
+        },
+        company.assetAllocationEmailConfig,
+        company.emailConfig
+      );
+
+      if (emailResult.success) {
+        // Update request with email message ID
+        allocationRequest.emailMessageId = emailResult.messageId;
+        await allocationRequest.save();
+
+        res.status(201).json({
+          message: 'Software allocation request email sent successfully',
+          request: allocationRequest,
+        });
+      } else {
+        // Delete the request if email failed
+        await SoftwareAllocationRequest.findByIdAndDelete(allocationRequest._id);
+        return res.status(500).json({
+          message: 'Failed to send allocation request email',
+          error: emailResult.error,
+        });
+      }
+    } catch (emailError: any) {
+      // Delete the request if email failed
+      await SoftwareAllocationRequest.findByIdAndDelete(allocationRequest._id);
+      return res.status(500).json({
+        message: 'Failed to send allocation request email',
+        error: emailError.message,
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Monitor inbox for email approvals
+export const monitorInboxForApprovals = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, role } = req.user!;
+
+    if (role !== 'company_super_admin') {
+      return res.status(403).json({ message: 'Access denied. Super Admin only.' });
+    }
+
+    const companyId = id;
+    const company = await Company.findById(companyId);
+
+    if (!company || !company.emailConfig) {
+      return res.status(400).json({ message: 'Email configuration not found' });
+    }
+
+    // Note: Inbox monitoring requires IMAP configuration
+    // For now, we'll return a message that this feature requires additional setup
+    res.json({
+      message: 'Inbox monitoring feature requires IMAP configuration. Please use the approve/reject buttons in the email instead.',
+      note: 'The approve/reject buttons provide instant processing without needing to monitor the inbox.'
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+// Company User Endpoints - Get user's allocated hardware assets
+export const getUserAllocatedHardware = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const companyId = req.user!.companyId;
+
+    const allocations = await HardwareAllocation.find({
+      userId,
+      companyId,
+      status: 'ACTIVE',
+      isDeleted: false
+    })
+      .populate('hardwareAssetId', 'assetName assetType brand assetModel serialNumber purchaseDate remarks status')
+      .sort({ assignedDate: -1 })
+      .lean();
+
+    const hardware = allocations.map(allocation => ({
+      allocationId: allocation._id,
+      ...((allocation.hardwareAssetId as any) || {})
+    }));
+
+    res.json({
+      hardware,
+      total: hardware.length
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Company User Endpoints - Get user's allocated software assets
+export const getUserAllocatedSoftware = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const companyId = req.user!.companyId;
+
+    const allocations = await SoftwareAllocation.find({
+      userId,
+      companyId,
+      status: 'ACTIVE',
+      isDeleted: false
+    })
+      .populate('softwareAssetId', 'softwareName vendor totalLicenseCount startDate endDate status')
+      .sort({ assignedDate: -1 })
+      .lean();
+
+    const software = allocations.map(allocation => ({
+      allocationId: allocation._id,
+      licenseCount: allocation.licenseCount,
+      expiryDate: allocation.expiryDate,
+      remarks: allocation.remarks,
+      ...((allocation.softwareAssetId as any) || {})
+    }));
+
+    res.json({
+      software,
+      total: software.length
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Company User Endpoints - Get user's allocated assets dashboard
+export const getUserAllocatedAssetsDashboard = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const companyId = req.user!.companyId;
+
+    // Get hardware allocations count
+    const hardwareCount = await HardwareAllocation.countDocuments({
+      userId,
+      companyId,
+      status: 'ACTIVE',
+      isDeleted: false
+    });
+
+    // Get software allocations count
+    const softwareCount = await SoftwareAllocation.countDocuments({
+      userId,
+      companyId,
+      status: 'ACTIVE',
+      isDeleted: false
+    });
+
+    // Get total licenses allocated
+    const softwareAllocations = await SoftwareAllocation.find({
+      userId,
+      companyId,
+      status: 'ACTIVE',
+      isDeleted: false
+    }).lean();
+
+    const totalLicenses = softwareAllocations.reduce((sum, alloc) => sum + (alloc.licenseCount || 0), 0);
+
+    res.json({
+      hardware: {
+        total: hardwareCount
+      },
+      software: {
+        total: softwareCount,
+        totalLicenses
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

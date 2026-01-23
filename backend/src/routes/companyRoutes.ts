@@ -17,7 +17,9 @@ import {
   updateS3Config,
   getS3ConfigForUpload,
   getEmailConfig,
-  updateEmailConfig
+  updateEmailConfig,
+  getAssetAllocationEmailConfig,
+  updateAssetAllocationEmailConfig
 } from '../controllers/companyController';
 import { authenticate } from '../middleware/auth';
 
@@ -51,5 +53,9 @@ router.get('/s3-config/upload', getS3ConfigForUpload);
 // Email Configuration routes
 router.get('/email-config', getEmailConfig);
 router.put('/email-config', updateEmailConfig);
+
+// Asset Allocation Email Configuration routes
+router.get('/asset-allocation-email-config', getAssetAllocationEmailConfig);
+router.put('/asset-allocation-email-config', updateAssetAllocationEmailConfig);
 
 export default router;

@@ -6,7 +6,9 @@ export interface IUser extends Document {
   username: string;
   employeeId?: string;
   password: string;
-  role: 'company_user';
+
+  role: 'company_user' | 'company_super_admin';
+  isPrimaryAdmin: boolean;
   isActive: boolean;
   offboardingInactive: boolean;
   emailStatus: 'Active' | 'Inactive';
@@ -53,7 +55,11 @@ const userSchema = new Schema<IUser>(
     role: {
       type: String,
       default: 'company_user',
-      enum: ['company_user'],
+      enum: ['company_user', 'company_super_admin'],
+    },
+    isPrimaryAdmin: {
+      type: Boolean,
+      default: false,
     },
     isActive: {
       type: Boolean,

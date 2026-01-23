@@ -28,14 +28,19 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
+    const status = error.response?.status;
+    const requestUrl = error.config?.url || '';
+
+    // ✅ Ignore 401 from login API
+    if (status === 401 && !requestUrl.includes('/auth/login')) {
       sessionStorage.removeItem('token');
       sessionStorage.removeItem('user');
       window.location.href = '/login';
     }
+
     return Promise.reject(error);
   }
 );
+
 
 export default api;

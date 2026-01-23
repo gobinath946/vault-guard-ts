@@ -107,10 +107,10 @@ export const CheckoutStepAttachment: React.FC<CheckoutStepAttachmentProps> = ({
             onUploadComplete?.();
         } catch (error: any) {
             console.error('Upload error:', error);
-            
+
             // Enhanced error handling for content validation
             const errorMessage = error.response?.data?.message || 'Failed to upload attachment';
-            
+
             if (errorMessage.includes('HTML content')) {
                 toast({
                     title: 'Invalid File Content',
@@ -140,7 +140,7 @@ export const CheckoutStepAttachment: React.FC<CheckoutStepAttachmentProps> = ({
 
     const handleRemove = async () => {
         if (!attachment) return;
-        
+
         try {
             await api.delete(`/checkout/${checkoutId}/step/${stepIndex}/attachment`);
             setAttachment(undefined);
@@ -233,31 +233,21 @@ export const CheckoutStepAttachment: React.FC<CheckoutStepAttachmentProps> = ({
                                 try {
                                     // Use the api instance which includes auth headers
                                     const proxyUrl = `/checkout/${checkoutId}/step/${stepIndex}/attachment`;
-                                    
-                                    console.log('Fetching attachment from:', proxyUrl);
-                                    console.log('Full API URL will be:', api.defaults.baseURL + proxyUrl);
-                                    
+
                                     // Test API connection first
-                                    console.log('Testing API connection...');
                                     try {
                                         const testResponse = await api.get('/health');
-                                        console.log('✅ API connection test successful:', testResponse.data);
-                                        
+
                                         // Test debug endpoint to check attachment data
-                                        console.log('Testing attachment debug endpoint...');
                                         const debugResponse = await api.get(`/checkout/${checkoutId}/step/${stepIndex}/attachment/debug`);
-                                        console.log('📋 Attachment debug info:', debugResponse.data);
-                                        
+
                                         // Test S3 file content directly
-                                        console.log('Testing S3 file content...');
                                         const s3TestResponse = await api.get(`/checkout/${checkoutId}/step/${stepIndex}/attachment/test`);
-                                        console.log('🧪 S3 file test result:', s3TestResponse.data);
-                                        
+
                                     } catch (testError) {
-                                        console.error('❌ API connection test failed:', testError);
                                         throw new Error('Backend API is not accessible. Please check if backend is running on the correct port.');
                                     }
-                                    
+
                                     // Make authenticated request to get the file
                                     const response = await api.get(proxyUrl, {
                                         responseType: 'blob',
@@ -266,90 +256,64 @@ export const CheckoutStepAttachment: React.FC<CheckoutStepAttachmentProps> = ({
                                             'Pragma': 'no-cache'
                                         }
                                     });
-                                    
-                                    console.log('Response received:', {
-                                        status: response.status,
-                                        contentType: response.headers['content-type'],
-                                        size: response.data.size
-                                    });
-                                    
+
                                     // Verify we got a valid blob
                                     if (!response.data || response.data.size === 0) {
                                         throw new Error('Empty file received');
                                     }
-                                    
+
                                     // Create blob URL and open in new tab
-                                    const blob = new Blob([response.data], { 
+                                    const blob = new Blob([response.data], {
                                         type: attachment.mimeType || response.headers['content-type'] || 'application/octet-stream'
                                     });
-                                    
-                                    console.log('Created blob:', {
-                                        size: blob.size,
-                                        type: blob.type
-                                    });
-                                    
+
                                     // Debug: Check if it's actually a PDF by reading first few bytes
                                     if (blob.size < 10000) { // Only for small files to avoid performance issues
                                         const reader = new FileReader();
-                                        reader.onload = function(e) {
+                                        reader.onload = function (e) {
                                             const content = e.target?.result as string;
                                             const firstBytes = content.substring(0, 100);
-                                            console.log('File content preview:', firstBytes);
-                                            
+
                                             if (firstBytes.includes('%PDF')) {
-                                                console.log('✅ Valid PDF detected');
+                                                // Valid PDF detected
                                             } else if (firstBytes.includes('<html') || firstBytes.includes('<!DOCTYPE')) {
-                                                console.log('❌ HTML content detected instead of PDF');
                                                 toast({
                                                     title: 'Corrupted Attachment Detected',
                                                     description: 'This attachment contains HTML content instead of the expected file. Please re-upload a valid file using the replace button.',
                                                     variant: 'destructive',
                                                 });
                                             } else {
-                                                console.log('⚠️ Unknown content type');
+                                                // Unknown content type
                                             }
                                         };
                                         reader.readAsText(blob.slice(0, 100));
                                     }
-                                    
+
                                     const blobUrl = URL.createObjectURL(blob);
-                                    console.log('Opening blob URL:', blobUrl);
-                                    
+
                                     // Test if the blob URL is accessible
                                     fetch(blobUrl)
-                                        .then(response => {
-                                            console.log('Blob URL test:', {
-                                                ok: response.ok,
-                                                status: response.status,
-                                                contentType: response.headers.get('content-type'),
-                                                size: response.headers.get('content-length')
-                                            });
-                                        })
                                         .catch(error => {
                                             console.error('Blob URL test failed:', error);
                                         });
-                                    
+
                                     const newWindow = window.open(blobUrl, '_blank');
-                                    
+
                                     if (!newWindow) {
                                         // If popup was blocked, try downloading instead
-                                        console.log('Popup blocked, trying alternative method');
                                         const link = document.createElement('a');
                                         link.href = blobUrl;
                                         link.target = '_blank';
                                         document.body.appendChild(link);
                                         link.click();
                                         document.body.removeChild(link);
-                                    } else {
-                                        console.log('New window opened successfully');
                                     }
-                                    
+
                                     // Clean up blob URL after a longer delay to ensure it loads
                                     setTimeout(() => {
                                         URL.revokeObjectURL(blobUrl);
-                                        console.log('Blob URL cleaned up');
                                     }, 10000); // Increased to 10 seconds
-                                    
+
                                 } catch (error: any) {
                                     console.error('Error viewing attachment:', error);
                                     toast({
@@ -377,9 +341,7 @@ export const CheckoutStepAttachment: React.FC<CheckoutStepAttachmentProps> = ({
                                 setDownloading(true);
                                 try {
                                     const proxyUrl = `/checkout/${checkoutId}/step/${stepIndex}/attachment`;
-                                    console.log('Force downloading from:', proxyUrl);
-                                    console.log('Full API URL will be:', api.defaults.baseURL + proxyUrl);
-                                    
+
                                     const response = await api.get(proxyUrl, {
                                         responseType: 'blob',
                                         headers: {
@@ -387,21 +349,21 @@ export const CheckoutStepAttachment: React.FC<CheckoutStepAttachmentProps> = ({
                                             'Pragma': 'no-cache'
                                         }
                                     });
-                                    
-                                    const blob = new Blob([response.data], { 
+
+                                    const blob = new Blob([response.data], {
                                         type: attachment.mimeType || response.headers['content-type'] || 'application/octet-stream'
                                     });
                                     const blobUrl = URL.createObjectURL(blob);
-                                    
+
                                     const link = document.createElement('a');
                                     link.href = blobUrl;
                                     link.download = attachment.fileName;
                                     document.body.appendChild(link);
                                     link.click();
                                     document.body.removeChild(link);
-                                    
+
                                     setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-                                    
+
                                     toast({
                                         title: 'Success',
                                         description: `File "${attachment.fileName}" downloaded successfully`,

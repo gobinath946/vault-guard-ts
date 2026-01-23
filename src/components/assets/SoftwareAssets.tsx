@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -211,7 +212,7 @@ const SoftwareAssets = () => {
   const handleAssetFormSuccess = () => {
     setShowAssetForm(false);
     setEditingAsset(null);
-    
+
     // Force refresh both assets and allocations since updating software end date affects allocations
     setTimeout(() => {
       fetchAssets();
@@ -222,7 +223,7 @@ const SoftwareAssets = () => {
   const handleAllocationFormSuccess = () => {
     setShowAllocationForm(false);
     setEditingAllocation(null);
-    
+
     // Force refresh both allocations and assets data
     setTimeout(() => {
       fetchAllocations();
@@ -248,18 +249,18 @@ const SoftwareAssets = () => {
     if (allocationStatus === 'EXPIRED') {
       return { status: 'expired', color: 'text-red-600', bgColor: 'bg-red-50' };
     }
-    
+
     if (allocationStatus === 'ACTIVE' && expiryDate) {
       const expiry = new Date(expiryDate);
       const current = new Date();
-      
+
       // Set time to match backend logic
       expiry.setHours(23, 59, 59, 999); // End of the expiry date
       current.setHours(0, 0, 0, 0);     // Start of current date
-      
+
       const diffTime = expiry.getTime() - current.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
+
       if (diffDays < 0) {
         return { status: 'expired', color: 'text-red-600', bgColor: 'bg-red-50' };
       } else if (diffDays <= 7) {
@@ -268,90 +269,118 @@ const SoftwareAssets = () => {
         return { status: 'expiring-month', color: 'text-yellow-600', bgColor: 'bg-yellow-50' };
       }
     }
-    
+
     return { status: 'active', color: 'text-green-600', bgColor: 'bg-green-50' };
   };
 
-  return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="assets">Master Software</TabsTrigger>
-            <TabsTrigger value="allocations">Allocations</TabsTrigger>
-          </TabsList>
-          
-          <div className="flex items-center gap-2">
-            {activeTab === 'assets' ? (
-              <Button onClick={handleCreateAsset} className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Add Software
-              </Button>
-            ) : (
-              <Button onClick={handleCreateAllocation} className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Add Allocation
-              </Button>
-            )}
-          </div>
-        </div>
+  // Header component
+  const header = (
+    <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Left side: Tabs */}
+        <TabsList>
+          <TabsTrigger value="assets">Master Software</TabsTrigger>
+          <TabsTrigger value="allocations">Allocations</TabsTrigger>
+        </TabsList>
 
-        {/* Filters */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search software..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        {/* Right side: Search and Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-full sm:w-64">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Search software..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
-          
+
           {activeTab === 'assets' && (
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Status</SelectItem>
-                <SelectItem value="ACTIVE">Active</SelectItem>
-                <SelectItem value="ASSIGNED">Assigned</SelectItem>
-                <SelectItem value="EXPIRED">Expired</SelectItem>
-              </SelectContent>
-            </Select>
+            <>
+              <div className="h-4 w-[1px] bg-border/60 mx-1 hidden sm:block"></div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Status</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="ASSIGNED">Assigned</SelectItem>
+                  <SelectItem value="EXPIRED">Expired</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
+
+          <div className="h-4 w-[1px] bg-border/60 mx-1 hidden lg:block"></div>
+
+          {activeTab === 'assets' ? (
+            <Button onClick={handleCreateAsset} size="sm" className="h-9 gap-2 bg-[#4F46E5] hover:bg-[#4338CA] shadow-md">
+              <Plus className="h-4 w-4" />
+              Add Software
+            </Button>
+          ) : (
+            <Button onClick={handleCreateAllocation} size="sm" className="h-9 gap-2 bg-[#4F46E5] hover:bg-[#4338CA] shadow-md">
+              <Plus className="h-4 w-4" />
+              Add Allocation
+            </Button>
           )}
         </div>
+      </div>
+    </Tabs>
+  );
 
-        <TabsContent value="assets">
-          <Card>
-            <CardHeader>
+  // Footer component
+  const footer = (
+    <Pagination
+      currentPage={currentPage}
+      totalPages={pagination.totalPages}
+      totalItems={pagination.total}
+      rowsPerPage={rowsPerPage}
+      onPageChange={setCurrentPage}
+      onRowsPerPageChange={setRowsPerPage}
+    />
+  );
+
+  return (
+    <DashboardLayout
+      title="Software Assets"
+      header={header}
+      footer={footer}
+      mainClassName="p-0 flex flex-col overflow-hidden"
+    >
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 w-full">
+        <TabsContent value="assets" className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden">
+          <Card className="flex-1 flex flex-col border-0 shadow-none rounded-none w-full">
+            <CardHeader className="flex-none px-6 py-4 border-b">
               <CardTitle className="flex items-center gap-2">
                 <Package className="h-5 w-5" />
                 Software Assets
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 relative p-0 min-h-0 bg-background">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">S.No</TableHead>
-                        <TableHead>Software Name</TableHead>
-                        <TableHead>Vendor</TableHead>
-                        <TableHead>Total Licenses</TableHead>
-                        <TableHead>Available</TableHead>
-                        <TableHead>Assigned</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
+                <div className="absolute inset-0 overflow-auto">
+                  <table className="w-full caption-bottom text-xs">
+                    <thead className="sticky top-0 bg-card z-10 shadow-sm [&_tr]:border-b">
+                      <TableRow className="border-b border-border">
+                        <TableHead className="w-12 h-12 px-4 text-left align-middle font-medium text-muted-foreground">S.No</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Software Name</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Vendor</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Total Licenses</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Available</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Assigned</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Actions</TableHead>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                    </thead>
+                    <tbody className="[&_tr:last-child]:border-0">
                       {assets.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
@@ -411,53 +440,41 @@ const SoftwareAssets = () => {
                           </TableRow>
                         ))
                       )}
-                    </TableBody>
-                  </Table>
-
-                  {/* Pagination - Only show if total items >= 10 */}
-                  {pagination.total >= 10 && (
-                    <Pagination
-                      currentPage={currentPage}
-                      totalPages={pagination.totalPages}
-                      totalItems={pagination.total}
-                      rowsPerPage={rowsPerPage}
-                      onPageChange={setCurrentPage}
-                      onRowsPerPageChange={setRowsPerPage}
-                    />
-                  )}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="allocations">
-          <Card>
-            <CardHeader>
+        <TabsContent value="allocations" className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden">
+          <Card className="flex-1 flex flex-col border-0 shadow-none rounded-none w-full">
+            <CardHeader className="flex-none px-6 py-4 border-b">
               <CardTitle>Software Allocation</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 relative p-0 min-h-0 bg-background">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">S.No</TableHead>
-                        <TableHead>User</TableHead>
-                        <TableHead>Software</TableHead>
-                        <TableHead>Vendor</TableHead>
-                        <TableHead>Licenses</TableHead>
-                        <TableHead>Allocated Date</TableHead>
-                        <TableHead>Expiry Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
+                <div className="absolute inset-0 overflow-auto">
+                  <table className="w-full caption-bottom text-xs">
+                    <thead className="sticky top-0 bg-card z-10 shadow-sm [&_tr]:border-b">
+                      <TableRow className="border-b border-border">
+                        <TableHead className="w-12 h-12 px-4 text-left align-middle font-medium text-muted-foreground">S.No</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">User</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Software</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Vendor</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Licenses</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Allocated Date</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Expiry Date</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</TableHead>
+                        <TableHead className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Actions</TableHead>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                    </thead>
+                    <tbody className="[&_tr:last-child]:border-0">
                       {allocations.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
@@ -553,20 +570,8 @@ const SoftwareAssets = () => {
                           </TableRow>
                         ))
                       )}
-                    </TableBody>
-                  </Table>
-
-                  {/* Pagination - Only show if total items >= 10 */}
-                  {pagination.total >= 10 && (
-                    <Pagination
-                      currentPage={currentPage}
-                      totalPages={pagination.totalPages}
-                      totalItems={pagination.total}
-                      rowsPerPage={rowsPerPage}
-                      onPageChange={setCurrentPage}
-                      onRowsPerPageChange={setRowsPerPage}
-                    />
-                  )}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </CardContent>
@@ -624,7 +629,7 @@ const SoftwareAssets = () => {
         assetName={allocationLogDialog.assetName}
         userName={allocationLogDialog.userName}
       />
-    </div>
+    </DashboardLayout>
   );
 };
 
