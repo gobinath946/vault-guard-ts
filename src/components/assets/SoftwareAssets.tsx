@@ -178,7 +178,7 @@ const SoftwareAssets = () => {
       type: 'allocation',
       id: allocationId,
       title: 'Delete Allocation',
-      description: `Are you sure you want to delete the allocation for "${allocation?.softwareAssetId.softwareName}" to "${allocation?.userId.username}"? This action cannot be undone.`,
+      description: `Are you sure you want to delete the allocation for "${allocation?.softwareAssetId?.softwareName || 'Unknown Software'}" to "${allocation?.userId?.username || 'Unknown User'}"? This action cannot be undone.`,
     });
   };
 
@@ -489,15 +489,15 @@ const SoftwareAssets = () => {
                             </TableCell>
                             <TableCell>
                               <div>
-                                <p className="font-medium">{allocation.userId.username}</p>
-                                <p className="text-sm text-muted-foreground">{allocation.userId.email}</p>
+                                <p className="font-medium">{allocation.userId?.username || 'Unknown User'}</p>
+                                <p className="text-sm text-muted-foreground">{allocation.userId?.email || 'No email'}</p>
                               </div>
                             </TableCell>
                             <TableCell className="font-medium">
-                              {allocation.softwareAssetId.softwareName || '-'}
+                              {allocation.softwareAssetId?.softwareName || '-'}
                             </TableCell>
                             <TableCell>
-                              {allocation.softwareAssetId.vendor || '-'}
+                              {allocation.softwareAssetId?.vendor || '-'}
                             </TableCell>
                             <TableCell className="font-medium">
                               {allocation.licenseCount}
@@ -552,7 +552,7 @@ const SoftwareAssets = () => {
                                     isOpen: true,
                                     allocationId: allocation._id,
                                     mode: 'allocation',
-                                    assetName: allocation.softwareAssetId.softwareName,
+                                    assetName: allocation.softwareAssetId?.softwareName || 'Software Asset',
                                   })}
                                   title="View Allocation History"
                                 >

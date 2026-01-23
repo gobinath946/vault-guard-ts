@@ -584,7 +584,7 @@ export const AllocationLogDialog = ({
                     <div className="space-y-2 text-sm">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <strong>User:</strong> {mainLog.allocatedToUserName || mainLog.performedByName} ({mainLog.allocatedToUserEmail || mainLog.performedByEmail})
+                          <strong>User:</strong> {mainLog.allocatedToUserName || mainLog.performedByName || 'Unknown User'} ({mainLog.allocatedToUserEmail || mainLog.performedByEmail || 'N/A'})
                         </div>
                         {!isGroupedEvent && mainLog.assetName && (
                           <div>
@@ -719,7 +719,7 @@ export const AllocationLogDialog = ({
                       )}
 
                       <div className="text-xs text-muted-foreground mt-2 border-t pt-2">
-                        <strong>Performed by:</strong> {mainLog.performedByName} ({mainLog.performedByEmail})
+                        <strong>Performed by:</strong> {mainLog.performedByName || 'Unknown'} ({mainLog.performedByEmail || 'N/A'})
                       </div>
                     </div>
                   </div>
@@ -871,7 +871,7 @@ export const AllocationLogDialog = ({
                                       </div>
                                     )}
                                     <div className="text-xs text-muted-foreground mt-1">
-                                      <strong>By:</strong> {log.performedByName}
+                                      <strong>By:</strong> {log.performedByName || 'Unknown'}
                                     </div>
                                   </div>
                                 ))}
@@ -964,7 +964,7 @@ export const AllocationLogDialog = ({
                               </div>
                             )}
                             <div className="text-xs text-muted-foreground pt-1">
-                              <strong>Action performed by:</strong> {log.performedByName} ({log.performedByEmail})
+                              <strong>Action performed by:</strong> {log.performedByName || 'Unknown'} ({log.performedByEmail || 'N/A'})
                             </div>
                           </div>
                         </div>

@@ -319,7 +319,7 @@ const HardwareAssets = () => {
       type: 'allocation',
       id: allocationId,
       title: 'Delete Allocation',
-      description: `Are you sure you want to delete the allocation for "${allocation?.hardwareAssetId.assetName}" to "${allocation?.userId.username}"? This action cannot be undone.`,
+      description: `Are you sure you want to delete the allocation for "${allocation?.hardwareAssetId?.assetName || 'Unknown Asset'}" to "${allocation?.userId?.username || 'Unknown User'}"? This action cannot be undone.`,
     });
   };
 
@@ -358,7 +358,7 @@ const HardwareAssets = () => {
       type: 'event',
       id: eventId,
       title: 'Delete Allocation Event',
-      description: `Are you sure you want to delete all ${event?.assetCount} allocations for "${event?.userId.username}" from ${format(new Date(event?.allocatedDate || ''), 'MMM dd, yyyy')}? This action cannot be undone.`,
+      description: `Are you sure you want to delete all ${event?.assetCount} allocations for "${event?.userId?.username || 'Unknown User'}" from ${format(new Date(event?.allocatedDate || ''), 'MMM dd, yyyy')}? This action cannot be undone.`,
     });
   };
 
@@ -590,10 +590,10 @@ const HardwareAssets = () => {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {asset.currentAllocation ? (
+                              {asset.currentAllocation && asset.currentAllocation.userId ? (
                                 <div className="space-y-1">
-                                  <p className="font-medium text-sm">{asset.currentAllocation.userId.username}</p>
-                                  <p className="text-xs text-muted-foreground">{asset.currentAllocation.userId.email}</p>
+                                  <p className="font-medium text-sm">{asset.currentAllocation.userId.username || 'Unknown User'}</p>
+                                  <p className="text-xs text-muted-foreground">{asset.currentAllocation.userId.email || 'No email'}</p>
                                   <p className="text-xs text-muted-foreground">
                                     Allocated: {format(new Date(asset.currentAllocation.allocatedDate), 'MMM dd, yyyy')}
                                   </p>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Plus, Edit, Trash2, FolderTree, Folder as FolderIcon } from 'lucide-react';
 import { folderService } from '@/services/folderService';
@@ -11,6 +11,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Pagination } from '@/components/common/Pagination';
 import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -46,12 +47,14 @@ interface Folder {
   createdAt: string;
 }
 
+interface FoldersContentProps {
+  isDialog?: boolean;
+}
+
 // Extracted content component without DashboardLayout
-export const FoldersContent = () => {
+export const FoldersContent: React.FC<FoldersContentProps> = ({ isDialog = false }) => {
   const [folders, setFolders] = useState<Folder[]>([]);
-  // Auth context for permission filtering
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -70,23 +73,18 @@ export const FoldersContent = () => {
   });
   const [orgOptions, setOrgOptions] = useState<Organization[]>([]);
   const [orgPage, setOrgPage] = useState(1);
-  const [orgRowsPerPage, setOrgRowsPerPage] = useState(20);
-  const [orgTotal, setOrgTotal] = useState(0);
-  const [orgSearch, setOrgSearch] = useState('');
+  const [orgRowsPerPage] = useState(20);
   const [collectionOptions, setCollectionOptions] = useState<Collection[]>([]);
-  const [collectionPage, setCollectionPage] = useState(1);
-  const [collectionRowsPerPage, setCollectionRowsPerPage] = useState(20);
-  const [collectionTotal, setCollectionTotal] = useState(0);
-  const [collectionSearch, setCollectionSearch] = useState('');
+  const [collectionPage] = useState(1);
+  const [collectionRowsPerPage] = useState(20);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchFolders(currentPage, rowsPerPage, searchTerm);
-    fetchOrganizations(orgPage, orgRowsPerPage, orgSearch);
+    fetchOrganizations(orgPage, orgRowsPerPage, '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, rowsPerPage]);
 
-  // Debounce search term
   useEffect(() => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
@@ -97,7 +95,6 @@ export const FoldersContent = () => {
     };
   }, [searchTerm]);
 
-  // Refetch when debounced search term changes (reset to first page)
   useEffect(() => {
     setCurrentPage(1);
     fetchFolders(1, rowsPerPage, debouncedSearch);
@@ -105,19 +102,13 @@ export const FoldersContent = () => {
   }, [debouncedSearch]);
 
   useEffect(() => {
-    fetchOrganizations(orgPage, orgRowsPerPage, orgSearch);
-  }, [orgPage, orgRowsPerPage, orgSearch]);
-
-  useEffect(() => {
     if (formData.organizationId) {
-      fetchCollections(formData.organizationId, collectionPage, collectionRowsPerPage, collectionSearch);
+      fetchCollections(formData.organizationId, collectionPage, collectionRowsPerPage, '');
     } else {
       setCollectionOptions([]);
-      setCollectionTotal(0);
     }
-  }, [formData.organizationId, collectionPage, collectionRowsPerPage, collectionSearch]);
+  }, [formData.organizationId, collectionPage, collectionRowsPerPage]);
 
-  // Reset form when create dialog opens
   useEffect(() => {
     if (isCreateDialogOpen) {
       setFormData({
@@ -133,17 +124,13 @@ export const FoldersContent = () => {
       const data = await organizationService.getAll(page, limit, q);
       if (Array.isArray(data)) {
         setOrgOptions(data);
-        setOrgTotal(data.length);
       } else if (data && Array.isArray(data.organizations)) {
         setOrgOptions(data.organizations);
-        setOrgTotal(typeof data.total === 'number' ? data.total : data.organizations.length);
       } else {
         setOrgOptions([]);
-        setOrgTotal(0);
       }
     } catch {
       setOrgOptions([]);
-      setOrgTotal(0);
     }
   };
 
@@ -152,17 +139,13 @@ export const FoldersContent = () => {
       const response = await collectionService.getAll(page, limit, q, organizationId);
       if (Array.isArray(response)) {
         setCollectionOptions(response);
-        setCollectionTotal(response.length);
       } else if (response && Array.isArray(response.collections)) {
         setCollectionOptions(response.collections);
-        setCollectionTotal(typeof response.total === 'number' ? response.total : response.collections.length);
       } else {
         setCollectionOptions([]);
-        setCollectionTotal(0);
       }
     } catch {
       setCollectionOptions([]);
-      setCollectionTotal(0);
     }
   };
 
@@ -210,8 +193,7 @@ export const FoldersContent = () => {
         description: 'Folder created successfully',
       });
       setIsCreateDialogOpen(false);
-      // Form will be reset by the useEffect when dialog opens next time
-      fetchFolders();
+      fetchFolders(1, rowsPerPage, searchTerm);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -234,7 +216,7 @@ export const FoldersContent = () => {
       setIsEditDialogOpen(false);
       setSelectedFolder(null);
       setFormData({ folderName: '', organizationId: '', collectionId: '' });
-      fetchFolders();
+      fetchFolders(currentPage, rowsPerPage, searchTerm);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -255,7 +237,7 @@ export const FoldersContent = () => {
       });
       setIsDeleteDialogOpen(false);
       setSelectedFolder(null);
-      fetchFolders();
+      fetchFolders(currentPage, rowsPerPage, searchTerm);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -280,7 +262,7 @@ export const FoldersContent = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  // Permission-based filtering for company_user
+  // Permission-based filtering
   let filteredFolders = folders;
   if (user?.role === 'company_user' && user.permissions?.folders) {
     filteredFolders = folders.filter((folder) => user.permissions!.folders!.includes(folder._id));
@@ -295,17 +277,23 @@ export const FoldersContent = () => {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
-      {/* Fixed Header Section (Title and Add Button) */}
-      <div className="flex-shrink-0 px-6 py-4 space-y-4 bg-background">
+    <div className={cn(
+      "flex flex-col overflow-hidden",
+      isDialog ? "h-[80vh]" : "h-full"
+    )}>
+      {/* Fixed Header Section */}
+      <div className={cn(
+        "flex-shrink-0 space-y-4 bg-background",
+        isDialog ? "p-1 pb-4" : "p-6"
+      )}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Folders</h2>
-            <p className="text-muted-foreground">Organize your passwords with folders</p>
+            <h2 className="text-2xl font-bold tracking-tight">Folders</h2>
+            <p className="text-xs text-muted-foreground">Organize your passwords with folders</p>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button size="sm">
                 <Plus className="mr-2 h-4 w-4" />
                 Create Folder
               </Button>
@@ -365,45 +353,46 @@ export const FoldersContent = () => {
         <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search folders..." />
       </div>
 
-      {/* Main Content Area - Card fits inside flex-1 */}
-      <div className="flex-1 flex flex-col min-h-0 px-6 pb-6 overflow-hidden">
-        <Card className="flex flex-col h-full overflow-hidden border-border/50">
-
-
+      {/* Main Content Area */}
+      <div className={cn(
+        "flex-1 flex flex-col min-h-0 overflow-hidden",
+        isDialog ? "p-1" : "px-6 pb-6"
+      )}>
+        <Card className="flex flex-col h-full overflow-hidden border-border/50 shadow-sm">
           <CardContent className="flex-1 flex flex-col min-h-0 p-0 overflow-hidden">
             {filteredFolders.length === 0 && !loading ? (
               <div className="flex flex-col items-center justify-center py-12 flex-1">
                 <FolderTree className="mb-4 h-12 w-12 text-muted-foreground opacity-20" />
-                <p className="text-center text-muted-foreground">
+                <p className="text-center text-muted-foreground text-sm">
                   No folders yet. Create your first folder to organize passwords.
                 </p>
               </div>
             ) : (
               <>
                 <div className="flex-1 overflow-y-auto">
-                  <Table containerClassName="overflow-visible">
+                  <Table containerClassName="overflow-visible min-w-[600px]">
                     <TableHeader className="sticky top-0 bg-white z-20 shadow-sm">
-                      <TableRow>
-                        <TableHead className="w-[80px]">S.No</TableHead>
-                        <TableHead>Folder Name</TableHead>
-                        <TableHead>Created At</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                      <TableRow className="hover:bg-transparent border-b">
+                        <TableHead className="w-[80px] h-10 text-xs uppercase font-semibold">S.No</TableHead>
+                        <TableHead className="h-10 text-xs uppercase font-semibold">Folder Name</TableHead>
+                        <TableHead className="h-10 text-xs uppercase font-semibold">Created At</TableHead>
+                        <TableHead className="text-right h-10 text-xs uppercase font-semibold">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredFolders.map((folder, index) => (
-                        <TableRow key={folder._id} className="hover:bg-muted/30">
-                          <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
-                          <TableCell className="font-medium text-primary">
-                            <div className="flex items-center gap-2">
-                              <FolderIcon className="h-4 w-4" />
+                        <TableRow key={folder._id} className="hover:bg-muted/30 group">
+                          <TableCell className="py-3 font-medium text-xs">{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
+                          <TableCell className="py-3">
+                            <div className="flex items-center gap-2 font-semibold text-primary text-xs">
+                              <FolderIcon className="h-3.5 w-3.5" />
                               {folder.folderName}
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-3 text-xs">
                             {new Date(folder.createdAt).toLocaleDateString()}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right py-3">
                             <div className="flex justify-end gap-1">
                               <Button
                                 size="sm"
@@ -429,7 +418,7 @@ export const FoldersContent = () => {
                   </Table>
                 </div>
 
-                <div className="flex-initial flex justify-end px-6 py-4 border-t bg-muted/10">
+                <div className="flex-initial flex justify-end px-4 py-3 border-t bg-muted/5">
                   <Pagination
                     currentPage={currentPage}
                     totalPages={Math.max(1, Math.ceil(totalFolders / rowsPerPage))}
@@ -451,7 +440,6 @@ export const FoldersContent = () => {
           </CardContent>
         </Card>
       </div>
-
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -531,7 +519,10 @@ export const FoldersContent = () => {
 // Wrapper component with DashboardLayout for standalone page
 const Folders = () => {
   return (
-    <DashboardLayout title="Folders">
+    <DashboardLayout
+      title="Folders"
+      mainClassName="p-0 flex flex-col overflow-hidden"
+    >
       <FoldersContent />
     </DashboardLayout>
   );

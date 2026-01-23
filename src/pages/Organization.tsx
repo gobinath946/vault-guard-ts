@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Plus, Edit, Trash2, Building2 } from 'lucide-react';
 import { organizationService, Organization } from '@/services/organizationService';
 import { Pagination } from '@/components/common/Pagination';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -36,12 +37,14 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface OrganizationsContentProps {
+  isDialog?: boolean;
+}
+
 // Extracted content component without DashboardLayout
-export const OrganizationsContent = () => {
+export const OrganizationsContent: React.FC<OrganizationsContentProps> = ({ isDialog = false }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  // Auth context for permission filtering
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -85,7 +88,6 @@ export const OrganizationsContent = () => {
     try {
       setLoading(true);
       const data = await organizationService.getAll(page, limit);
-      // data may be array (old API) or paginated object { organizations, total }
       if (Array.isArray(data)) {
         setOrganizations(data);
         setTotalOrganizations(data.length);
@@ -100,7 +102,7 @@ export const OrganizationsContent = () => {
       console.error('Error fetching organizations:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch organizations. Please check if the server is running.',
+        description: 'Failed to fetch organizations.',
         variant: 'destructive',
       });
       setOrganizations([]);
@@ -119,13 +121,11 @@ export const OrganizationsContent = () => {
         description: 'Organization created successfully',
       });
       setIsCreateDialogOpen(false);
-      // Form will be reset by the useEffect when dialog opens next time
-      // after creating a new org, refresh first page so new item appears
       setCurrentPage(1);
       fetchOrganizations(1, rowsPerPage);
     } catch (error: any) {
       console.error('Error creating organization:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to create organization. Please check your connection.';
+      const errorMessage = error.response?.data?.message || 'Failed to create organization.';
       toast({
         title: 'Error',
         description: errorMessage,
@@ -170,7 +170,6 @@ export const OrganizationsContent = () => {
       });
       setIsDeleteDialogOpen(false);
       setSelectedOrganization(null);
-      // refresh current page
       fetchOrganizations(currentPage, rowsPerPage);
     } catch (error: any) {
       console.error('Error deleting organization:', error);
@@ -196,7 +195,7 @@ export const OrganizationsContent = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  // Permission-based filtering for company_user
+  // Permission-based filtering
   let filteredOrganizations = organizations;
   if (user?.role === 'company_user' && user.permissions?.organizations) {
     filteredOrganizations = organizations.filter((org) => user.permissions!.organizations!.includes(org._id));
@@ -215,19 +214,24 @@ export const OrganizationsContent = () => {
     );
   }
 
-
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
-      {/* Fixed Header Section (Title and Add Button) */}
-      <div className="flex-shrink-0 px-6 py-4 space-y-4 bg-background">
+    <div className={cn(
+      "flex flex-col overflow-hidden",
+      isDialog ? "h-[80vh]" : "h-full"
+    )}>
+      {/* Fixed Header Section */}
+      <div className={cn(
+        "flex-shrink-0 space-y-4 bg-background",
+        isDialog ? "p-1 pb-4" : "p-6"
+      )}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Organizations</h2>
-            <p className="text-muted-foreground">Manage your organizations</p>
+            <h2 className="text-2xl font-bold tracking-tight">Organizations</h2>
+            <p className="text-xs text-muted-foreground">Manage your organizations</p>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button size="sm">
                 <Plus className="mr-2 h-4 w-4" />
                 New Organization
               </Button>
@@ -265,47 +269,50 @@ export const OrganizationsContent = () => {
         <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search organizations..." />
       </div>
 
-      {/* Main Content Area - Card fits inside flex-1 */}
-      <div className="flex-1 flex flex-col min-h-0 px-6 pb-6 overflow-hidden">
-        <Card className="flex flex-col h-full overflow-hidden border-border/50">
-
-
+      {/* Main Content Area */}
+      <div className={cn(
+        "flex-1 flex flex-col min-h-0 overflow-hidden",
+        isDialog ? "p-1" : "px-6 pb-6"
+      )}>
+        <Card className="flex flex-col h-full overflow-hidden border-border/50 shadow-sm">
           <CardContent className="flex-1 flex flex-col min-h-0 p-0 overflow-hidden">
             {filteredOrganizations.length === 0 && !loading ? (
               <div className="flex flex-col items-center justify-center py-12 flex-1">
                 <Building2 className="mb-4 h-12 w-12 text-muted-foreground opacity-20" />
-                <p className="text-center text-muted-foreground">
+                <p className="text-center text-muted-foreground text-sm">
                   No organizations found.
                 </p>
               </div>
             ) : (
               <>
-                <div className="flex-1 overflow-y-auto">
-                  <Table containerClassName="overflow-visible">
+                <div className="flex-1 overflow-y-auto overflow-x-auto">
+                  <Table containerClassName="overflow-visible min-w-[600px]">
                     <TableHeader className="sticky top-0 bg-white z-20 shadow-sm">
-                      <TableRow>
-                        <TableHead className="w-[80px]">S.No</TableHead>
-                        <TableHead>Organization Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Created At</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                      <TableRow className="hover:bg-transparent border-b">
+                        <TableHead className="w-[80px] h-10 text-xs uppercase font-semibold">S.No</TableHead>
+                        <TableHead className="h-10 text-xs uppercase font-semibold">Organization Name</TableHead>
+                        <TableHead className="h-10 text-xs uppercase font-semibold">Email</TableHead>
+                        <TableHead className="h-10 text-xs uppercase font-semibold">Created At</TableHead>
+                        <TableHead className="text-right h-10 text-xs uppercase font-semibold">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredOrganizations.map((organization, index) => (
-                        <TableRow key={organization._id} className="hover:bg-muted/30">
-                          <TableCell>{(currentPage - 1) * rowsPerPage + index + 1}</TableCell>
-                          <TableCell className="font-medium text-primary">
-                            <div className="flex items-center gap-2">
-                              <Building2 className="h-4 w-4" />
+                        <TableRow key={organization._id} className="hover:bg-muted/30 group">
+                          <TableCell className="py-3 font-medium text-xs">
+                            {(currentPage - 1) * rowsPerPage + index + 1}
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <div className="flex items-center gap-2 font-semibold text-primary text-xs">
+                              <Building2 className="h-3.5 w-3.5" />
                               {organization.organizationName}
                             </div>
                           </TableCell>
-                          <TableCell>{organization.organizationEmail}</TableCell>
-                          <TableCell>
+                          <TableCell className="py-3 text-xs">{organization.organizationEmail}</TableCell>
+                          <TableCell className="py-3 text-xs">
                             {new Date(organization.createdAt).toLocaleDateString()}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right py-3">
                             <div className="flex justify-end gap-1">
                               <Button
                                 size="sm"
@@ -331,7 +338,7 @@ export const OrganizationsContent = () => {
                   </Table>
                 </div>
 
-                <div className="flex-initial flex justify-end px-6 py-4 border-t bg-muted/10">
+                <div className="flex-initial flex justify-end px-4 py-3 border-t bg-muted/5">
                   <Pagination
                     currentPage={currentPage}
                     totalPages={Math.max(1, Math.ceil(totalOrganizations / rowsPerPage))}
@@ -346,7 +353,6 @@ export const OrganizationsContent = () => {
           </CardContent>
         </Card>
       </div>
-
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -385,8 +391,7 @@ export const OrganizationsContent = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the organization
-              "{selectedOrganization?.organizationName}" and remove all associated data.
+              This action cannot be undone. This will permanently delete the organization "{selectedOrganization?.organizationName}" and remove all associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -404,7 +409,10 @@ export const OrganizationsContent = () => {
 // Wrapper component with DashboardLayout for standalone page
 const Organizations = () => {
   return (
-    <DashboardLayout title="Organizations">
+    <DashboardLayout
+      title="Organizations"
+      mainClassName="p-0 flex flex-col overflow-hidden"
+    >
       <OrganizationsContent />
     </DashboardLayout>
   );

@@ -1640,33 +1640,27 @@ const Users = () => {
       {/* Manage Organization Dialog */}
       <Dialog open={isManageOrgDialogOpen} onOpenChange={setIsManageOrgDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
-          <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
-            <div className="p-6">
-              <OrganizationsContent />
-            </div>
-          </ScrollArea>
+          <div className="p-6 h-full overflow-hidden">
+            <OrganizationsContent isDialog={true} />
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Manage Collection Dialog */}
       <Dialog open={isManageCollectionDialogOpen} onOpenChange={setIsManageCollectionDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
-          <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
-            <div className="p-6">
-              <CollectionsContent />
-            </div>
-          </ScrollArea>
+          <div className="p-6 h-full overflow-hidden">
+            <CollectionsContent isDialog={true} />
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Manage Folder Dialog */}
       <Dialog open={isManageFolderDialogOpen} onOpenChange={setIsManageFolderDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] w-[90vw] p-0">
-          <ScrollArea className="max-h-[90vh] pr-4 [&>[data-radix-scroll-area-scrollbar]]:bg-primary/20 [&>[data-radix-scroll-area-scrollbar-thumb]]:bg-primary/50">
-            <div className="p-6">
-              <FoldersContent />
-            </div>
-          </ScrollArea>
+          <div className="p-6 h-full overflow-hidden">
+            <FoldersContent isDialog={true} />
+          </div>
         </DialogContent>
       </Dialog>
 
