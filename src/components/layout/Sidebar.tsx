@@ -109,7 +109,7 @@ const menuItems: MenuItem[] = [
         roles: ['company_super_admin'],
     },
     {
-        title: 'Password Creation',
+        title: 'Passwords',
         path: '/password-creation',
         icon: KeyRound,
         roles: ['company_super_admin', 'company_user'],

@@ -407,7 +407,7 @@ export const BulkOperationForm = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl w-[95vw] sm:w-full max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <DialogTitle className="text-xl font-semibold">Bulk Password Creation</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">Bulk Passwords</DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
             Create multiple password entries at once and save them to the same location
           </p>

@@ -743,7 +743,7 @@ export const createPassword = async (req: AuthRequest, res: Response) => {
 
     await newPassword.save();
 
-    // Create log entry for password creation
+    // Create log entry for Passwords
     try {
       const userInfo = await getUserInfo(req.user!.role, id, req.user!.email);
       const createLog = new PasswordLog({

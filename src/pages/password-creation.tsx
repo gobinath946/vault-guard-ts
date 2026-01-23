@@ -748,7 +748,7 @@ const Password = () => {
   // Render permission denied screens
   if (!user) {
     return (
-      <DashboardLayout title="Password Creation">
+      <DashboardLayout title="Passwords">
         <div className="flex items-center justify-center min-h-[60vh]">
           <p className="text-lg text-muted-foreground">
             You must be logged in to access this page.
@@ -760,7 +760,7 @@ const Password = () => {
 
   if (!hasPermission) {
     return (
-      <DashboardLayout title="Password Creation">
+      <DashboardLayout title="Passwords">
         <div className="flex items-center justify-center min-h-[60vh]">
           <p className="text-lg text-muted-foreground">
             You do not have permission to create passwords.
