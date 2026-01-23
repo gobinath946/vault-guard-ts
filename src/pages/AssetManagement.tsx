@@ -82,8 +82,14 @@ const AssetManagement = () => {
     }
   };
 
+  // Hardware and Software assets have their own DashboardLayout, so render them directly
+  if (activeTab === 'hardware' || activeTab === 'software') {
+    return renderContent();
+  }
+
+  // For dashboard, wrap with DashboardLayout
   return (
-    <DashboardLayout title="Asset Management">
+    <DashboardLayout title="Asset Management Dashboard">
       <div className="space-y-6">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">{getPageTitle()}</h2>

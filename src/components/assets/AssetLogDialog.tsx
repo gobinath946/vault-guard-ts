@@ -78,18 +78,18 @@ export const AssetLogDialog = ({
 
   const fetchLogs = async () => {
     if (!assetId) return;
-    
+
     setLoading(true);
     try {
       const data = assetType === 'hardware'
         ? await assetService.getHardwareAssetLogs(assetId)
         : await assetService.getSoftwareAssetLogs(assetId);
-      
+
       // Sort logs by timestamp (newest first)
-      const sortedLogs = (data?.logs || []).sort((a: AssetLog, b: AssetLog) => 
+      const sortedLogs = (data?.logs || []).sort((a: AssetLog, b: AssetLog) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
-      
+
       setLogs(sortedLogs);
     } catch (error: any) {
       console.error('Error fetching asset logs:', error);
@@ -106,18 +106,18 @@ export const AssetLogDialog = ({
 
   const fetchAllocationHistory = async () => {
     if (!assetId) return;
-    
+
     setLoadingHistory(true);
     try {
       const data = assetType === 'hardware'
         ? await assetService.getHardwareAssetAllocationHistory(assetId)
         : await assetService.getSoftwareAssetAllocationHistory(assetId);
-      
+
       // Sort by timestamp (newest first)
-      const sortedHistory = (data?.logs || []).sort((a: any, b: any) => 
+      const sortedHistory = (data?.logs || []).sort((a: any, b: any) =>
         new Date(b.timestamp || b.allocatedDate || 0).getTime() - new Date(a.timestamp || a.allocatedDate || 0).getTime()
       );
-      
+
       setAllocationHistory(sortedHistory);
     } catch (error: any) {
       console.error('Error fetching allocation history:', error);
@@ -167,7 +167,7 @@ export const AssetLogDialog = ({
   // Filter logs based on all filters
   const filteredLogs = useMemo(() => {
     const thirtyDaysAgo = subDays(new Date(), 30);
-    
+
     return logs.filter(log => {
       // Date range filter
       if (dateRange === '30days') {
@@ -213,18 +213,18 @@ export const AssetLogDialog = ({
   // Group logs by timestamp to show multiple field changes together
   const groupedLogs = useMemo(() => {
     const groups = new Map<string, AssetLog[]>();
-    
+
     filteredLogs.forEach(log => {
       // Use timestamp as key, but round to nearest minute for grouping
       const logDate = new Date(log.timestamp);
       const key = logDate.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
-      
+
       if (!groups.has(key)) {
         groups.set(key, []);
       }
       groups.get(key)!.push(log);
     });
-    
+
     // Convert to array and sort by timestamp (newest first)
     return Array.from(groups.entries())
       .map(([key, logs]) => ({
@@ -254,7 +254,7 @@ export const AssetLogDialog = ({
 
   // Get logs for Device History tab (all logs in chronological order)
   const deviceHistoryLogs = useMemo(() => {
-    return [...filteredLogs].sort((a, b) => 
+    return [...filteredLogs].sort((a, b) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
   }, [filteredLogs]);
@@ -262,10 +262,10 @@ export const AssetLogDialog = ({
   // Format value based on field type
   const formatValue = (value: string | undefined, fieldName: string): string => {
     if (!value || value === '(empty)') return value || '(empty)';
-    
+
     // Format date fields
-    if (fieldName === 'purchaseDate' || fieldName === 'startDate' || fieldName === 'endDate' || 
-        fieldName === 'allocatedDate' || fieldName === 'returnedDate' || fieldName === 'expiryDate') {
+    if (fieldName === 'purchaseDate' || fieldName === 'startDate' || fieldName === 'endDate' ||
+      fieldName === 'allocatedDate' || fieldName === 'returnedDate' || fieldName === 'expiryDate') {
       try {
         // Check if it's already a formatted date (not a timestamp)
         if (value.includes('T') || value.includes('Z') || value.match(/^\d{4}-\d{2}-\d{2}$/)) {
@@ -280,14 +280,14 @@ export const AssetLogDialog = ({
         return value; // Return original value if date parsing fails
       }
     }
-    
+
     return value;
   };
 
   // Format log details in a user-friendly way
   const formatLogDetails = (details: string): React.ReactNode => {
     if (!details) return null;
-    
+
     try {
       // Check if details contain field changes
       if (details.includes('changed') || details.includes('updated')) {
@@ -296,7 +296,7 @@ export const AssetLogDialog = ({
         if (changeMatch) {
           const field = changeMatch[1];
           const displayField = getFriendlyFieldName(field);
-          
+
           return (
             <div className="text-sm text-blue-600 italic p-3 bg-blue-50 rounded">
               ✨ {displayField} updated
@@ -304,7 +304,7 @@ export const AssetLogDialog = ({
           );
         }
       }
-      
+
       return <div className="text-sm text-gray-600 p-2 bg-gray-50 rounded">{details}</div>;
     } catch (error) {
       return <div className="text-sm text-gray-600 p-2 bg-gray-50 rounded">{details}</div>;
@@ -388,14 +388,6 @@ export const AssetLogDialog = ({
                   <SelectItem value="delete">Delete</SelectItem>
                 </SelectContent>
               </Select>
-              <Button
-                variant={dateRange === '30days' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setDateRange(dateRange === '30days' ? 'all' : '30days')}
-                className={dateRange === '30days' ? 'bg-purple-600 hover:bg-purple-700' : ''}
-              >
-                Last 30 days
-              </Button>
             </div>
           </div>
 
@@ -447,17 +439,6 @@ export const AssetLogDialog = ({
                   </button>
                 </Badge>
               )}
-              {dateRange !== 'all' && (
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  Last 30 days
-                  <button
-                    onClick={() => setDateRange('all')}
-                    className="ml-1 hover:bg-secondary rounded-full p-0.5"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -480,8 +461,8 @@ export const AssetLogDialog = ({
               <div className="text-center py-8 text-muted-foreground">
                 <div className="space-y-4">
                   <p>
-                    {hasActiveFilters 
-                      ? 'No changes found matching the current filters' 
+                    {hasActiveFilters
+                      ? 'No changes found matching the current filters'
                       : 'No field changes found for this asset'}
                   </p>
                   {!hasActiveFilters && (
@@ -500,7 +481,7 @@ export const AssetLogDialog = ({
               activityLogs.map((group, groupIndex) => {
                 const firstLog = group.logs[0];
                 const timestamp = new Date(firstLog.timestamp);
-                
+
                 return (
                   <div key={`activity-group-${group.timestamp}-${groupIndex}`} className="border rounded-lg p-5 space-y-4 bg-white shadow-sm">
                     {/* Header with timestamp */}
@@ -571,7 +552,7 @@ export const AssetLogDialog = ({
 
                     {/* Performed by */}
                     <div className="text-xs text-muted-foreground pt-3 border-t">
-                      <strong>Performed by:</strong> {firstLog.performedByName || 'System'} 
+                      <strong>Performed by:</strong> {firstLog.performedByName || 'System'}
                       {firstLog.performedByEmail && ` (${firstLog.performedByEmail})`}
                     </div>
                   </div>
@@ -612,15 +593,14 @@ export const AssetLogDialog = ({
                 const action = allocation.action || (allocation.returnedDate ? 'return' : 'allocate');
                 const isCurrent = allocation.status === 'ACTIVE' && !allocation.returnedDate;
                 const isOngoing = isCurrent;
-                
+
                 return (
-                  <div 
-                    key={`allocation-${allocation._id}-${timestamp}-${index}`} 
-                    className={`border rounded-lg p-5 space-y-4 shadow-sm relative overflow-hidden ${
-                      isCurrent 
-                        ? 'ring-2 ring-purple-500 bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-300' 
-                        : 'bg-white border-gray-200'
-                    }`}
+                  <div
+                    key={`allocation-${allocation._id}-${timestamp}-${index}`}
+                    className={`border rounded-lg p-5 space-y-4 shadow-sm relative overflow-hidden ${isCurrent
+                      ? 'ring-2 ring-purple-500 bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-300'
+                      : 'bg-white border-gray-200'
+                      }`}
                   >
                     {/* Current/Ongoing Indicator Badge */}
                     {isCurrent && (
@@ -633,11 +613,10 @@ export const AssetLogDialog = ({
                     {/* Header */}
                     <div className="flex items-center justify-between pb-3 border-b">
                       <div className="flex items-center gap-3">
-                        <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
-                          isCurrent 
-                            ? 'bg-purple-100 ring-2 ring-purple-300 ring-offset-2' 
-                            : 'bg-gray-100'
-                        }`}>
+                        <div className={`h-12 w-12 rounded-full flex items-center justify-center ${isCurrent
+                          ? 'bg-purple-100 ring-2 ring-purple-300 ring-offset-2'
+                          : 'bg-gray-100'
+                          }`}>
                           {isCurrent ? (
                             <CheckCircle2 className="h-6 w-6 text-purple-600" />
                           ) : (
@@ -697,15 +676,15 @@ export const AssetLogDialog = ({
                         {allocation.status && (
                           <div>
                             <div className="text-xs text-gray-500 mb-1">Status</div>
-                            <Badge 
+                            <Badge
                               className={
                                 isOngoing
                                   ? 'bg-green-500 text-white font-semibold animate-pulse'
-                                  : allocation.status === 'ACTIVE' 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : allocation.status === 'RETURNED'
-                                  ? 'bg-purple-100 text-purple-800'
-                                  : 'bg-gray-100 text-gray-800'
+                                  : allocation.status === 'ACTIVE'
+                                    ? 'bg-green-100 text-green-800'
+                                    : allocation.status === 'RETURNED'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : 'bg-gray-100 text-gray-800'
                               }
                             >
                               {isOngoing ? 'ONGOING' : allocation.status}

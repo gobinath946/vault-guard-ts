@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { SearchBar } from '@/components/common/SearchBar';
 import { Plus, Edit, Trash2, Building2 } from 'lucide-react';
 import { organizationService, Organization } from '@/services/organizationService';
 import { Pagination } from '@/components/common/Pagination';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -36,18 +37,20 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface OrganizationsContentProps {
+  isDialog?: boolean;
+}
+
 // Extracted content component without DashboardLayout
-export const OrganizationsContent = () => {
+export const OrganizationsContent: React.FC<OrganizationsContentProps> = ({ isDialog = false }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  // Auth context for permission filtering
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { user, isLoading } = useAuth();
-    const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalOrganizations, setTotalOrganizations] = useState(0);
-  
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -85,7 +88,6 @@ export const OrganizationsContent = () => {
     try {
       setLoading(true);
       const data = await organizationService.getAll(page, limit);
-      // data may be array (old API) or paginated object { organizations, total }
       if (Array.isArray(data)) {
         setOrganizations(data);
         setTotalOrganizations(data.length);
@@ -100,7 +102,7 @@ export const OrganizationsContent = () => {
       console.error('Error fetching organizations:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch organizations. Please check if the server is running.',
+        description: 'Failed to fetch organizations.',
         variant: 'destructive',
       });
       setOrganizations([]);
@@ -119,13 +121,11 @@ export const OrganizationsContent = () => {
         description: 'Organization created successfully',
       });
       setIsCreateDialogOpen(false);
-      // Form will be reset by the useEffect when dialog opens next time
-      // after creating a new org, refresh first page so new item appears
       setCurrentPage(1);
       fetchOrganizations(1, rowsPerPage);
     } catch (error: any) {
       console.error('Error creating organization:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to create organization. Please check your connection.';
+      const errorMessage = error.response?.data?.message || 'Failed to create organization.';
       toast({
         title: 'Error',
         description: errorMessage,
@@ -170,8 +170,7 @@ export const OrganizationsContent = () => {
       });
       setIsDeleteDialogOpen(false);
       setSelectedOrganization(null);
-  // refresh current page
-  fetchOrganizations(currentPage, rowsPerPage);
+      fetchOrganizations(currentPage, rowsPerPage);
     } catch (error: any) {
       console.error('Error deleting organization:', error);
       toast({
@@ -196,7 +195,7 @@ export const OrganizationsContent = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  // Permission-based filtering for company_user
+  // Permission-based filtering
   let filteredOrganizations = organizations;
   if (user?.role === 'company_user' && user.permissions?.organizations) {
     filteredOrganizations = organizations.filter((org) => user.permissions!.organizations!.includes(org._id));
@@ -216,15 +215,23 @@ export const OrganizationsContent = () => {
   }
 
   return (
-      <div className="space-y-6">
+    <div className={cn(
+      "flex flex-col overflow-hidden",
+      isDialog ? "h-[80vh]" : "h-full"
+    )}>
+      {/* Fixed Header Section */}
+      <div className={cn(
+        "flex-shrink-0 space-y-4 bg-background",
+        isDialog ? "p-1 pb-4" : "p-6"
+      )}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Organizations</h2>
-            <p className="text-muted-foreground">Manage your organizations</p>
+            <h2 className="text-2xl font-bold tracking-tight">Organizations</h2>
+            <p className="text-xs text-muted-foreground">Manage your organizations</p>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button size="sm">
                 <Plus className="mr-2 h-4 w-4" />
                 New Organization
               </Button>
@@ -260,146 +267,152 @@ export const OrganizationsContent = () => {
         </div>
 
         <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="Search organizations..." />
+      </div>
 
-        {filteredOrganizations.length === 0 && !loading ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Building2 className="mb-4 h-12 w-12 text-muted-foreground" />
-              <p className="text-center text-muted-foreground">
-                No organizations yet. Create your first organization to get started.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Organizations List</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
+      {/* Main Content Area */}
+      <div className={cn(
+        "flex-1 flex flex-col min-h-0 overflow-hidden",
+        isDialog ? "p-1" : "px-6 pb-6"
+      )}>
+        <Card className="flex flex-col h-full overflow-hidden border-border/50 shadow-sm">
+          <CardContent className="flex-1 flex flex-col min-h-0 p-0 overflow-hidden">
+            {filteredOrganizations.length === 0 && !loading ? (
+              <div className="flex flex-col items-center justify-center py-12 flex-1">
+                <Building2 className="mb-4 h-12 w-12 text-muted-foreground opacity-20" />
+                <p className="text-center text-muted-foreground text-sm">
+                  No organizations found.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto overflow-x-auto">
+                  <Table containerClassName="overflow-visible min-w-[600px]">
+                    <TableHeader className="sticky top-0 bg-white z-20 shadow-sm">
+                      <TableRow className="hover:bg-transparent border-b">
+                        <TableHead className="w-[80px] h-10 text-xs uppercase font-semibold">S.No</TableHead>
+                        <TableHead className="h-10 text-xs uppercase font-semibold">Organization Name</TableHead>
+                        <TableHead className="h-10 text-xs uppercase font-semibold">Email</TableHead>
+                        <TableHead className="h-10 text-xs uppercase font-semibold">Created At</TableHead>
+                        <TableHead className="text-right h-10 text-xs uppercase font-semibold">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredOrganizations.map((organization, index) => (
+                        <TableRow key={organization._id} className="hover:bg-muted/30 group">
+                          <TableCell className="py-3 font-medium text-xs">
+                            {(currentPage - 1) * rowsPerPage + index + 1}
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <div className="flex items-center gap-2 font-semibold text-primary text-xs">
+                              <Building2 className="h-3.5 w-3.5" />
+                              {organization.organizationName}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 text-xs">{organization.organizationEmail}</TableCell>
+                          <TableCell className="py-3 text-xs">
+                            {new Date(organization.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right py-3">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => openEditDialog(organization)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                onClick={() => openDeleteDialog(organization)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
 
-                    <TableHead>S.No</TableHead>
-                    <TableHead>Organization Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Created At</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOrganizations.map((organization ,index) => (
-                    
-                       <TableRow key={organization._id}>
-        {/* S.No */}
-        <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-primary" />
-                          {organization.organizationName}
-                        </div>
-                      </TableCell>
-                      <TableCell>{organization.organizationEmail}</TableCell>
-                      <TableCell>
-                        {new Date(organization.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => openEditDialog(organization)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openDeleteDialog(organization)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
+                <div className="flex-initial flex justify-end px-4 py-3 border-t bg-muted/5">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={Math.max(1, Math.ceil(totalOrganizations / rowsPerPage))}
+                    totalItems={totalOrganizations}
+                    rowsPerPage={rowsPerPage}
+                    onPageChange={handlePageChange}
+                    onRowsPerPageChange={handleRowsPerPageChange}
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-          {/* Pagination */}
-          
-            <div className="flex justify-end">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={Math.max(1, Math.ceil(totalOrganizations / rowsPerPage))}
-                totalItems={totalOrganizations}
-                rowsPerPage={rowsPerPage}
-                onPageChange={handlePageChange}
-                onRowsPerPageChange={handleRowsPerPageChange}
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Organization</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div>
+              <Label>Organization Name *</Label>
+              <Input
+                required
+                value={formData.organizationName}
+                onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
+                placeholder="e.g., Acme Corporation"
               />
             </div>
-          
+            <div>
+              <Label>Organization Email *</Label>
+              <Input
+                required
+                type="email"
+                value={formData.organizationEmail}
+                onChange={(e) => setFormData({ ...formData, organizationEmail: e.target.value })}
+                placeholder="e.g., admin@acme.com"
+              />
+            </div>
+            <Button type="submit" className="w-full">Update Organization</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Organization</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div>
-                <Label>Organization Name *</Label>
-                <Input
-                  required
-                  value={formData.organizationName}
-                  onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
-                  placeholder="e.g., Acme Corporation"
-                />
-              </div>
-              <div>
-                <Label>Organization Email *</Label>
-                <Input
-                  required
-                  type="email"
-                  value={formData.organizationEmail}
-                  onChange={(e) => setFormData({ ...formData, organizationEmail: e.target.value })}
-                  placeholder="e.g., admin@acme.com"
-                />
-              </div>
-              <Button type="submit" className="w-full">Update Organization</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the organization
-                "{selectedOrganization?.organizationName}" and remove all associated data.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the organization "{selectedOrganization?.organizationName}" and remove all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 };
 
 // Wrapper component with DashboardLayout for standalone page
 const Organizations = () => {
   return (
-    <DashboardLayout title="Organizations">
+    <DashboardLayout
+      title="Organizations"
+      mainClassName="p-0 flex flex-col overflow-hidden"
+    >
       <OrganizationsContent />
     </DashboardLayout>
   );

@@ -12,12 +12,10 @@ const CheckoutWizardPage = () => {
     };
 
     return (
-        <DashboardLayout title="Checkout Wizard">
-            <CheckoutWizard
-                checkoutId={checkoutId || null}
-                onClose={handleClose}
-            />
-        </DashboardLayout>
+        <CheckoutWizard
+            checkoutId={checkoutId || null}
+            onClose={handleClose}
+        />
     );
 };
 

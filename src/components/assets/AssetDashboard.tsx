@@ -58,8 +58,7 @@ const AssetDashboard = () => {
       {/* Asset Checker Button */}
       <div className="flex justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Asset Management Dashboard</h2>
-          <p className="text-muted-foreground">
+          <p className="text-[#1A1A1A] font-medium">
             Overview of company hardware and software assets
           </p>
         </div>

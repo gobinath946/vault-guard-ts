@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,8 @@ import {
     Search,
     Check,
     ChevronsUpDown,
-    Trash2
+    Trash2,
+    X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -384,7 +386,7 @@ const CheckoutWizard = ({ checkoutId, onClose }: CheckoutWizardProps) => {
         setGeneratingPDF(true);
         try {
             const result = await checkoutService.generatePreviewPDF(checkout._id);
-            
+
             // The result.pdfPath is now a full S3 URL, no need to prepend base URL
             if (result.pdfPath.startsWith('http')) {
                 setPdfUrl(result.pdfPath);
@@ -394,7 +396,7 @@ const CheckoutWizard = ({ checkoutId, onClose }: CheckoutWizardProps) => {
                 const baseUrl = apiBaseUrl.replace('/api', '');
                 setPdfUrl(`${baseUrl}${result.pdfPath}`);
             }
-            
+
             if ((result as any).cached) {
             } else {
             }
@@ -419,12 +421,12 @@ const CheckoutWizard = ({ checkoutId, onClose }: CheckoutWizardProps) => {
 
         try {
             const data = await checkoutService.getCheckoutDetails(checkoutId);
-            
+
             // Add comprehensive null checks and data validation
             if (!data) {
                 throw new Error('No data received from server');
             }
-            
+
             if (!data.checkout) {
                 throw new Error('No checkout data received from server');
             }
@@ -603,14 +605,14 @@ const CheckoutWizard = ({ checkoutId, onClose }: CheckoutWizardProps) => {
             if (stepIndex === 1) {
                 // HR Confirmation - step 1, find by stepIndex
                 const hrStep = checkout.steps?.find(s => s.stepIndex === 1);
-                
+
                 // Validate checkbox confirmations
                 if (!hrConfirmation.relievingEmailReceived || !hrConfirmation.lastWorkingDayConfirmed || !hrConfirmation.documentationCompleted) {
                     toast({ title: 'Error', description: 'Please confirm all HR relieving confirmation requirements', variant: 'destructive' });
                     setUpdating(false);
                     return;
                 }
-                
+
                 // Combine hrConfirmation data with any existing hrStep data
                 stepData = {
                     ...hrConfirmation,
@@ -745,7 +747,7 @@ const CheckoutWizard = ({ checkoutId, onClose }: CheckoutWizardProps) => {
                 }
 
                 const result = await checkoutService.proceedCheckout(checkout._id, emailConfig);
-                
+
                 if (checkout && checkout.status === 'Completed') {
                     toast({
                         title: 'Success',
@@ -757,7 +759,7 @@ const CheckoutWizard = ({ checkoutId, onClose }: CheckoutWizardProps) => {
                         description: `Offboarding completed and report sent to ${emailConfig.to.length} recipient(s).`
                     });
                 }
-                
+
                 await fetchCheckoutDetails(false);
                 // Navigate back after a short delay to show success message
                 setTimeout(() => {
@@ -857,10 +859,60 @@ const CheckoutWizard = ({ checkoutId, onClose }: CheckoutWizardProps) => {
 
     const isReadOnly = false; // Allow editing even when completed
 
+    // Footer component
+    const footer = (
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-4 py-4">
+            <Button
+                variant="ghost"
+                onClick={() => {
+                    if (currentStepIndex === 8 && showEmailConfig) {
+                        setShowEmailConfig(false);
+                    } else {
+                        setCurrentStepIndex(prev => Math.max(0, prev - 1));
+                    }
+                }}
+                disabled={currentStepIndex === 0 || updating || resendingEmail}
+            >
+                <ChevronLeft className="w-4 h-4 mr-2" /> Previous
+            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <Button variant="outline" onClick={onClose} disabled={updating || resendingEmail}>
+                    {currentStepIndex === 0 ? 'Cancel' : 'Save & Exit'}
+                </Button>
+                {checkout?.status === 'Completed' && currentStepIndex === 9 ? (
+                    <Button
+                        onClick={handleResendEmail}
+                        disabled={resendingEmail}
+                        className="px-8 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                        {resendingEmail ? 'Resending...' : 'Resend Report Email'}
+                        <Mail className="w-4 h-4 ml-2" />
+                    </Button>
+                ) : (
+                    <Button
+                        onClick={handleNext}
+                        disabled={updating || (checkout?.steps?.[currentStepIndex - 1]?.status === 'Completed' && currentStepIndex === 9 && checkout?.status === 'Completed')}
+                        className="px-8"
+                    >
+                        {updating ? 'Processing...' :
+                            (currentStepIndex === 0 ? 'Start Checkout' :
+                                checkout?.status === 'Completed' && currentStepIndex === 9 ? 'Update & Resend Report' :
+                                    currentStepIndex === 9 ? 'Finalize Offboarding' : 'Complete & Next')}
+                        {currentStepIndex !== 0 && <ChevronRight className="w-4 h-4 ml-2" />}
+                    </Button>
+                )}
+            </div>
+        </div>
+    );
+
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="bg-card border rounded-lg shadow-sm">
-                <div className="p-6 bg-muted/30 border-b">
+        <DashboardLayout
+            title="Checkout Wizard"
+            footer={footer}
+            mainClassName="p-0 flex flex-col overflow-hidden"
+        >
+            <div className="flex-1 flex flex-col border-0 shadow-none rounded-none w-full bg-card/50 backdrop-blur-sm">
+                <div className="flex-none px-6 py-4 border-b bg-card z-10">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                             <UserCheck className="w-6 h-6 text-primary" />
@@ -871,18 +923,29 @@ const CheckoutWizard = ({ checkoutId, onClose }: CheckoutWizardProps) => {
                                 }
                             </h1>
                         </div>
-                        {checkout && checkout.userId && typeof checkout.userId !== 'string' && (
-                            <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs font-normal tracking-wide">
-                                    {checkout.userId.email}
-                                </Badge>
-                                {checkout && checkout.status === 'Completed' && (
-                                    <Badge variant="default" className="text-xs font-normal tracking-wide bg-green-600 hover:bg-green-600">
-                                        Completed - Editable
+                        <div className="flex items-center gap-2">
+                            {checkout && checkout.userId && typeof checkout.userId !== 'string' && (
+                                <>
+                                    <Badge variant="outline" className="text-xs font-normal tracking-wide">
+                                        {checkout.userId.email}
                                     </Badge>
-                                )}
-                            </div>
-                        )}
+                                    {checkout && checkout.status === 'Completed' && (
+                                        <Badge variant="default" className="text-xs font-normal tracking-wide bg-green-600 hover:bg-green-600">
+                                            Completed - Editable
+                                        </Badge>
+                                    )}
+                                </>
+                            )}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onClose}
+                                className="h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive"
+                                title="Close wizard"
+                            >
+                                <X className="h-5 w-5" />
+                            </Button>
+                        </div>
                     </div>
                     <div className="space-y-2">
                         <div className="flex justify-between text-sm font-medium">
@@ -893,183 +956,144 @@ const CheckoutWizard = ({ checkoutId, onClose }: CheckoutWizardProps) => {
                     </div>
                 </div>
 
-                <div className="flex flex-col lg:flex-row min-h-[500px]">
+                <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
                     {/* Mobile Step Indicator */}
-                    <div className="lg:hidden p-4 border-b bg-muted/5">
+                    <div className="lg:hidden p-4 border-b bg-muted/5 flex-none">
                         <div className="flex items-center justify-between text-sm">
                             <span className="font-medium">Step {currentStepForProgress} of {totalStepsLabel}</span>
                             <span className="text-muted-foreground">{steps[currentStepIndex].title}</span>
                         </div>
                     </div>
 
-                    {/* Sidebar Steps */}
-                    <div className="w-full lg:w-48 xl:w-56 border-r bg-muted/10 p-2 lg:p-3 overflow-y-auto">
-                        <div className="space-y-1">
-                            {steps.map((step, idx) => {
-                                // Skip user selection step if checkout already exists
-                                if (checkoutId && idx === 0) return null;
+                    {/* Sidebar */}
+                    <div className="hidden lg:flex flex-col w-64 border-r bg-muted/10 overflow-hidden flex-none">
+                        <div className="flex-1 overflow-y-auto">
+                            <div className="space-y-1">
+                                {steps.map((step, idx) => {
+                                    // Skip user selection step if checkout already exists
+                                    if (checkoutId && idx === 0) return null;
 
-                                // For user selection step, check if user is selected
-                                let isCompleted = false;
-                                let canNavigate = false;
+                                    // For user selection step, check if user is selected
+                                    let isCompleted = false;
+                                    let canNavigate = false;
 
-                                if (idx === 0) {
-                                    isCompleted = !!checkout; // Completed if checkout exists
-                                    canNavigate = true; // Can always navigate to user selection
-                                } else {
-                                    // For checkout steps (1-8), map to backend steps (0-7)
-                                    // Wizard step idx → backend step (idx - 1) → backend currentStep idx
-                                    // checkout.currentStep is 1-8, so we compare: (idx - 1) < (currentStep - 1)
-                                    // Which simplifies to: idx < currentStep
-                                    const backendStepNum = idx; // Wizard step 1 = backend step 1
-                                    isCompleted = checkout ? (backendStepNum < (checkout.currentStep || 1) ||
-                                        checkout.steps?.[backendStepNum - 1]?.status === 'Completed' ||
-                                        (checkout.status && checkout.status === 'Completed')) : false;
-                                    canNavigate = checkout ? ((checkout.status && checkout.status === 'Completed') || backendStepNum <= (checkout.currentStep || 1)) : false;
-                                }
+                                    if (idx === 0) {
+                                        isCompleted = !!checkout; // Completed if checkout exists
+                                        canNavigate = true; // Can always navigate to user selection
+                                    } else {
+                                        // For checkout steps (1-8), map to backend steps (0-7)
+                                        // Wizard step idx → backend step (idx - 1) → backend currentStep idx
+                                        // checkout.currentStep is 1-8, so we compare: (idx - 1) < (currentStep - 1)
+                                        // Which simplifies to: idx < currentStep
+                                        const backendStepNum = idx; // Wizard step 1 = backend step 1
+                                        isCompleted = checkout ? (backendStepNum < (checkout.currentStep || 1) ||
+                                            checkout.steps?.[backendStepNum - 1]?.status === 'Completed' ||
+                                            (checkout.status && checkout.status === 'Completed')) : false;
+                                        canNavigate = checkout ? ((checkout.status && checkout.status === 'Completed') || backendStepNum <= (checkout.currentStep || 1)) : false;
+                                    }
 
-                                const isActive = idx === currentStepIndex;
-                                const Icon = step.icon;
+                                    const isActive = idx === currentStepIndex;
+                                    const Icon = step.icon;
 
-                                return (
-                                    <button
-                                        key={idx}
-                                        onClick={() => {
-                                            if (canNavigate || idx === 0) {
-                                                setCurrentStepIndex(idx);
-                                            }
-                                        }}
-                                        className={cn(
-                                            "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs lg:text-sm transition-all duration-200",
-                                            isActive
-                                                ? "bg-primary text-primary-foreground shadow-sm"
-                                                : isCompleted
-                                                    ? "text-muted-foreground hover:bg-muted/50 cursor-pointer"
-                                                    : "text-muted-foreground/50 cursor-not-allowed"
-                                        )}
-                                    >
-                                        <div className={cn(
-                                            "w-5 h-5 lg:w-6 lg:h-6 rounded-full flex items-center justify-center border-2 flex-shrink-0",
-                                            isActive ? "border-primary-foreground/30 bg-primary-foreground/10" :
-                                                isCompleted ? "border-green-500 bg-green-50" : "border-muted"
-                                        )}>
-                                            {isCompleted ? <CheckCircle2 className="w-3 h-3 lg:w-4 lg:h-4" /> : <span className="text-[9px] lg:text-[10px]">{idx + 1}</span>}
-                                        </div>
-                                        <span className="truncate">{step.title}</span>
-                                    </button>
-                                );
-                            })}
+                                    return (
+                                        <button
+                                            key={idx}
+                                            onClick={() => {
+                                                if (canNavigate || idx === 0) {
+                                                    setCurrentStepIndex(idx);
+                                                }
+                                            }}
+                                            className={cn(
+                                                "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs lg:text-sm transition-all duration-200",
+                                                isActive
+                                                    ? "bg-primary text-primary-foreground shadow-sm"
+                                                    : isCompleted
+                                                        ? "text-muted-foreground hover:bg-muted/50 cursor-pointer"
+                                                        : "text-muted-foreground/50 cursor-not-allowed"
+                                            )}
+                                        >
+                                            <div className={cn(
+                                                "w-5 h-5 lg:w-6 lg:h-6 rounded-full flex items-center justify-center border-2 flex-shrink-0",
+                                                isActive ? "border-primary-foreground/30 bg-primary-foreground/10" :
+                                                    isCompleted ? "border-green-500 bg-green-50" : "border-muted"
+                                            )}>
+                                                {isCompleted ? <CheckCircle2 className="w-3 h-3 lg:w-4 lg:h-4" /> : <span className="text-[9px] lg:text-[10px]">{idx + 1}</span>}
+                                            </div>
+                                            <span className="truncate">{step.title}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
 
                     {/* Step Content */}
-                    <div className="flex-1 p-4 lg:p-6 xl:p-8 overflow-y-auto">
-                        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                            <div className="flex flex-col items-center text-center space-y-2 mb-6">
-                                <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
-                                    {(() => {
-                                        const Icon = steps[currentStepIndex].icon;
-                                        return <Icon className="w-6 h-6 lg:w-8 lg:h-8 text-primary" />;
-                                    })()}
+                    <div className="flex-1 relative min-h-0 bg-background/50">
+                        <div className="absolute inset-0 overflow-y-auto p-4 lg:p-6 xl:p-8">
+                            <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                                <div className="flex flex-col items-center text-center space-y-2 mb-6">
+                                    <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
+                                        {(() => {
+                                            const Icon = steps[currentStepIndex].icon;
+                                            return <Icon className="w-6 h-6 lg:w-8 lg:h-8 text-primary" />;
+                                        })()}
+                                    </div>
+                                    <h2 className="text-xl lg:text-2xl font-bold">{steps[currentStepIndex].title}</h2>
+                                    <p className="text-sm text-muted-foreground max-w-2xl">{getStepDescription(currentStepIndex)}</p>
                                 </div>
-                                <h2 className="text-xl lg:text-2xl font-bold">{steps[currentStepIndex].title}</h2>
-                                <p className="text-sm text-muted-foreground max-w-2xl">{getStepDescription(currentStepIndex)}</p>
-                            </div>
 
-                            <div className="bg-card border rounded-xl p-4 lg:p-6 shadow-sm">
-                                {renderStepContent(
-                                    currentStepIndex,
-                                    {
-                                        checkout,
-                                        assets,
-                                        appAccess,
-                                        setAppAccess,
-                                        dbAccess,
-                                        setDbAccess,
-                                        returnedAssets,
-                                        setReturnedAssets,
-                                        isReadOnly,
-                                        users,
-                                        loadingUsers,
-                                        selectedUserId,
-                                        setSelectedUserId,
-                                        userDropdownOpen,
-                                        setUserDropdownOpen,
-                                        hrConfirmation,
-                                        setHrConfirmation,
-                                        emailRevocation,
-                                        setEmailRevocation,
-                                        vpnAccess,
-                                        setVpnAccess,
-                                        biometricAccess,
-                                        setBiometricAccess,
-                                        assetCheckerData,
-                                        loadingAssets,
-                                        getStatusBadgeClass,
-                                        getExpiryStatus,
-                                        handleDeleteAllocation,
-                                        fetchAssetCheckerData,
-                                        pdfUrl,
-                                        generatingPDF,
-                                        emailConfig,
-                                        setEmailConfig,
-                                        handleResendEmail,
-                                        resendingEmail,
-                                        showEmailConfig,
-                                        setShowEmailConfig,
-                                        checkoutId,
-                                        fetchCheckoutDetails
-                                    }
-                                )}
+                                <div className="bg-card border rounded-xl p-4 lg:p-6 shadow-sm">
+                                    {renderStepContent(
+                                        currentStepIndex,
+                                        {
+                                            checkout,
+                                            assets,
+                                            appAccess,
+                                            setAppAccess,
+                                            dbAccess,
+                                            setDbAccess,
+                                            returnedAssets,
+                                            setReturnedAssets,
+                                            isReadOnly,
+                                            users,
+                                            loadingUsers,
+                                            selectedUserId,
+                                            setSelectedUserId,
+                                            userDropdownOpen,
+                                            setUserDropdownOpen,
+                                            hrConfirmation,
+                                            setHrConfirmation,
+                                            emailRevocation,
+                                            setEmailRevocation,
+                                            vpnAccess,
+                                            setVpnAccess,
+                                            biometricAccess,
+                                            setBiometricAccess,
+                                            assetCheckerData,
+                                            loadingAssets,
+                                            getStatusBadgeClass,
+                                            getExpiryStatus,
+                                            handleDeleteAllocation,
+                                            fetchAssetCheckerData,
+                                            pdfUrl,
+                                            generatingPDF,
+                                            emailConfig,
+                                            setEmailConfig,
+                                            handleResendEmail,
+                                            resendingEmail,
+                                            showEmailConfig,
+                                            setShowEmailConfig,
+                                            checkoutId,
+                                            fetchCheckoutDetails
+                                        }
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <div className="p-4 lg:p-6 border-t bg-muted/30 flex flex-col sm:flex-row justify-between items-center gap-3">
-                    <Button
-                        variant="ghost"
-                        onClick={() => {
-                            if (currentStepIndex === 8 && showEmailConfig) {
-                                setShowEmailConfig(false);
-                            } else {
-                                setCurrentStepIndex(prev => Math.max(0, prev - 1));
-                            }
-                        }}
-                        disabled={currentStepIndex === 0 || updating || resendingEmail}
-                    >
-                        <ChevronLeft className="w-4 h-4 mr-2" /> Previous
-                    </Button>
-                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                        <Button variant="outline" onClick={onClose} disabled={updating || resendingEmail}>
-                            {currentStepIndex === 0 ? 'Cancel' : 'Save & Exit'}
-                        </Button>
-                        {checkout?.status === 'Completed' && currentStepIndex === 9 ? (
-                            <Button
-                                onClick={handleResendEmail}
-                                disabled={resendingEmail}
-                                className="px-8 bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                                {resendingEmail ? 'Resending...' : 'Resend Report Email'}
-                                <Mail className="w-4 h-4 ml-2" />
-                            </Button>
-                        ) : (
-                            <Button
-                                onClick={handleNext}
-                                disabled={updating || (checkout?.steps?.[currentStepIndex - 1]?.status === 'Completed' && currentStepIndex === 9 && checkout?.status === 'Completed')}
-                                className="px-8"
-                            >
-                                {updating ? 'Processing...' :
-                                    (currentStepIndex === 0 ? 'Start Checkout' :
-                                        checkout?.status === 'Completed' && currentStepIndex === 9 ? 'Update & Resend Report' :
-                                            currentStepIndex === 9 ? 'Finalize Offboarding' : 'Complete & Next')}
-                                {currentStepIndex !== 0 && <ChevronRight className="w-4 h-4 ml-2" />}
-                            </Button>
-                        )}
-                    </div>
-                </div>
             </div>
-        </div>
+        </DashboardLayout>
     );
 };
 

@@ -54,11 +54,6 @@ const MasterAdminDashboard = () => {
   return (
     <DashboardLayout title="Master Admin Dashboard">
       <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">System-wide statistics and company management</p>
-        </div>
-
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Companies"

@@ -45,7 +45,7 @@ export interface HardwareAllocation {
   status: 'ACTIVE' | 'RETURNED' | 'DELETED';
   remarks?: string;
   createdAt: string;
-  allocationEventId?: string; // For grouping related allocations
+  allocationEventId?: string;
 }
 
 export interface HardwareAllocationEvent {
@@ -105,15 +105,13 @@ export interface SoftwareAllocation {
   createdAt: string;
 }
 
-// Utility function to check if software allocation is expired
 const checkSoftwareAllocationExpiry = (allocation: any): any => {
   if (allocation.expiryDate && allocation.status === 'ACTIVE') {
     const expiryDate = new Date(allocation.expiryDate);
     const currentDate = new Date();
     
-    // Set time to match backend logic
-    expiryDate.setHours(23, 59, 59, 999); // End of the expiry date
-    currentDate.setHours(0, 0, 0, 0);     // Start of current date
+    expiryDate.setHours(23, 59, 59, 999);
+    currentDate.setHours(0, 0, 0, 0);
     
     if (currentDate > expiryDate) {
       return {
@@ -125,13 +123,11 @@ const checkSoftwareAllocationExpiry = (allocation: any): any => {
   return allocation;
 };
 
-// Utility function to check if software asset is expired
 const checkSoftwareAssetExpiry = (asset: any): any => {
   if (asset.endDate && asset.status === 'ACTIVE') {
     const endDate = new Date(asset.endDate);
     const currentDate = new Date();
     
-    // Set time to start of day for accurate comparison
     endDate.setHours(0, 0, 0, 0);
     currentDate.setHours(0, 0, 0, 0);
     
@@ -176,10 +172,8 @@ export interface CompanyUser {
 }
 
 class AssetService {
-  // Dashboard
   async getDashboard(): Promise<AssetDashboard> {
     const response = await api.get('/assets/dashboard');
-    // Map backend response to frontend terminology
     const mappedData = {
       ...response.data,
       hardware: {
@@ -194,7 +188,6 @@ class AssetService {
     return mappedData;
   }
 
-  // Hardware Assets
   async getHardwareAssets(params?: {
     page?: number;
     limit?: number;
@@ -202,7 +195,6 @@ class AssetService {
     status?: string;
   }) {
     const response = await api.get('/assets/hardware', { params });
-    // Map backend response to frontend terminology
     const mappedAssets = response.data.assets?.map((asset: any) => ({
       ...asset,
       currentAllocation: asset.currentAllocation ? {
@@ -232,14 +224,12 @@ class AssetService {
     return response.data;
   }
 
-  // Hardware Allocations
   async getHardwareAllocations(params?: {
     page?: number;
     limit?: number;
     q?: string;
   }) {
     const response = await api.get('/assets/hardware/allocations', { params });
-    // Map backend response to frontend terminology
     const mappedAllocations = response.data.allocations?.map((allocation: any) => ({
       ...allocation,
       allocatedDate: allocation.assignedDate
@@ -269,6 +259,15 @@ class AssetService {
     return response.data;
   }
 
+  async createHardwareAllocationEmailRequest(data: {
+    userId: string;
+    hardwareAssetId: string;
+    remarks?: string;
+  }) {
+    const response = await api.post('/assets/hardware/allocation-request', data);
+    return response.data;
+  }
+
   async updateHardwareAllocation(allocationId: string, data: {
     userId?: string;
     hardwareAssetId?: string;
@@ -283,7 +282,6 @@ class AssetService {
     return response.data;
   }
 
-  // Software Assets
   async getSoftwareAssets(params?: {
     page?: number;
     limit?: number;
@@ -291,7 +289,6 @@ class AssetService {
     status?: string;
   }) {
     const response = await api.get('/assets/software', { params });
-    // Check expiry status for each asset on the frontend as well
     const assetsWithExpiryCheck = response.data.assets?.map((asset: any) => {
       return checkSoftwareAssetExpiry(asset);
     }) || [];
@@ -304,7 +301,6 @@ class AssetService {
 
   async getSoftwareAsset(assetId: string): Promise<SoftwareAsset> {
     const response = await api.get(`/assets/software/${assetId}`);
-    // Check expiry status for the individual asset
     return checkSoftwareAssetExpiry(response.data);
   }
 
@@ -328,22 +324,16 @@ class AssetService {
     return response.data;
   }
 
-  // Software Allocations
   async getSoftwareAllocations(params?: {
     page?: number;
     limit?: number;
     q?: string;
   }) {
     const response = await api.get('/assets/software/allocations', { params });
-    // Map backend response to frontend terminology and ensure status is properly handled
-    const mappedAllocations = response.data.allocations?.map((allocation: any) => {
-      const mappedAllocation = {
-        ...allocation,
-        allocatedDate: allocation.assignedDate
-      };
-      // Don't override backend status - trust the backend status over frontend calculations
-      return mappedAllocation;
-    }) || [];
+    const mappedAllocations = response.data.allocations?.map((allocation: any) => ({
+      ...allocation,
+      allocatedDate: allocation.assignedDate
+    })) || [];
     
     return {
       ...response.data,
@@ -366,6 +356,17 @@ class AssetService {
     customFields?: { [key: string]: any };
   }) {
     const response = await api.post('/assets/software/assign', data);
+    return response.data;
+  }
+
+  async createSoftwareAllocationEmailRequest(data: {
+    userId: string;
+    softwareAssetId: string;
+    licenseCount: number;
+    expiryDate?: string;
+    remarks?: string;
+  }) {
+    const response = await api.post('/assets/software/allocation-request', data);
     return response.data;
   }
 
@@ -397,7 +398,6 @@ class AssetService {
     return response.data;
   }
 
-  // Asset Checker
   async getAssetChecker(userId: string): Promise<AssetChecker> {
     try {
       const response = await api.get(`/assets/checker/${userId}`);
@@ -406,17 +406,14 @@ class AssetService {
         throw new Error('No data received from asset checker API');
       }
       
-      // Validate response structure
       if (typeof response.data !== 'object') {
         throw new Error('Invalid response format from asset checker API');
       }
       
-      // Ensure user data exists
       if (!response.data.user || !response.data.user._id) {
         throw new Error('Invalid user data in asset checker response');
       }
       
-      // Map backend response to frontend terminology
       const mappedData = {
         user: {
           _id: response.data.user._id,
@@ -427,14 +424,10 @@ class AssetService {
           ...allocation,
           allocatedDate: allocation.assignedDate || allocation.allocatedDate
         })) : [],
-        software: Array.isArray(response.data.software) ? response.data.software.map((allocation: any) => {
-          const mappedAllocation = {
-            ...allocation,
-            allocatedDate: allocation.assignedDate || allocation.allocatedDate
-          };
-          // Don't override backend status - trust the backend status
-          return mappedAllocation;
-        }) : []
+        software: Array.isArray(response.data.software) ? response.data.software.map((allocation: any) => ({
+          ...allocation,
+          allocatedDate: allocation.assignedDate || allocation.allocatedDate
+        })) : []
       };
       
       return mappedData;
@@ -447,7 +440,6 @@ class AssetService {
         url: error.config?.url
       });
       
-      // Provide more specific error messages
       if (error.response?.status === 404) {
         throw new Error('User not found or access denied');
       } else if (error.response?.status === 403) {
@@ -462,7 +454,6 @@ class AssetService {
     }
   }
 
-  // Utility endpoints
   async getAvailableHardware(q?: string) {
     const response = await api.get('/assets/hardware/available', { params: { q } });
     return response.data;
@@ -470,7 +461,6 @@ class AssetService {
 
   async getAvailableSoftware(q?: string) {
     const response = await api.get('/assets/software/available', { params: { q } });
-    // Check expiry status for available software as well
     const assetsWithExpiryCheck = response.data.assets?.map((asset: any) => {
       return checkSoftwareAssetExpiry(asset);
     }) || [];
@@ -486,7 +476,6 @@ class AssetService {
     return response.data;
   }
 
-  // Log fetching methods
   async getHardwareAssetLogs(assetId: string): Promise<{ logs: any[] }> {
     const response = await api.get(`/assets/hardware/${assetId}/logs`);
     return response.data;
@@ -498,7 +487,6 @@ class AssetService {
   }
 
   async getHardwareAllocationLogs(allocationId: string, statusFilter?: string): Promise<{ logs: any[] }> {
-    // Always send statusFilter, even when it's 'all', so backend knows to return all logs
     const params = { statusFilter: statusFilter || 'all' };
     const response = await api.get(`/assets/hardware/allocations/${allocationId}/logs`, { params });
     return response.data;
@@ -531,6 +519,24 @@ class AssetService {
   async getUserSoftwareAllocationHistory(userId: string, statusFilter?: string): Promise<{ logs: any[] }> {
     const params = { statusFilter: statusFilter || 'all' };
     const response = await api.get(`/assets/software/user/${userId}/allocation-history`, { params });
+    return response.data;
+  }
+
+  // Company User Endpoints - Get user's allocated hardware
+  async getUserAllocatedHardware() {
+    const response = await api.get('/assets/user/allocated-hardware');
+    return response.data;
+  }
+
+  // Company User Endpoints - Get user's allocated software
+  async getUserAllocatedSoftware() {
+    const response = await api.get('/assets/user/allocated-software');
+    return response.data;
+  }
+
+  // Company User Endpoints - Get user's allocated assets dashboard
+  async getUserAllocatedAssetsDashboard() {
+    const response = await api.get('/assets/user/allocated-dashboard');
     return response.data;
   }
 }

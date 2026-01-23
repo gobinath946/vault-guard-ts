@@ -12,6 +12,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.939.0",
     "@aws-sdk/s3-request-presigner": "^3.966.0",
+    "@types/imap": "^0.8.43",
+    "@types/mailparser": "^3.4.6",
     "@types/nodemailer": "^7.0.4",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
@@ -21,7 +23,9 @@
     "express": "^4.18.2",
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
+    "imap": "^0.8.19",
     "jsonwebtoken": "^9.0.2",
+    "mailparser": "^3.9.1",
     "mongodb": "6.9.0",
     "mongoose": "^8.0.0",
     "multer": "^2.0.2",

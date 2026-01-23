@@ -8,22 +8,26 @@ export interface AuthRequest extends Request {
     email: string;
     role: string;
     companyId?: string;
+    isPrimaryAdmin?: boolean;
     // Permissions are NOT stored in JWT - always fetch from database using user.id
   };
 }
 
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const authHeader = req.header('Authorization');
+
+    const token = authHeader?.replace('Bearer ', '');
 
     if (!token) {
       return res.status(401).json({ message: 'No token provided' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any;
+   
     req.user = decoded;
     next();
-  } catch (error) {
+  } catch (error: any) {
     res.status(401).json({ message: 'Invalid token' });
   }
 };

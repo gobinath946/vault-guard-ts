@@ -43,7 +43,7 @@ const AssetsDashboard = () => {
   }
 
   return (
-    <DashboardLayout title="Asset Management">
+    <DashboardLayout title="Asset Management Dashboard">
         <AssetDashboard />
     </DashboardLayout>
   );

@@ -3,64 +3,64 @@ import nodemailer from 'nodemailer';
 import path from 'path';
 
 export interface EmailConfig {
-    service?: string;
-    host?: string;
-    port?: number;
-    secure?: boolean;
-    user: string;
-    pass: string;
-    from?: string;
+  service?: string;
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  user: string;
+  pass: string;
+  from?: string;
 }
 
 export const sendOffboardingReport = async (
-    userData: any,
-    pdfPath: string,
-    requestedEmailConfig?: {
-        to?: string[];
-        cc?: string[];
-        subject?: string;
-        body?: string;
-    },
-    companyConfig?: EmailConfig
+  userData: any,
+  pdfPath: string,
+  requestedEmailConfig?: {
+    to?: string[];
+    cc?: string[];
+    subject?: string;
+    body?: string;
+  },
+  companyConfig?: EmailConfig
 ) => {
-    try {
-        const smtpUser = companyConfig?.user || process.env.SMTP_USER;
-        const smtpPass = companyConfig?.pass || process.env.SMTP_PASS;
+  try {
+    const smtpUser = companyConfig?.user || process.env.SMTP_USER;
+    const smtpPass = companyConfig?.pass || process.env.SMTP_PASS;
 
-        // Check if email credentials are properly configured
-        if (!smtpUser || smtpUser === 'your-email@gmail.com' ||
-            !smtpPass || smtpPass === 'your-app-password') {
-            console.warn('⚠️  Email credentials not configured. Skipping email send.');
-            return {
-                success: true,
-                messageId: 'email-skipped-no-credentials',
-                message: 'Email skipped - credentials not configured'
-            };
-        }
+    // Check if email credentials are properly configured
+    if (!smtpUser || smtpUser === 'your-email@gmail.com' ||
+      !smtpPass || smtpPass === 'your-app-password') {
+      console.warn('⚠️  Email credentials not configured. Skipping email send.');
+      return {
+        success: true,
+        messageId: 'email-skipped-no-credentials',
+        message: 'Email skipped - credentials not configured'
+      };
+    }
 
-        // Create transporter dynamically
-        const transporter = nodemailer.createTransport({
-            service: companyConfig?.service || process.env.EMAIL_SERVICE || 'gmail',
-            host: companyConfig?.host || process.env.SMTP_HOST,
-            port: companyConfig?.port || Number(process.env.SMTP_PORT) || 587,
-            secure: companyConfig?.secure ?? (process.env.SMTP_SECURE === 'true'),
-            auth: {
-                user: smtpUser,
-                pass: smtpPass,
-            },
-        });
+    // Create transporter dynamically
+    const transporter = nodemailer.createTransport({
+      service: companyConfig?.service || process.env.EMAIL_SERVICE || 'gmail',
+      host: companyConfig?.host || process.env.SMTP_HOST,
+      port: companyConfig?.port || Number(process.env.SMTP_PORT) || 587,
+      secure: companyConfig?.secure ?? (process.env.SMTP_SECURE === 'true'),
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
 
-        const to = requestedEmailConfig?.to && requestedEmailConfig.to.length > 0
-            ? requestedEmailConfig.to
-            : [process.env.HR_NOTIFICATION_EMAIL || 'hr@company.com'];
+    const to = requestedEmailConfig?.to && requestedEmailConfig.to.length > 0
+      ? requestedEmailConfig.to
+      : [process.env.HR_NOTIFICATION_EMAIL || 'hr@company.com'];
 
-        const cc = requestedEmailConfig?.cc && requestedEmailConfig.cc.length > 0
-            ? requestedEmailConfig.cc
-            : (process.env.OFFBOARDING_CC_EMAILS ? process.env.OFFBOARDING_CC_EMAILS.split(',') : []);
+    const cc = requestedEmailConfig?.cc && requestedEmailConfig.cc.length > 0
+      ? requestedEmailConfig.cc
+      : (process.env.OFFBOARDING_CC_EMAILS ? process.env.OFFBOARDING_CC_EMAILS.split(',') : []);
 
-        const subject = requestedEmailConfig?.subject || `Offboarding Completion Report: ${userData.username}`;
+    const subject = requestedEmailConfig?.subject || `Offboarding Completion Report: ${userData.username}`;
 
-        const defaultHtml = `
+    const defaultHtml = `
             <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
                 <h2 style="color: #d32f2f;">Employee Offboarding Completed</h2>
                 <p>Dear HR Team,</p>
@@ -78,37 +78,447 @@ export const sendOffboardingReport = async (
             </div>
         `;
 
-        const html = requestedEmailConfig?.body
-            ? `<div style="font-family: sans-serif; line-height: 1.6; color: #333; white-space: pre-wrap;">${requestedEmailConfig.body}</div>`
-            : defaultHtml;
+    const html = requestedEmailConfig?.body
+      ? `<div style="font-family: sans-serif; line-height: 1.6; color: #333; white-space: pre-wrap;">${requestedEmailConfig.body}</div>`
+      : defaultHtml;
 
-        const mailOptions = {
-            from: companyConfig?.from || process.env.SMTP_FROM || '"SecurePro Offboarding" <noreply@securepro.com>',
-            to: to.join(','),
-            cc: cc.join(','),
-            subject: subject,
-            html: html,
-            attachments: [
-                {
-                    filename: path.basename(pdfPath),
-                    path: pdfPath
-                }
-            ]
-        };
-
-        const info = await transporter.sendMail(mailOptions);
-        return { success: true, messageId: info.messageId };
-    } catch (error: any) {
-        console.error('Failed to send offboarding report email:', error);
-
-        if (error.code === 'EAUTH') {
-            return {
-                success: false,
-                error: 'Email authentication failed - check SMTP configuration',
-                skipEmail: false
-            };
+    const mailOptions = {
+      from: companyConfig?.from || process.env.SMTP_FROM || '"SecurePro Offboarding" <noreply@securepro.com>',
+      to: to.join(','),
+      cc: cc.join(','),
+      subject: subject,
+      html: html,
+      attachments: [
+        {
+          filename: path.basename(pdfPath),
+          path: pdfPath
         }
+      ]
+    };
 
-        return { success: false, error: error.message };
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error: any) {
+    console.error('Failed to send offboarding report email:', error);
+
+    if (error.code === 'EAUTH') {
+      return {
+        success: false,
+        error: 'Email authentication failed - check SMTP configuration',
+        skipEmail: false
+      };
     }
+
+    return { success: false, error: error.message };
+  }
+};
+
+// Asset Allocation Request Email (Hardware or Software)
+export const sendAllocationRequestEmail = async (
+  requestData: {
+    userName: string;
+    userEmail: string;
+    assetName: string;
+    assetBrand: string;
+    assetModel: string;
+    serialNumber: string;
+    remarks: string;
+    requestId: string;
+    assetType?: 'hardware' | 'software'; // Add asset type
+  },
+  assetEmailConfig?: {
+    to?: string;
+    subject?: string;
+    body?: string;
+  },
+  companyConfig?: EmailConfig
+) => {
+  try {
+    const smtpUser = companyConfig?.user || process.env.SMTP_USER;
+    const smtpPass = companyConfig?.pass || process.env.SMTP_PASS;
+
+    if (!smtpUser || smtpUser === 'your-email@gmail.com' ||
+      !smtpPass || smtpPass === 'your-app-password') {
+      console.warn('⚠️  Email credentials not configured. Skipping email send.');
+      return {
+        success: false,
+        error: 'Email credentials not configured',
+      };
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: companyConfig?.service || process.env.EMAIL_SERVICE || 'gmail',
+      host: companyConfig?.host || process.env.SMTP_HOST,
+      port: companyConfig?.port || Number(process.env.SMTP_PORT) || 587,
+      secure: companyConfig?.secure ?? (process.env.SMTP_SECURE === 'true'),
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
+    // Determine asset type (default to hardware for backward compatibility)
+    const assetType = requestData.assetType || 'hardware';
+    const assetTypeLabel = assetType === 'software' ? 'Software' : 'Hardware';
+
+    // Generate approve/reject links - use backend URL for API endpoints
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+    const approveLink = `${backendUrl}/api/assets/${assetType}/allocation-request/approve/${requestData.requestId}`;
+    const rejectLink = `${backendUrl}/api/assets/${assetType}/allocation-request/reject/${requestData.requestId}`;
+
+    // Replace template variables
+    const replaceVariables = (template: string) => {
+      return template
+        .replace(/\{\{userName\}\}/g, requestData.userName)
+        .replace(/\{\{userEmail\}\}/g, requestData.userEmail)
+        .replace(/\{\{assetName\}\}/g, requestData.assetName)
+        .replace(/\{\{assetBrand\}\}/g, requestData.assetBrand)
+        .replace(/\{\{assetModel\}\}/g, requestData.assetModel)
+        .replace(/\{\{serialNumber\}\}/g, requestData.serialNumber)
+        .replace(/\{\{remarks\}\}/g, requestData.remarks || 'N/A')
+        .replace(/\{\{requestId\}\}/g, requestData.requestId)
+        .replace(/\{\{approveLink\}\}/g, approveLink)
+        .replace(/\{\{rejectLink\}\}/g, rejectLink);
+    };
+
+    const to = assetEmailConfig?.to || process.env.INFRA_EMAIL || 'infra@company.com';
+
+    // Add timestamp and request ID to make subject unique (prevents Gmail threading)
+    const timestamp = new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    const shortRequestId = requestData.requestId.substring(requestData.requestId.length - 6).toUpperCase();
+
+    // Generate subject based on asset type
+    // Always generate dynamic subject with asset type prefix
+    const subject = `${assetTypeLabel} ${replaceVariables(assetEmailConfig?.subject || 'Asset Allocation Request - {{assetName}} for {{userName}}')} [Ref: ${shortRequestId}]`;
+
+    const defaultBody = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${assetTypeLabel} Asset Allocation Request</title>
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+    <!-- Header -->
+    <tr>
+      <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 40px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">${assetTypeLabel} Asset Allocation Request</h1>
+      </td>
+    </tr>
+    
+    <!-- Content -->
+    <tr>
+      <td style="padding: 40px;">
+        <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">Dear Team,</p>
+        
+        <p style="color: #555555; font-size: 15px; line-height: 1.6; margin: 0 0 30px 0;">
+          A new ${assetType} asset allocation request requires your approval. Please review the details below and take appropriate action.
+        </p>
+        
+        <!-- Details Table -->
+        <table width="100%" cellpadding="12" cellspacing="0" style="border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 30px;">
+          <tr style="background-color: #f9fafb;">
+            <td style="width: 35%; color: #666666; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e0e0e0;">Employee Name</td>
+            <td style="color: #333333; font-size: 14px; border-bottom: 1px solid #e0e0e0;">${requestData.userName}</td>
+          </tr>
+          <tr>
+            <td style="color: #666666; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e0e0e0; background-color: #f9fafb;">Email Address</td>
+            <td style="color: #333333; font-size: 14px; border-bottom: 1px solid #e0e0e0;">${requestData.userEmail}</td>
+          </tr>
+          <tr style="background-color: #f9fafb;">
+            <td style="color: #666666; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e0e0e0;">Asset Name</td>
+            <td style="color: #333333; font-size: 14px; border-bottom: 1px solid #e0e0e0;">${requestData.assetName}</td>
+          </tr>
+          <tr>
+            <td style="color: #666666; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e0e0e0; background-color: #f9fafb;">${assetType === 'software' ? 'Vendor & License' : 'Brand & Model'}</td>
+            <td style="color: #333333; font-size: 14px; border-bottom: 1px solid #e0e0e0;">${requestData.assetBrand} ${requestData.assetModel}</td>
+          </tr>
+          <tr style="background-color: #f9fafb;">
+            <td style="color: #666666; font-size: 14px; font-weight: 600; border-bottom: 1px solid #e0e0e0;">${assetType === 'software' ? 'Expiry Date' : 'Serial Number'}</td>
+            <td style="color: #333333; font-size: 14px; border-bottom: 1px solid #e0e0e0;">${requestData.serialNumber}</td>
+          </tr>
+          <tr>
+            <td style="color: #666666; font-size: 14px; font-weight: 600; background-color: #f9fafb;">Remarks</td>
+            <td style="color: #333333; font-size: 14px;">${requestData.remarks || 'None'}</td>
+          </tr>
+        </table>
+        
+        <!-- Action Buttons -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+          <tr>
+            <td align="center">
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-right: 10px;">
+                    <a href="${approveLink}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 15px; font-weight: 600; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);">Approve</a>
+                  </td>
+                  <td style="padding-left: 10px;">
+                    <a href="${rejectLink}" style="display: inline-block; background-color: #ef4444; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 15px; font-weight: 600; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);">Reject</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+        
+        <p style="color: #888888; font-size: 13px; line-height: 1.5; margin: 30px 0 0 0; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+          <strong>Note:</strong> This is an automated request. Please click one of the buttons above to process this allocation. Each request can only be processed once.
+        </p>
+      </td>
+    </tr>
+    
+    <!-- Footer -->
+    <tr>
+      <td style="background-color: #f9fafb; padding: 20px 40px; text-align: center; border-top: 1px solid #e0e0e0;">
+        <p style="color: #888888; font-size: 12px; margin: 0;">
+          Asset Management System | Automated Notification
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    // Use config body if it exists and contains HTML, otherwise use default
+    let body = defaultBody;
+    if (assetEmailConfig?.body) {
+      const configBody = assetEmailConfig.body.trim();
+      // Check if it's HTML (contains HTML tags) and doesn't contain hardcoded "Hardware"
+      if ((configBody.includes('<html') || configBody.includes('<!DOCTYPE')) && !configBody.includes('Hardware Asset Allocation Request</title>')) {
+        body = replaceVariables(configBody);
+      } else {
+        // If it contains hardcoded "Hardware" or is plain text, use dynamic default template
+        body = defaultBody;
+      }
+    }
+
+    // Always send as HTML
+    const mailOptions = {
+      from: companyConfig?.from || process.env.SMTP_FROM || '"SecurePro Asset Management" <noreply@securepro.com>',
+      to: to,
+      subject: subject,
+      html: body,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error: any) {
+    console.error('Failed to send allocation request email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Send confirmation email after approval
+export const processAllocationApproval = async (
+  allocationData: {
+    userName: string;
+    userEmail: string;
+    assetName: string;
+    assetBrand: string;
+    assetModel: string;
+    serialNumber: string;
+    assetType?: 'hardware' | 'software'; // Add asset type
+  },
+  companyConfig?: EmailConfig,
+  infraEmail?: string
+) => {
+  try {
+    const smtpUser = companyConfig?.user || process.env.SMTP_USER;
+    const smtpPass = companyConfig?.pass || process.env.SMTP_PASS;
+
+    if (!smtpUser || smtpUser === 'your-email@gmail.com' ||
+      !smtpPass || smtpPass === 'your-app-password') {
+      console.warn('⚠️  Email credentials not configured. Skipping email send.');
+      return { success: false };
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: companyConfig?.service || process.env.EMAIL_SERVICE || 'gmail',
+      host: companyConfig?.host || process.env.SMTP_HOST,
+      port: companyConfig?.port || Number(process.env.SMTP_PORT) || 587,
+      secure: companyConfig?.secure ?? (process.env.SMTP_SECURE === 'true'),
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
+    const assetType = allocationData.assetType || 'hardware';
+    const assetTypeLabel = assetType === 'software' ? 'Software' : 'Hardware';
+
+    const toEmail = infraEmail || process.env.INFRA_EMAIL || 'infra@company.com';
+    const subject = `${assetTypeLabel} Asset Allocation Approved - ${allocationData.assetName}`;
+    const html = `
+            <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #10b981;">✓ ${assetTypeLabel} Asset Allocation Approved</h2>
+                <p>Dear Infra Team,</p>
+                <p>The following ${assetType} asset allocation has been approved and completed:</p>
+                <ul>
+                    <li><strong>User:</strong> ${allocationData.userName} (${allocationData.userEmail})</li>
+                    <li><strong>Asset:</strong> ${allocationData.assetName} - ${allocationData.assetBrand} ${allocationData.assetModel}</li>
+                    <li><strong>${assetType === 'software' ? 'Expiry Date' : 'Serial Number'}:</strong> ${allocationData.serialNumber}</li>
+                    <li><strong>Status:</strong> Allocated</li>
+                    <li><strong>Date:</strong> ${new Date().toLocaleDateString()}</li>
+                </ul>
+                <p>The asset has been successfully allocated to the user.</p>
+                <br>
+                <p style="font-size: 12px; color: #777;">This is an automated notification from SecurePro Asset Management.</p>
+            </div>
+        `;
+
+    const mailOptions = {
+      from: companyConfig?.from || process.env.SMTP_FROM || '"SecurePro Asset Management" <noreply@securepro.com>',
+      to: toEmail,
+      subject: subject,
+      html: html,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error: any) {
+    console.error('Failed to send approval confirmation email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Send rejection email after rejection
+export const processAllocationRejection = async (
+  requestData: {
+    userName: string;
+    userEmail: string;
+    assetName: string;
+    assetBrand: string;
+    assetModel: string;
+    serialNumber: string;
+    remarks: string;
+    assetType?: 'hardware' | 'software';
+  },
+  companyConfig?: EmailConfig,
+  infraEmail?: string
+) => {
+  try {
+    const smtpUser = companyConfig?.user || process.env.SMTP_USER;
+    const smtpPass = companyConfig?.pass || process.env.SMTP_PASS;
+
+    if (!smtpUser || smtpUser === 'your-email@gmail.com' ||
+      !smtpPass || smtpPass === 'your-app-password') {
+      console.warn('⚠️  Email credentials not configured. Skipping email send.');
+      return { success: false };
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: companyConfig?.service || process.env.EMAIL_SERVICE || 'gmail',
+      host: companyConfig?.host || process.env.SMTP_HOST,
+      port: companyConfig?.port || Number(process.env.SMTP_PORT) || 587,
+      secure: companyConfig?.secure ?? (process.env.SMTP_SECURE === 'true'),
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
+    const assetType = requestData.assetType || 'hardware';
+    const assetTypeLabel = assetType === 'software' ? 'Software' : 'Hardware';
+
+    const toEmail = infraEmail || process.env.INFRA_EMAIL || 'infra@company.com';
+    const subject = `${assetTypeLabel} Asset Allocation Rejected - ${requestData.assetName}`;
+    const html = `
+            <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #ef4444;">${assetTypeLabel} Asset Allocation Rejected</h2>
+                <p>Dear Infra Team,</p>
+                <p>The following ${assetType} asset allocation request has been <strong>REJECTED</strong>:</p>
+                <ul>
+                    <li><strong>User:</strong> ${requestData.userName} (${requestData.userEmail})</li>
+                    <li><strong>Asset:</strong> ${requestData.assetName} - ${requestData.assetBrand} ${requestData.assetModel}</li>
+                    <li><strong>${assetType === 'software' ? 'Expiry Date' : 'Serial Number'}:</strong> ${requestData.serialNumber}</li>
+                    <li><strong>Remarks:</strong> ${requestData.remarks || 'None'}</li>
+                    <li><strong>Status:</strong> Rejected</li>
+                    <li><strong>Date:</strong> ${new Date().toLocaleDateString()}</li>
+                </ul>
+                <p>No further action is required for this request.</p>
+                <br>
+                <p style="font-size: 12px; color: #777;">This is an automated notification from SecurePro Asset Management.</p>
+            </div>
+        `;
+
+    const mailOptions = {
+      from: companyConfig?.from || process.env.SMTP_FROM || '"SecurePro Asset Management" <noreply@securepro.com>',
+      to: toEmail,
+      subject: subject,
+      html: html,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error: any) {
+    console.error('Failed to send rejection confirmation email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Send welcome email to new user
+export const sendWelcomeEmail = async (
+  userData: {
+    email: string;
+    username: string;
+    password?: string;
+  },
+  companyConfig?: EmailConfig
+) => {
+  try {
+    const smtpUser = companyConfig?.user || process.env.SMTP_USER;
+    const smtpPass = companyConfig?.pass || process.env.SMTP_PASS;
+
+    if (!smtpUser || smtpUser === 'your-email@gmail.com' ||
+      !smtpPass || smtpPass === 'your-app-password') {
+      console.warn('⚠️  Email credentials not configured. Skipping email send.');
+      return { success: false };
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: companyConfig?.service || process.env.EMAIL_SERVICE || 'gmail',
+      host: companyConfig?.host || process.env.SMTP_HOST,
+      port: companyConfig?.port || Number(process.env.SMTP_PORT) || 587,
+      secure: companyConfig?.secure ?? (process.env.SMTP_SECURE === 'true'),
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
+    const subject = `Welcome to SecurePro - Your Account Details`;
+    const html = `
+            <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #4f46e5;">Welcome to SecurePro!</h2>
+                <p>Hello ${userData.username},</p>
+                <p>Your account has been successfully created. Below are your login credentials:</p>
+                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>Email:</strong> ${userData.email}</p>
+                    ${userData.password ? `<p style="margin: 5px 0;"><strong>Password:</strong> ${userData.password}</p>` : ''}
+                </div>
+                <p>Please log in and change your password immediately.</p>
+                <br>
+                <p style="font-size: 12px; color: #777;">This is an automated message from SecurePro.</p>
+            </div>
+        `;
+
+    const mailOptions = {
+      from: companyConfig?.from || process.env.SMTP_FROM || '"SecurePro Team" <noreply@securepro.com>',
+      to: userData.email,
+      subject: subject,
+      html: html,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error: any) {
+    console.error('Failed to send welcome email:', error);
+    return { success: false, error: error.message };
+  }
 };

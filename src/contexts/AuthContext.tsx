@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 interface User {
   id: string;
   email: string;
+  name?: string;
   role: 'master_admin' | 'company_super_admin' | 'company_user';
   companyId?: string;
   companyName?: string;
@@ -12,6 +13,7 @@ interface User {
     collections?: string[];
     folders?: string[];
   };
+  isPrimaryAdmin?: boolean;
 }
 
 interface AuthContextType {
