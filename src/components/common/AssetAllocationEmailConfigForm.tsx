@@ -205,12 +205,18 @@ const AssetAllocationEmailConfigForm = () => {
               onChange={(e) => setConfig({ ...config, body: e.target.value })}
               rows={20}
               required
-              disabled
-              className="font-mono text-sm bg-muted cursor-not-allowed"
+              className="font-mono text-sm"
             />
-            <p className="text-sm text-muted-foreground">
-              This HTML template is pre-configured for both hardware and software allocations. The system automatically adjusts content based on asset type (Hardware/Software).
-            </p>
+            <div className="space-y-1 text-sm">
+              <p className="text-muted-foreground">
+                This HTML template is pre-configured for both hardware and software allocations. The system automatically adjusts content based on asset type (Hardware/Software).
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                <p className="text-amber-900 text-xs">
+                  <strong>⚠️ Note:</strong> The following variables are used by the system and <strong>must not be changed or removed</strong>: <code className="bg-amber-100 px-1 rounded">{'{{userName}}'}</code>, <code className="bg-amber-100 px-1 rounded">{'{{userEmail}}'}</code>, <code className="bg-amber-100 px-1 rounded">{'{{assetName}}'}</code>, <code className="bg-amber-100 px-1 rounded">{'{{assetBrand}}'}</code>, <code className="bg-amber-100 px-1 rounded">{'{{assetModel}}'}</code>, <code className="bg-amber-100 px-1 rounded">{'{{serialNumber}}'}</code>, <code className="bg-amber-100 px-1 rounded">{'{{remarks}}'}</code>, <code className="bg-amber-100 px-1 rounded">{'{{approveLink}}'}</code>, <code className="bg-amber-100 px-1 rounded">{'{{rejectLink}}'}</code>. You can modify the HTML styling and layout, but keep these variable names exactly as shown.
+                </p>
+              </div>
+            </div>
           </div>
 
           <Button type="submit" disabled={loading} className="w-full">
