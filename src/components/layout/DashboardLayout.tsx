@@ -24,8 +24,20 @@ interface DashboardLayoutProps {
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title, header, footer, mainClassName }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
+  // Initialize sidebar state from localStorage, default to false (expanded)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
+  
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+
+  // Save sidebar state to localStorage whenever it changes
+  const handleSidebarToggle = (collapsed: boolean) => {
+    setSidebarCollapsed(collapsed);
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(collapsed));
+  };
 
   const handleLogout = () => {
     logout();
@@ -36,7 +48,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[#1A1A1A]">
       <Sidebar
         collapsed={sidebarCollapsed}
-        setCollapsed={setSidebarCollapsed}
+        setCollapsed={handleSidebarToggle}
         mobileOpen={sidebarMobileOpen}
         setMobileOpen={setSidebarMobileOpen}
       />
@@ -63,7 +75,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                 <div className="flex items-center gap-4">
                   <div
                     className="bg-[#4F46E5] p-2 rounded-lg cursor-pointer hover:bg-[#4338CA] transition-all shadow-sm flex items-center justify-center group"
-                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                    onClick={() => handleSidebarToggle(!sidebarCollapsed)}
                   >
                     <ChevronLeft className={cn("h-5 w-5 text-white transition-transform duration-300", sidebarCollapsed && "rotate-180")} />
                   </div>

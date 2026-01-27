@@ -55,10 +55,7 @@ const Index = () => {
             <span className="text-xl font-black text-slate-900">Secure<span className="text-blue-600">Pro</span></span>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate('/login')} className="text-slate-700 hover:text-slate-900">
-              Login
-            </Button>
-            <Button onClick={() => navigate('/register')} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20">
+            <Button onClick={() => navigate('/login')} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20">
               Get Started
             </Button>
           </div>
@@ -80,7 +77,7 @@ const Index = () => {
             Keep your sensitive data safe with double-hashed passwords and AES-256 encryption.
           </p>
           <div className="flex gap-4">
-            <Button size="lg" onClick={() => navigate('/register')} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 h-12 px-8 text-base font-semibold">
+            <Button size="lg" onClick={() => navigate('/login')} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 h-12 px-8 text-base font-semibold">
               <Lock className="h-5 w-5" />
               Start Free Trial
             </Button>
@@ -226,7 +223,7 @@ const Index = () => {
           <p className="mb-8 text-lg text-slate-600">
             Start your free trial today. No credit card required.
           </p>
-          <Button size="lg" onClick={() => navigate('/register')} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 h-12 px-8 text-base font-semibold">
+          <Button size="lg" onClick={() => navigate('/login')} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 h-12 px-8 text-base font-semibold">
             <Shield className="h-5 w-5" />
             Get Started Now
           </Button>

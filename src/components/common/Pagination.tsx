@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PaginationProps {
@@ -41,15 +40,8 @@ export const Pagination: React.FC<PaginationProps> = ({
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between w-full px-6 py-3 bg-white gap-4 border-t border-border/40">
-      {/* Left: Checkbox style label + Page size */}
+      {/* Left: Page size */}
       <div className="flex items-center gap-6 min-w-fit">
-        <div className="flex items-center gap-2">
-          <div className="h-5 w-5 rounded bg-[#6344E8] flex items-center justify-center shadow-sm">
-            <Check className="h-3 w-3 text-white stroke-[3px]" />
-          </div>
-          <span className="text-xs font-semibold text-slate-600">Pagination</span>
-        </div>
-
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-slate-400">Rows:</span>
           <Select

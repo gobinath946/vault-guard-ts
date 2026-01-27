@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { hashPassword } from '@/lib/crypto';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -139,6 +139,9 @@ const Users = () => {
   const [isPasswordGeneratorOpen, setIsPasswordGeneratorOpen] = useState(false);
   const [isEditPasswordGeneratorOpen, setIsEditPasswordGeneratorOpen] = useState(false);
 
+  // Debounce timer ref
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
   // Manage dialog states
   const [isManageOrgDialogOpen, setIsManageOrgDialogOpen] = useState(false);
   const [isManageCollectionDialogOpen, setIsManageCollectionDialogOpen] = useState(false);
@@ -178,15 +181,41 @@ const Users = () => {
 
   const { toast } = useToast();
 
+  // Debounced search handler
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchTerm(value);
+    
+    // Clear existing timer
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    // Set new timer for debounced search
+    searchDebounceRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      fetchUsers(1, rowsPerPage, value, showOffboardingUsers);
+    }, 500); // 500ms debounce delay
+  }, [rowsPerPage, showOffboardingUsers]);
+
+  // Fetch users when pagination or filter changes (not search)
   useEffect(() => {
     fetchUsers(currentPage, rowsPerPage, searchTerm, showOffboardingUsers);
-  }, [currentPage, rowsPerPage, searchTerm, showOffboardingUsers]);
+  }, [currentPage, rowsPerPage, showOffboardingUsers]);
 
   useEffect(() => {
     if (isDialogOpen || isEditDialogOpen) {
       fetchOrganizations();
     }
   }, [isDialogOpen, isEditDialogOpen]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, []);
 
   // Clear form data when create dialog opens
   useEffect(() => {
@@ -1185,15 +1214,7 @@ const Users = () => {
     </div>
   );
 
-  if (loading) {
-    return (
-      <DashboardLayout title="Users">
-        <div className="flex h-96 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        </div>
-      </DashboardLayout>
-    );
-  }
+
 
   return (
     <>
@@ -1243,7 +1264,7 @@ const Users = () => {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 className="p-2 hover:bg-accent rounded-lg text-muted-foreground transition-colors border border-border/50"
-                onClick={() => window.location.reload()}
+                onClick={() => fetchUsers(currentPage, rowsPerPage, searchTerm, showOffboardingUsers)}
               >
                 <RefreshCw className="h-4 w-4" />
               </button>
@@ -1251,7 +1272,7 @@ const Users = () => {
               <div className="w-full sm:w-64">
                 <SearchBar
                   value={searchTerm}
-                  onChange={setSearchTerm}
+                  onChange={handleSearchChange}
                   placeholder="Search users..."
                 />
               </div>
@@ -1491,126 +1512,132 @@ const Users = () => {
             </CardHeader>
             <CardContent className="flex-1 relative p-0 min-h-0 bg-background">
               <div className="absolute inset-0 overflow-y-auto">
-                <table className="w-full">
-                  <thead className="sticky top-0 bg-card z-10 shadow-sm">
-                    <tr className="border-b border-border">
-                      <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
-                        S.No
-                      </th>
-                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Username</th>
-                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Employee ID</th>
-                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Email</th>
-                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Role</th>
-                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">Status</th>
-                      <th className="p-4 text-left text-sm font-medium text-muted-foreground">
-                        {showOffboardingUsers ? 'Offboarded' : 'Created'}
-                      </th>
-                      {!showOffboardingUsers && (
-                        <th className="p-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.length === 0 ? (
-                      <tr>
-                        <td colSpan={showOffboardingUsers ? 7 : 8} className="p-8 text-center text-muted-foreground">
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <UsersIcon className="h-12 w-12 opacity-20" />
-                            <p className="text-lg font-medium">No users found</p>
-                            <p className="text-sm">
-                              {showOffboardingUsers
-                                ? "No users have been deactivated due to offboarding yet."
-                                : "No active or inactive users found."}
-                            </p>
-                          </div>
-                        </td>
+                {loading ? (
+                  <div className="flex h-96 items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead className="sticky top-0 bg-card z-10 shadow-sm">
+                      <tr className="border-b border-border">
+                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
+                          S.No
+                        </th>
+                        <th className="p-4 text-left text-sm font-medium text-muted-foreground">Username</th>
+                        <th className="p-4 text-left text-sm font-medium text-muted-foreground">Employee ID</th>
+                        <th className="p-4 text-left text-sm font-medium text-muted-foreground">Email</th>
+                        <th className="p-4 text-left text-sm font-medium text-muted-foreground">Role</th>
+                        <th className="p-4 text-left text-sm font-medium text-muted-foreground">Status</th>
+                        <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                          {showOffboardingUsers ? 'Offboarded' : 'Created'}
+                        </th>
+                        {!showOffboardingUsers && (
+                          <th className="p-4 text-left text-sm font-medium text-muted-foreground">Actions</th>
+                        )}
                       </tr>
-                    ) : (
-                      users.map((user, index) => (
-                        <tr key={user._id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                          <td className="p-4 align-middle">
-                            {(currentPage - 1) * rowsPerPage + index + 1}
-                          </td>
-                          <td className="p-4 text-sm font-medium">
-                            <div className="flex flex-col">
-                              <span>{user.username}</span>
-                              {user.offboardingInactive && (
-                                <Badge variant="outline" className="w-fit text-[10px] h-4 mt-1 bg-amber-50 text-amber-600 border-amber-200">
-                                  Offboarding Inactive
-                                </Badge>
-                              )}
+                    </thead>
+                    <tbody>
+                      {users.length === 0 ? (
+                        <tr>
+                          <td colSpan={showOffboardingUsers ? 7 : 8} className="p-8 text-center text-muted-foreground">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <UsersIcon className="h-12 w-12 opacity-20" />
+                              <p className="text-lg font-medium">No users found</p>
+                              <p className="text-sm">
+                                {showOffboardingUsers
+                                  ? "No users have been deactivated due to offboarding yet."
+                                  : "No active or inactive users found."}
+                              </p>
                             </div>
                           </td>
-                          <td className="p-4 text-sm">{user.employeeId || '-'}</td>
-                          <td className="p-4 text-sm">{user.email}</td>
-                          <td className="p-4 text-sm">
-                            <div className="flex items-center gap-2">
-                              {user.role === 'company_super_admin' ? (
-                                <ShieldCheck className="h-4 w-4 text-indigo-600" />
-                              ) : user.role === 'company_admin' ? (
-                                <Shield className="h-4 w-4 text-indigo-500" />
-                              ) : (
-                                <User className="h-4 w-4 text-slate-400" />
-                              )}
-                              <span className="capitalize">{user.role?.replace('_', ' ')}</span>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            {showOffboardingUsers ? (
-                              // For offboarded users, only show the badge without toggle
-                              <Badge variant="secondary">
-                                Inactive
-                              </Badge>
-                            ) : (
-                              // For all users, show toggle and badge
-                              <div className="flex items-center gap-3">
-                                <div
-                                  className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${user.isActive ? 'bg-[#4F46E5]' : 'bg-gray-300'
-                                    }`}
-                                  onClick={() => !user.offboardingInactive && handleStatusToggle(user._id, !user.isActive)}
-                                  style={{ cursor: user.offboardingInactive ? 'not-allowed' : 'pointer', opacity: user.offboardingInactive ? 0.6 : 1 }}
-                                >
-                                  <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isActive ? 'translate-x-6' : 'translate-x-1'
-                                      }`}
-                                  />
-                                </div>
-                                <Badge variant={user.isActive ? 'default' : 'secondary'}>
-                                  {user.isActive ? 'Active' : 'Inactive'}
-                                </Badge>
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-4 text-sm">
-                            {showOffboardingUsers && user.updatedAt
-                              ? new Date(user.updatedAt).toLocaleDateString()
-                              : new Date(user.createdAt).toLocaleDateString()}
-                          </td>
-                          {!showOffboardingUsers && (
-                            <td className="p-4">
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleEdit(user)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleDelete(user._id)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
+                        </tr>
+                      ) : (
+                        users.map((user, index) => (
+                          <tr key={user._id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                            <td className="p-4 align-middle">
+                              {(currentPage - 1) * rowsPerPage + index + 1}
+                            </td>
+                            <td className="p-4 text-sm font-medium">
+                              <div className="flex flex-col">
+                                <span>{user.username}</span>
+                                {user.offboardingInactive && (
+                                  <Badge variant="outline" className="w-fit text-[10px] h-4 mt-1 bg-amber-50 text-amber-600 border-amber-200">
+                                    Offboarding Inactive
+                                  </Badge>
+                                )}
                               </div>
                             </td>
-                          )}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                            <td className="p-4 text-sm">{user.employeeId || '-'}</td>
+                            <td className="p-4 text-sm">{user.email}</td>
+                            <td className="p-4 text-sm">
+                              <div className="flex items-center gap-2">
+                                {user.role === 'company_super_admin' ? (
+                                  <ShieldCheck className="h-4 w-4 text-indigo-600" />
+                                ) : user.role === 'company_admin' ? (
+                                  <Shield className="h-4 w-4 text-indigo-500" />
+                                ) : (
+                                  <User className="h-4 w-4 text-slate-400" />
+                                )}
+                                <span className="capitalize">{user.role?.replace('_', ' ')}</span>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              {showOffboardingUsers ? (
+                                // For offboarded users, only show the badge without toggle
+                                <Badge variant="secondary">
+                                  Inactive
+                                </Badge>
+                              ) : (
+                                // For all users, show toggle and badge
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${user.isActive ? 'bg-[#4F46E5]' : 'bg-gray-300'
+                                      }`}
+                                    onClick={() => !user.offboardingInactive && handleStatusToggle(user._id, !user.isActive)}
+                                    style={{ cursor: user.offboardingInactive ? 'not-allowed' : 'pointer', opacity: user.offboardingInactive ? 0.6 : 1 }}
+                                  >
+                                    <span
+                                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isActive ? 'translate-x-6' : 'translate-x-1'
+                                        }`}
+                                    />
+                                  </div>
+                                  <Badge variant={user.isActive ? 'default' : 'secondary'}>
+                                    {user.isActive ? 'Active' : 'Inactive'}
+                                  </Badge>
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-4 text-sm">
+                              {showOffboardingUsers && user.updatedAt
+                                ? new Date(user.updatedAt).toLocaleDateString()
+                                : new Date(user.createdAt).toLocaleDateString()}
+                            </td>
+                            {!showOffboardingUsers && (
+                              <td className="p-4">
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleEdit(user)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDelete(user._id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </CardContent>
           </Card>

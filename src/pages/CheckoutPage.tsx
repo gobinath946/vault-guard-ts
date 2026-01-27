@@ -149,9 +149,10 @@ const Checkout = () => {
             <div className="flex flex-wrap items-center gap-2">
                 <button
                     className="p-2 hover:bg-accent rounded-lg text-muted-foreground transition-colors border border-border/50"
-                    onClick={() => window.location.reload()}
+                    onClick={fetchCheckouts}
+                    disabled={loading}
                 >
-                    <RefreshCw className="h-4 w-4" />
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 </button>
 
                 <div className="h-4 w-[1px] bg-border/60 mx-1 hidden sm:block"></div>

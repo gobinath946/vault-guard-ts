@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -10,22 +10,51 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { hashPassword } from '@/lib/crypto';
+import { api } from '@/lib/api';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
+const registerSchema = z.object({
+  companyName: z.string().min(2, 'Company name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  contactName: z.string().min(2, 'Contact name must be at least 2 characters'),
+  phoneNumber: z.string().min(10, 'Phone number must be at least 10 digits'),
+  city: z.string().min(2, 'City is required'),
+  state: z.string().min(2, 'State is required'),
+  pinCode: z.string().min(4, 'Pin code is required'),
+  country: z.string().min(2, 'Country is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+});
+
 type LoginFormData = z.infer<typeof loginSchema>;
+type RegisterFormData = z.infer<typeof registerSchema>;
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
-  const form = useForm<LoginFormData>({
+  // Check URL parameter to determine initial mode
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (mode === 'register') {
+      setIsRegisterMode(true);
+    }
+  }, [searchParams]);
+
+  const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
     shouldUnregister: false,
@@ -33,7 +62,23 @@ const Login = () => {
     reValidateMode: 'onChange',
   });
 
-  const onSubmit = async (data: LoginFormData) => {
+  const registerForm = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      companyName: '',
+      email: '',
+      contactName: '',
+      phoneNumber: '',
+      city: '',
+      state: '',
+      pinCode: '',
+      country: '',
+      password: '',
+      confirmPassword: '',
+    },
+  });
+
+  const onLoginSubmit = async (data: LoginFormData) => {
     const preservedEmail = data.email;
     const preservedPassword = data.password;
 
@@ -51,8 +96,8 @@ const Login = () => {
       }
       navigate(userRole === 'company_user' ? '/password-creation' : '/dashboard');
     } catch (error: any) {
-      form.setValue('email', preservedEmail, { shouldValidate: false });
-      form.setValue('password', preservedPassword, { shouldValidate: false });
+      loginForm.setValue('email', preservedEmail, { shouldValidate: false });
+      loginForm.setValue('password', preservedPassword, { shouldValidate: false });
 
       toast({
         title: 'Error',
@@ -62,6 +107,51 @@ const Login = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const onRegisterSubmit = async (data: RegisterFormData) => {
+    try {
+      setIsLoading(true);
+      
+      // Hash password on frontend (first hash)
+      const hashedPassword = hashPassword(data.password);
+
+      const registerData = {
+        ...data,
+        password: hashedPassword,
+      };
+
+      await api.post('/auth/register', registerData);
+
+      toast({
+        title: 'Success',
+        description: 'Company registered successfully! Please login.',
+      });
+
+      // Switch to login mode after successful registration
+      setIsRegisterMode(false);
+      // Pre-fill email in login form
+      loginForm.setValue('email', data.email);
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Registration failed';
+      
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleMode = () => {
+    setIsRegisterMode(!isRegisterMode);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+    // Reset forms when switching modes
+    loginForm.reset();
+    registerForm.reset();
   };
 
   return (
@@ -129,9 +219,9 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Right Side - 30% Login Form */}
-      <div className="w-full lg:w-[30%] flex items-center justify-center bg-white p-8 overflow-y-auto">
-        <div className="w-full max-w-md">
+      {/* Right Side - 30% Auth Form */}
+      <div className="w-full lg:w-[30%] flex items-start justify-center bg-white p-8 overflow-y-auto max-h-screen">
+        <div className="w-full max-w-md py-4">
           {/* Mobile Logo */}
           <div className="lg:hidden mb-6 text-center">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600">
@@ -141,77 +231,294 @@ const Login = () => {
           </div>
 
           {/* Form Header */}
-          <div className="mb-8 text-center">
-            <h2 className="text-3xl font-black text-slate-900 mb-2">Welcome Back</h2>
-            <p className="text-base font-medium text-blue-600">Sign in to your SecurePro account</p>
+          <div className="mb-10 text-center">
+            {isRegisterMode && (
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl bg-blue-600">
+                <Shield className="h-8 w-8 text-white" />
+              </div>
+            )}
+            <h1 className="text-4xl font-black text-slate-900 mb-4">
+              {isRegisterMode ? 'Welcome to SecurePro' : 'Welcome Back'}
+            </h1>
+            <p className="text-xl font-semibold text-blue-600">
+              {isRegisterMode ? 'Register your company to get started' : 'Sign in to your SecurePro account'}
+            </p>
           </div>
 
           {/* Login Form */}
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(onSubmit, (errors) => console.log(errors))}
-              className="space-y-4"
-            >
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="you@example.com" className="h-10" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="••••••••"
-                          className="pr-10 h-10"
-                          {...field}
-                        />
-                        <button
-                          type="button"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
-                          onClick={() => setShowPassword(!showPassword)}
-                          aria-label={showPassword ? 'Hide password' : 'Show password'}
-                          tabIndex={-1}
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button
-                type="submit"
-                className="w-full h-11 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98]"
-                disabled={isLoading}
+          {!isRegisterMode && (
+            <Form {...loginForm}>
+              <form
+                onSubmit={loginForm.handleSubmit(onLoginSubmit, (errors) => console.log(errors))}
+                className="space-y-4"
               >
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Sign In
-              </Button>
-            </form>
-          </Form>
+                <FormField
+                  control={loginForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input placeholder="you@example.com" className="h-10" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-          {/* Register Link */}
+                <FormField
+                  control={loginForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="••••••••"
+                            className="pr-10 h-10"
+                            {...field}
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                            onClick={() => setShowPassword(!showPassword)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            tabIndex={-1}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button
+                  type="submit"
+                  className="w-full h-11 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98]"
+                  disabled={isLoading}
+                >
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Sign In
+                </Button>
+              </form>
+            </Form>
+          )}
+
+          {/* Register Form */}
+          {isRegisterMode && (
+            <Form {...registerForm}>
+              <form
+                onSubmit={registerForm.handleSubmit(onRegisterSubmit)}
+                className="space-y-4"
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={registerForm.control}
+                    name="companyName"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Company Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Acme Corp" className="h-10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Email Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="company@example.com" className="h-10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="contactName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contact Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="John Doe" className="h-10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="phoneNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="+1234567890" className="h-10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>City</FormLabel>
+                        <FormControl>
+                          <Input placeholder="New York" className="h-10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="state"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>State</FormLabel>
+                        <FormControl>
+                          <Input placeholder="NY" className="h-10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="pinCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Pin Code</FormLabel>
+                        <FormControl>
+                          <Input placeholder="10001" className="h-10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="country"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Country</FormLabel>
+                        <FormControl>
+                          <Input placeholder="United States" className="h-10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input 
+                              type={showPassword ? "text" : "password"} 
+                              placeholder="••••••••" 
+                              className="pr-10 h-10"
+                              {...field} 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                              tabIndex={-1}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={registerForm.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input 
+                              type={showConfirmPassword ? "text" : "password"} 
+                              placeholder="••••••••" 
+                              className="pr-10 h-10"
+                              {...field} 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                              tabIndex={-1}
+                            >
+                              {showConfirmPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full h-11 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98]"
+                  disabled={isLoading}
+                >
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Register Company
+                </Button>
+              </form>
+            </Form>
+          )}
+
+          {/* Toggle between Login/Register */}
           <div className="mt-5 text-center text-sm">
-            <span className="text-muted-foreground">Don't have an account? </span>
-            <Button variant="link" className="p-0 h-auto font-semibold text-blue-600 hover:text-blue-700" onClick={() => navigate('/register')}>
-              Register here
+            <span className="text-muted-foreground">
+              {isRegisterMode ? "Already have an account? " : "Don't have an account? "}
+            </span>
+            <Button 
+              variant="link" 
+              className="p-0 h-auto font-semibold text-blue-600 hover:text-blue-700" 
+              onClick={toggleMode}
+              disabled={isLoading}
+            >
+              {isRegisterMode ? "Login here" : "Register here"}
             </Button>
           </div>
 

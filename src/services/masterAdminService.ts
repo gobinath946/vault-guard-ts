@@ -1,5 +1,13 @@
 import { api } from '@/lib/api';
-import { Company } from './companyService';
+
+export interface Company {
+  _id: string;
+  companyName: string;
+  companyEmail: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export interface MasterDashboardStats {
   totalCompanies: number;
