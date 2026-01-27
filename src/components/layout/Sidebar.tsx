@@ -38,7 +38,7 @@ const menuItems: MenuItem[] = [
         title: 'Dashboard',
         path: '/dashboard',
         icon: LayoutDashboard,
-        roles: ['master_admin', 'company_super_admin', 'company_user'],
+        roles: ['master_admin', 'company_super_admin'],
     },
     {
         title: 'Companies',

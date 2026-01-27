@@ -25,10 +25,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   
-  // Initialize sidebar state from localStorage, default to false (expanded)
+  // Initialize sidebar state from localStorage, default based on user role
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebarCollapsed');
-    return saved ? JSON.parse(saved) : false;
+    if (saved !== null) {
+      return JSON.parse(saved);
+    }
+    // Default to collapsed for company_user, expanded for others
+    return user?.role === 'company_user';
   });
   
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
